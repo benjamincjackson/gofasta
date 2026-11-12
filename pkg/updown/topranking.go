@@ -611,11 +611,11 @@ or to --dist-push`)
 	}
 
 	if sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame}) {
-		os.Stderr.WriteString("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
+		os.Stderr.WriteString("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same\n")
 	}
 
 	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
-		os.Stderr.WriteString("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
+		os.Stderr.WriteString("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side\n")
 	}
 
 	// bucket sizes for same,up,down,side,total respectively
