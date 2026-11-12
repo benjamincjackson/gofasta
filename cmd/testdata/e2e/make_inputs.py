@@ -2,7 +2,8 @@
 """Write small synthetic fixtures for gofasta's end-to-end command tests into the directory given.
 
 query.csv and target.csv are not written here: they are the output of `gofasta updown list -r ref.fasta`
-for query.fasta and target.fasta.
+for query.fasta and target.fasta,
+and target_bad.csv is target.csv with two malformed lines added by hand.
 
 Reference: 120 bp; geneA on the forward strand (11..61), geneB on the reverse strand (complement(70..108)).
 """

@@ -22,7 +22,8 @@ import (
 // exit code and stderr when it fails).
 // Regenerate the golden files with: go test ./cmd -run TestEndToEnd -update
 // The inputs are written by testdata/e2e/make_inputs.py (needs Biopython), except query.csv and
-// target.csv, which are the output of gofasta updown list for query.fasta and target.fasta.
+// target.csv, which are the output of gofasta updown list for query.fasta and target.fasta, and
+// target_bad.csv, which is target.csv with two malformed lines added.
 
 var updateGolden = flag.Bool("update", false, "rewrite the end-to-end golden files")
 
@@ -102,6 +103,11 @@ var e2eCases = []e2eCase{
 	{name: "updown_list", args: []string{"updown", "list", "-r", "ref.fasta", "-q", "msa.fasta"}},
 	{name: "updown_list_stdin", args: []string{"updown", "list", "-r", "ref.fasta"}, stdin: "msa.fasta"},
 	{name: "updown_list_badnuc", args: []string{"updown", "list", "-r", "ref.fasta", "-q", "msa_badnuc.fasta"}},
+	{name: "updown_list_badnuc_strict", args: []string{"updown", "list", "-r", "ref.fasta", "-q", "msa_badnuc.fasta", "--strict"}},
+	{name: "updown_topranking_bad_target", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "msa_badrow.fasta", "--size-total", "4"}},
+	{name: "updown_topranking_bad_csv_target", args: []string{"updown", "topranking", "-q", "query.csv", "-t", "target_bad.csv", "--size-total", "4"}},
+	{name: "updown_topranking_bad_csv_query", args: []string{"updown", "topranking", "-q", "target_bad.csv", "-t", "target.csv", "--size-total", "4"}},
+	{name: "updown_topranking_bad_csv_strict", args: []string{"updown", "topranking", "-q", "query.csv", "-t", "target_bad.csv", "--size-total", "4", "--strict"}},
 	{name: "updown_topranking_fasta", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4"}},
 	{name: "updown_topranking_table", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4", "--table"}},
 	{name: "updown_topranking_ignore", args: []string{"updown", "topranking", "-r", "ref.fasta", "-q", "query.fasta", "-t", "target.fasta", "--size-total", "4", "--ignore", "ignore.txt"}},
