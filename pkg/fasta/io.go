@@ -214,51 +214,6 @@ func NewEncodedAlignmentSource(f io.Reader, hardGaps, atgc, score bool) func() (
 	}
 }
 
-// StreamAlignment reads an alignment in fasta format to a channel of Record structs
-func StreamAlignment(f io.Reader, cR chan Record, cErr chan error, cDone chan bool) {
-	next := NewAlignmentSource(f)
-	for {
-		record, err := next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			cErr <- err
-			return
-		}
-		cR <- record
-	}
-	cDone <- true
-}
-
-// StreamEncodeAlignment reads an alignment in fasta format to a channel of
-// Record structs - converting the nucleotide sequence to EP's bitwise coding
-// scheme optionally with or without hard gaps, scoring each record and getting
-// ATGC counts
-func StreamEncodeAlignment(
-	f io.Reader,
-	cER chan EncodedRecord,
-	cErr chan error,
-	cDone chan bool,
-	hardGaps bool,
-	atgc bool,
-	score bool) {
-
-	next := NewEncodedAlignmentSource(f, hardGaps, atgc, score)
-	for {
-		record, err := next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			cErr <- err
-			return
-		}
-		cER <- record
-	}
-	cDone <- true
-}
-
 // LoadEncodeAlignment reads and encodes every record of an alignment in fasta format (see
 // NewEncodedAlignmentSource) and returns them in input order
 func LoadEncodeAlignment(
@@ -299,36 +254,6 @@ func WriteRecord(w io.Writer, record Record, wrap int) error {
 		}
 	}
 	return nil
-}
-
-// WriteAlignment reads Records from a channel and writes them to file or stdout,
-// in the order in which they are present in the input file.
-// It passes a true to a done channel when the channel of fasta records is empty
-func WriteAlignment(cR chan Record, w io.Writer, cErr chan error, cDone chan bool) {
-	WriteWrapAlignment(cR, w, 0, cErr, cDone)
-}
-
-// WriteWrapAlignment is as WriteAlignment but with sequence lines wrapped to wrap
-// characters in length (if wrap > 0)
-func WriteWrapAlignment(cR chan Record, w io.Writer, wrap int, cErr chan error, cDone chan bool) {
-	outputMap := make(map[int]Record)
-	counter := 0
-	for R := range cR {
-		outputMap[R.Idx] = R
-		for {
-			record, ok := outputMap[counter]
-			if !ok {
-				break
-			}
-			if err := WriteRecord(w, record, wrap); err != nil {
-				cErr <- err
-				return
-			}
-			delete(outputMap, counter)
-			counter++
-		}
-	}
-	cDone <- true
 }
 
 // getAlignmentDims gets the dimensions (i.e. the number of sequences and the
