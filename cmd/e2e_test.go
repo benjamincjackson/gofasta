@@ -92,6 +92,10 @@ var e2eCases = []e2eCase{
 	{name: "closest_snp", args: []string{"closest", "--query", "query.fasta", "--target", "target.fasta", "-m", "snp", "-n", "3"}, threadsFlag: "-t"},
 	{name: "closest_tn93", args: []string{"closest", "--query", "query.fasta", "--target", "target.fasta", "-m", "tn93", "-n", "3"}, threadsFlag: "-t"},
 	{name: "closest_badnuc_target", args: []string{"closest", "--query", "query.fasta", "--target", "msa_badnuc.fasta", "-n", "1"}},
+	{name: "closest_badnuc_target_strict", args: []string{"closest", "--query", "query.fasta", "--target", "msa_badnuc.fasta", "-n", "1", "--strict"}},
+	{name: "closest_badrow_target", args: []string{"closest", "--query", "query.fasta", "--target", "msa_badrow.fasta", "-n", "2"}, threadsFlag: "-t"},
+	{name: "closest_bad_queries", args: []string{"closest", "--query", "msa_badrow.fasta", "--target", "target.fasta"}, threadsFlag: "-t"},
+	{name: "closest_bad_queries_strict", args: []string{"closest", "--query", "msa_badnuc.fasta", "--target", "target.fasta", "--strict"}},
 	{name: "closest_empty_query", args: []string{"closest", "--query", "empty.fasta", "--target", "target.fasta", "-n", "1"}},
 
 	// updown
