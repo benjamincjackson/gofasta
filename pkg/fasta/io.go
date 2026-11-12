@@ -227,33 +227,26 @@ func StreamEncodeAlignment(
 	cDone <- true
 }
 
-// LoadEncodeAlignment is as StreamEncodeAlignment but returns a slice of Records
-// instead of passing each Record down a channel
+// LoadEncodeAlignment reads and encodes every record of an alignment in fasta format (see
+// NewEncodedAlignmentSource) and returns them in input order
 func LoadEncodeAlignment(
 	f io.Reader,
 	hardGaps bool,
 	atgc bool,
 	score bool) ([]EncodedRecord, error) {
 
-	cER := make(chan EncodedRecord)
-	cErr := make(chan error)
-	cDone := make(chan bool)
+	next := NewEncodedAlignmentSource(f, hardGaps, atgc, score)
 	encodedRecords := make([]EncodedRecord, 0)
-
-	go StreamEncodeAlignment(f, cER, cErr, cDone, hardGaps, atgc, score)
-
-	for n := 1; n > 0; {
-		select {
-		case encodedRecord := <-cER:
-			encodedRecords = append(encodedRecords, encodedRecord)
-		case err := <-cErr:
-			return make([]EncodedRecord, 0), err
-		case <-cDone:
-			n--
+	for {
+		encodedRecord, err := next()
+		if err == io.EOF {
+			return encodedRecords, nil
 		}
+		if err != nil {
+			return make([]EncodedRecord, 0), err
+		}
+		encodedRecords = append(encodedRecords, encodedRecord)
 	}
-
-	return encodedRecords, nil
 }
 
 // WriteRecord writes one record in fasta format: its ID on the header line, then its sequence, in lines
