@@ -1,7 +1,7 @@
 args: variants --msa msa_badnuc.fasta -r ref -a ref.gb --strict
 exit: 1
 --- stderr
-Error: invalid nucleotide in fasta record ("J")
+Error: badnuc (record 4): invalid nucleotide in fasta record ("J")
 Usage:
   gofasta variants [flags]
 

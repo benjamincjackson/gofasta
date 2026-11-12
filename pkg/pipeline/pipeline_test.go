@@ -1,11 +1,13 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -244,26 +246,134 @@ func TestRunCompleteDespiteLateCancel(t *testing.T) {
 	}
 }
 
-// A panic in work is re-raised in the caller as a *PanicError, after the workers have stopped.
-func TestRunReraisesPanicsInWork(t *testing.T) {
+// A panic in work becomes that record's error, as a *RecordPanicError; the other records are processed
+// and every record reaches the sink in order.
+func TestRunPanicInWorkBecomesTheRecordsError(t *testing.T) {
 	before := runtime.NumGoroutine()
+	cause := errors.New("record 30 is cursed")
 	work := func(x int) (int, error) {
 		if x == 30 {
-			panic("record 30 is cursed")
+			panic(cause)
 		}
 		return jitter(x)
 	}
-	p := catchPanic(func() {
-		_ = Run(context.Background(), 4, counter(1000), work, func(Result[int]) error { return nil })
+	seen := 0
+	err := Run(context.Background(), 4, counter(1000), work, func(r Result[int]) error {
+		if r.Idx != seen {
+			t.Fatalf("got record %d, want %d", r.Idx, seen)
+		}
+		seen++
+		if r.Idx == 30 {
+			var pe *RecordPanicError
+			if !errors.As(r.Err, &pe) || !errors.Is(r.Err, cause) || len(pe.Stack) == 0 {
+				t.Errorf("record 30: got %#v", r.Err)
+			}
+			if r.Err.Error() != "panic: record 30 is cursed" {
+				t.Errorf("record 30: got message %q", r.Err.Error())
+			}
+			return nil
+		}
+		if r.Err != nil || r.Val != r.Idx*10 {
+			t.Errorf("record %d: got %v, %v", r.Idx, r.Val, r.Err)
+		}
+		return nil
 	})
-	pe, ok := p.(*PanicError)
-	if !ok {
-		t.Fatalf("recovered %#v, want a *PanicError", p)
-	}
-	if pe.Value != "record 30 is cursed" || !strings.Contains(pe.Error(), "record 30 is cursed") || len(pe.Stack) == 0 {
-		t.Errorf("got %+v", pe)
+	if err != nil || seen != 1000 {
+		t.Errorf("got %v after %d records", err, seen)
 	}
 	waitForGoroutines(t, before)
+}
+
+// A Handler warns about and skips a record whose work panicked, like any other failed record, and a
+// strict Handler stops with its error.
+func TestHandlerSkipsPanickedRecords(t *testing.T) {
+	work := func(x int) (int, error) {
+		if x == 2 {
+			panic("boom")
+		}
+		return x, nil
+	}
+	for _, strict := range []bool{false, true} {
+		var warn bytes.Buffer
+		var got []int
+		h := NewHandler(strict, &warn, Noun{One: "record", Many: "records"}, func(x int) error {
+			got = append(got, x)
+			return nil
+		})
+		err := Run(context.Background(), 2, counter(5), work, h.Sink)
+		if strict {
+			if err == nil || err.Error() != "(record 3): panic: boom" {
+				t.Errorf("strict: got error %v", err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.Finish(); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(got, []int{0, 1, 3, 4}) {
+			t.Errorf("got records %v", got)
+		}
+		want := "warning: skipping (record 3): panic: boom\nwarning: skipped 1 of 5 records\n"
+		if warn.String() != want {
+			t.Errorf("got warnings %q, want %q", warn.String(), want)
+		}
+	}
+}
+
+// namedInt is a record that knows its name
+type namedInt int
+
+func (n namedInt) RecordName() string { return fmt.Sprintf("rec%d", int(n)) }
+
+// Errors from work on a record with a RecordName, including panics, are named with it unless they already
+// have a name, so warnings and strict errors say which record failed.
+func TestRecordErrorsAreNamed(t *testing.T) {
+	newNext := func() func() (namedInt, error) {
+		i := 0
+		return func() (namedInt, error) {
+			if i == 5 {
+				return 0, io.EOF
+			}
+			i++
+			return namedInt(i - 1), nil
+		}
+	}
+	work := func(n namedInt) (int, error) {
+		switch n {
+		case 1:
+			return 0, errors.New("bad")
+		case 2:
+			panic("boom")
+		case 3:
+			return 0, Named("custom", errors.New("named already"))
+		}
+		return int(n), nil
+	}
+
+	var warn bytes.Buffer
+	h := NewHandler(false, &warn, Noun{One: "record", Many: "records"}, func(int) error { return nil })
+	if err := Run(context.Background(), 2, newNext(), work, h.Sink); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.Finish(); err != nil {
+		t.Fatal(err)
+	}
+	want := "warning: skipping rec1 (record 2): bad\n" +
+		"warning: skipping rec2 (record 3): panic: boom\n" +
+		"warning: skipping custom (record 4): named already\n" +
+		"warning: skipped 3 of 5 records\n"
+	if warn.String() != want {
+		t.Errorf("got warnings %q, want %q", warn.String(), want)
+	}
+
+	h = NewHandler(true, io.Discard, Noun{One: "record", Many: "records"}, func(int) error { return nil })
+	err := Run(context.Background(), 2, newNext(), work, h.Sink)
+	if err == nil || err.Error() != "rec1 (record 2): bad" {
+		t.Errorf("strict: got %v", err)
+	}
 }
 
 // A panic in next is re-raised in the caller too, and an error value stays reachable with errors.As.
@@ -357,7 +467,7 @@ func TestHandlerSkipsFailedRecords(t *testing.T) {
 
 func TestHandlerStrictStopsAtTheFirstFailure(t *testing.T) {
 	got, warnings, runErr, _ := handlerRun(t, true, -1)
-	if runErr == nil || runErr.Error() != "bad three" || fmt.Sprint(got) != "[0 1 2]" || warnings != "" {
+	if runErr == nil || runErr.Error() != "(record 4): bad three" || fmt.Sprint(got) != "[0 1 2]" || warnings != "" {
 		t.Errorf("got %v, err %v, warnings %q", got, runErr, warnings)
 	}
 }

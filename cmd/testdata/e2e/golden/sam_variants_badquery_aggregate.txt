@@ -10,7 +10,7 @@ ins:73:2,0.200000000
 aa:geneB:M8I,0.200000000
 aa:geneB:L5P,0.200000000
 --- stderr
-warning: skipping s3 (query 3): bad sam record s3: the alignment extends beyond the end of the reference (129 > 120)
+warning: skipping s3 (query 3): bad sam record: the alignment extends beyond the end of the reference (129 > 120)
 skipping unmapped read: s5
 ignoring secondary mapping: s6
 warning: skipped 1 of 6 queries

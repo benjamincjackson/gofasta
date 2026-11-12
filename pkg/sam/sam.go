@@ -35,6 +35,9 @@ type samRecords struct {
 	err     error // why one of the query's lines could not be parsed, if one could not
 }
 
+// RecordName returns the query's name (see pipeline.Namer)
+func (g samRecords) RecordName() string { return g.name }
+
 // getOneLine processes one non-header line of a SAM file into an aligned sequence
 func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
 
@@ -342,7 +345,7 @@ func parseSamRecord(h *biogosam.Header, line []byte) (rec biogosam.Record, err e
 func validateRecord(rec *biogosam.Record, refLen int) error {
 
 	bad := func(msg string) error {
-		return errors.New("bad sam record " + rec.Name + ": " + msg)
+		return errors.New("bad sam record: " + msg)
 	}
 
 	if rec.Ref == nil {

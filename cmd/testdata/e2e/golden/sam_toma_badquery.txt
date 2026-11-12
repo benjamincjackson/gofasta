@@ -12,7 +12,7 @@ GACAGAAGCTATGATCTCAGAAATCCGATC---GTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGAC
 >s8
 GACAGAAGCTATGATCTCAGAAATCCGATCGGTGTGTATTGCGACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
 --- stderr
-warning: skipping s3 (query 3): bad sam record s3: the alignment extends beyond the end of the reference (129 > 120)
+warning: skipping s3 (query 3): bad sam record: the alignment extends beyond the end of the reference (129 > 120)
 skipping unmapped read: s5
 ignoring secondary mapping: s6
 warning: skipped 1 of 6 queries

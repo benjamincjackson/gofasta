@@ -1,7 +1,7 @@
 args: snps -r ref.fasta -q msa_badrow.fasta --strict
 exit: 1
 --- stderr
-Error: Reference sequence (120 bases) and short (100 bases) are different lengths
+Error: short (record 4): Reference sequence (120 bases) and short (100 bases) are different lengths
 Usage:
   gofasta snps [flags]
 

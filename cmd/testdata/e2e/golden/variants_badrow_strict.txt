@@ -1,7 +1,7 @@
 args: variants --msa msa_badrow.fasta -r ref -a ref.gb --strict
 exit: 1
 --- stderr
-Error: Gapped reference sequence and alignment are not the same width
+Error: short (record 4): Gapped reference sequence and alignment are not the same width
 Usage:
   gofasta variants [flags]
 

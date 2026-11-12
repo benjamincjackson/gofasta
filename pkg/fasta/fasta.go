@@ -15,6 +15,9 @@ type Record struct {
 	Idx         int
 }
 
+// RecordName returns the record's ID (see pipeline.Namer)
+func (r Record) RecordName() string { return r.ID }
+
 // A struct for one Fasta record whose sequence is encoded using EP's scheme
 type EncodedRecord struct {
 	ID          string

@@ -1,7 +1,7 @@
 args: snps -r ref.fasta -q msa_badnuc.fasta --strict
 exit: 1
 --- stderr
-Error: invalid nucleotide in fasta record ("J")
+Error: badnuc (record 4): invalid nucleotide in fasta record ("J")
 Usage:
   gofasta snps [flags]
 

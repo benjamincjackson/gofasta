@@ -1,7 +1,7 @@
 args: sam toMultiAlign -s aln_badquery.sam --strict
 exit: 1
 --- stderr
-Error: bad sam record s3: the alignment extends beyond the end of the reference (129 > 120)
+Error: s3 (query 3): bad sam record: the alignment extends beyond the end of the reference (129 > 120)
 Usage:
   gofasta sam toMultiAlign [flags]
 

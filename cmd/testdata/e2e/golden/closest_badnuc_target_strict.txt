@@ -2,7 +2,7 @@ args: closest --query query.fasta --target msa_badnuc.fasta -n 1 --strict
 exit: 1
 --- stderr
 number of sequences in query alignment: 3
-Error: invalid nucleotide in fasta record ("J")
+Error: badnuc (target 4): invalid nucleotide in fasta record ("J")
 Usage:
   gofasta closest [flags]
 

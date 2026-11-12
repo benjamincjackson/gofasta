@@ -1,7 +1,7 @@
 args: sam toMultiAlign -s aln_badrecord.sam --strict
 exit: 1
 --- stderr
-Error: sam: sequence/CIGAR length mismatch
+Error: s9 (query 4): sam: sequence/CIGAR length mismatch
 Usage:
   gofasta sam toMultiAlign [flags]
 

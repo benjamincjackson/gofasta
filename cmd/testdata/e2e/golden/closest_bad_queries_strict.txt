@@ -1,7 +1,7 @@
 args: closest --query msa_badnuc.fasta --target target.fasta --strict
 exit: 1
 --- stderr
-Error: invalid nucleotide in fasta record ("J")
+Error: badnuc (query 4): invalid nucleotide in fasta record ("J")
 Usage:
   gofasta closest [flags]
 

@@ -681,6 +681,20 @@ func sum4(a [4]int) int {
 	return t
 }
 
+// targetIn is a target of topranking as read: a fasta record or a line of updown list's csv output
+type targetIn struct {
+	record *fasta.Record
+	row    csvRow
+}
+
+// RecordName returns the target's name (see pipeline.Namer)
+func (t targetIn) RecordName() string {
+	if t.record != nil {
+		return t.record.ID
+	}
+	return t.row.RecordName()
+}
+
 // TopRanking finds pseudo-tree-aware catchments for query sequences, given a large database of target sequences, the closest
 // of which should be returned in the output. Targets are split into bins depending on whether they are likely direct ancestors of,
 // direct descendants of, polyphyletic with, or exactly the same as, the query
@@ -731,11 +745,6 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		}
 	}
 
-	// a target is read as a fasta record or as a line of updown list's csv output
-	type targetIn struct {
-		record *fasta.Record
-		row    csvRow
-	}
 	// a target with its direction and snp distance from each query
 	type rankedTarget struct {
 		line                 updownLine
