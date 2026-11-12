@@ -7,10 +7,11 @@ import (
 	"io"
 )
 
+// Errors from reading fasta files.
 var (
-	errBadlyFormedFasta = errors.New("badly formed fasta file")
-	errEmptyFasta       = errors.New("empty fasta file")
-	errDiffLenSeqs      = errors.New("different length sequences in input file: is this an alignment?")
+	ErrBadlyFormedFasta = errors.New("badly formed fasta file")
+	ErrEmptyFasta       = errors.New("empty fasta file")
+	ErrDiffLenSeqs      = errors.New("different length sequences in input file: is this an alignment?")
 )
 
 type Reader struct {
@@ -58,7 +59,7 @@ func (r *Reader) Read() (Record, error) {
 
 				// if the header doesn't start with a > then something is also wrong
 			} else if line[0] != '>' {
-				return Record{}, errBadlyFormedFasta
+				return Record{}, ErrBadlyFormedFasta
 			}
 
 			drop := 0
@@ -135,7 +136,7 @@ func NewRecordSource(f io.Reader) func() (Record, error) {
 		record, err := r.Read()
 		if err == io.EOF {
 			if counter == 0 {
-				return Record{}, errEmptyFasta
+				return Record{}, ErrEmptyFasta
 			}
 			return Record{}, io.EOF
 		}
@@ -181,7 +182,7 @@ func NewAlignmentSource(f io.Reader) func() (Record, error) {
 		record, err := r.Read()
 		if err == io.EOF {
 			if counter == 0 {
-				return Record{}, errEmptyFasta
+				return Record{}, ErrEmptyFasta
 			}
 			return Record{}, io.EOF
 		}
@@ -192,7 +193,7 @@ func NewAlignmentSource(f io.Reader) func() (Record, error) {
 		if counter == 0 {
 			width = len(record.Seq)
 		} else if width != len(record.Seq) {
-			return Record{}, errDiffLenSeqs
+			return Record{}, ErrDiffLenSeqs
 		}
 		counter++
 		return record, nil

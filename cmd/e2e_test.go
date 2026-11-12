@@ -75,6 +75,11 @@ var e2eCases = []e2eCase{
 	{name: "variants_ref_not_found", args: []string{"variants", "--msa", "msa.fasta", "-r", "nosuchref", "-a", "ref.gb"}},
 	{name: "variants_badrow", args: []string{"variants", "--msa", "msa_badrow.fasta", "-r", "ref", "-a", "ref.gb"}, threadsFlag: "-t"},
 	{name: "variants_badnuc", args: []string{"variants", "--msa", "msa_badnuc.fasta", "-r", "ref", "-a", "ref.gb"}, threadsFlag: "-t"},
+	{name: "variants_badnuc_strict", args: []string{"variants", "--msa", "msa_badnuc.fasta", "-r", "ref", "-a", "ref.gb", "--strict"}},
+	{name: "variants_badrow_strict", args: []string{"variants", "--msa", "msa_badrow.fasta", "-r", "ref", "-a", "ref.gb", "--strict"}},
+	{name: "variants_aggregate_badrow", args: []string{"variants", "--msa", "msa_badrow.fasta", "-r", "ref", "-a", "ref.gb", "--aggregate"}, threadsFlag: "-t"},
+	{name: "variants_ref_after_bad", args: []string{"variants", "--msa", "msa_badnuc.fasta", "-r", "q8", "-a", "ref.gb"}},
+	{name: "variants_stdin_badnuc", args: []string{"variants", "-r", "ref", "-a", "ref.gb"}, stdin: "msa_badnuc.fasta"},
 	{name: "variants_empty", args: []string{"variants", "--msa", "empty.fasta", "-r", "ref", "-a", "ref.gb"}},
 	{name: "variants_bad_suffix", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ignore.txt"}},
 
