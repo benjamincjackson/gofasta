@@ -336,7 +336,10 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			return r, errors.New("Error parsing gff: CDS feature " + strconv.Itoa(f.Start) + ".." + strconv.Itoa(f.End) + " is not within the reference sequence (length " + strconv.Itoa(len(refSeqDegapped)) + ")")
 		}
 	}
+	// the positions in 5' to 3' order, and the phase of the 5' segment (the first on the plus strand, the
+	// last on the minus strand); the phases of the other segments are not used
 	pos := make([]int, 0)
+	var phase int
 	switch fs[0].Strand {
 	case "+":
 		for _, f := range fs {
@@ -348,18 +351,7 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			}
 		}
 		r.Strand = 1
-		r.Positions = pos
-		r.Start = gmin(r.Positions)
-		r.Stop = gmax(r.Positions)
-		refSeqFeat := ""
-		for _, p := range r.Positions {
-			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
-		}
-		t, err := alphabet.Translate(strings.ToUpper(refSeqFeat), true)
-		if err != nil {
-			return r, err
-		}
-		r.Translation = t
+		phase = fs[0].Phase
 	case "-":
 		for j := len(fs) - 1; j >= 0; j-- {
 			f := fs[j]
@@ -371,23 +363,49 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			}
 		}
 		r.Strand = -1
-		r.Positions = pos
-		r.Start = gmin(r.Positions)
-		r.Stop = gmax(r.Positions)
-		refSeqFeat := ""
-		for _, p := range r.Positions {
-			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
-		}
-		t, err := alphabet.Translate(alphabet.Complement(strings.ToUpper(refSeqFeat)), true)
-		if err != nil {
-			return r, err
-		}
-		r.Translation = t
+		phase = fs[len(fs)-1].Phase
 	default:
 		return r, errors.New("Error parsing gff: protein coding feature needs a strand (+ or -), got \"" + fs[0].Strand + "\"")
 	}
 
+	var err error
+	r.Positions, err = codingPositions(pos, phase)
+	if err != nil {
+		return r, err
+	}
+	r.Start = gmin(r.Positions)
+	r.Stop = gmax(r.Positions)
+	refSeqFeat := ""
+	for _, p := range r.Positions {
+		refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
+	}
+	refSeqFeat = strings.ToUpper(refSeqFeat)
+	if r.Strand == -1 {
+		refSeqFeat = alphabet.Complement(refSeqFeat)
+	}
+	r.Translation, err = alphabet.Translate(refSeqFeat, true)
+	if err != nil {
+		return r, err
+	}
+
 	return r, nil
+}
+
+// codingPositions returns the positions of a CDS's complete codons, given all its positions in 5' to 3'
+// order and the number of bases before its first complete codon (its GFF phase, or GenBank codon_start
+// minus 1). With an offset, the CDS is partial at its 5' end, and a partial codon at its 3' end is left
+// out too; without one, its length must be a whole number of codons.
+func codingPositions(pos []int, offset int) ([]int, error) {
+	if len(pos)-offset < 3 {
+		return nil, errors.New("CDS of " + strconv.Itoa(len(pos)) + " bases has no complete codon after its first " + strconv.Itoa(offset))
+	}
+	coding := pos[offset:]
+	if offset > 0 {
+		coding = coding[:len(coding)-len(coding)%3]
+	} else if len(coding)%3 != 0 {
+		return nil, alphabet.ErrorCDSNotModThree
+	}
+	return coding, nil
 }
 
 // gffFeatureName is the name used to report a CDS: its Name attribute, or "" if it has none
@@ -456,9 +474,9 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	if err != nil || codon_start < 1 || codon_start > 3 || codon_start > len(temp) {
 		return Region{}, errors.New("Genbank CDS feature has an invalid \"codon_start\" attibute: " + f.Info["codon_start"])
 	}
-	r.Positions = temp[codon_start-1:]
-	if len(r.Positions)%3 != 0 {
-		return Region{}, alphabet.ErrorCDSNotModThree
+	r.Positions, err = codingPositions(temp, codon_start-1)
+	if err != nil {
+		return Region{}, err
 	}
 	if len(r.Translation) < len(r.Positions)/3 {
 		return Region{}, errors.New("Genbank CDS feature \"" + r.Name + "\": the translation is shorter than the CDS")
