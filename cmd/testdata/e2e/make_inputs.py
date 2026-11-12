@@ -65,6 +65,7 @@ def other(base):
 
 
 write("ref.fasta", fasta([("ref", ref)]))
+write("ref_short.fasta", fasta([("ref_short", ref[:100])]))  # every alignment record is longer than this
 
 # annotation
 def genbank():

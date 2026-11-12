@@ -12,4 +12,5 @@ Flags:
 
 Global Flags:
   -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
 

@@ -55,6 +55,10 @@ var e2eCases = []e2eCase{
 	{name: "snps_outfile", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "-o", "out.csv"}},
 	{name: "snps_badnuc", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badnuc.fasta"}},
 	{name: "snps_badrow", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta"}},
+	{name: "snps_badnuc_strict", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badnuc.fasta", "--strict"}},
+	{name: "snps_badrow_strict", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta", "--strict"}},
+	{name: "snps_aggregate_badrow", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta", "--aggregate"}},
+	{name: "snps_all_bad", args: []string{"snps", "-r", "ref_short.fasta", "-q", "msa.fasta"}},
 	{name: "snps_empty", args: []string{"snps", "-r", "ref.fasta", "-q", "empty.fasta"}},
 	{name: "snps_missing_file", args: []string{"snps", "-r", "ref.fasta", "-q", "nosuchfile.fasta"}},
 

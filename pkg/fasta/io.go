@@ -124,6 +124,52 @@ func (r *Reader) Read() (Record, error) {
 	return FR, err
 }
 
+// NewRecordSource returns a function that reads the next record in fasta format each time it is called,
+// setting its Idx, and returns io.EOF after the last one. It only splits the input into records (an error
+// means the input could not be read as fasta); it does not check the records' sequences or lengths. It
+// returns an error if the input has no records.
+func NewRecordSource(f io.Reader) func() (Record, error) {
+	r := NewReader(f)
+	counter := 0
+	return func() (Record, error) {
+		record, err := r.Read()
+		if err == io.EOF {
+			if counter == 0 {
+				return Record{}, errEmptyFasta
+			}
+			return Record{}, io.EOF
+		}
+		if err != nil {
+			return Record{}, err
+		}
+		record.Idx = counter
+		counter++
+		return record, nil
+	}
+}
+
+// EncodeRecord encodes a record (see Record.Encode; Record.EncodeHardGaps if hardGaps), optionally
+// calculating its base content (atgc) and its completeness (score).
+func EncodeRecord(record Record, hardGaps, atgc, score bool) (EncodedRecord, error) {
+	var encodedRecord EncodedRecord
+	var err error
+	if hardGaps {
+		encodedRecord, err = record.EncodeHardGaps()
+	} else {
+		encodedRecord, err = record.Encode()
+	}
+	if err != nil {
+		return EncodedRecord{}, err
+	}
+	if score {
+		encodedRecord.CalculateCompleteness()
+	}
+	if atgc {
+		encodedRecord.CalculateBaseContent()
+	}
+	return encodedRecord, nil
+}
+
 // NewAlignmentSource returns a function that reads the next record of an alignment in fasta format each
 // time it is called, setting its Idx. After the last record it returns io.EOF. It returns an error if the
 // input has no records, or if a record's length differs from the first's.
@@ -163,22 +209,7 @@ func NewEncodedAlignmentSource(f io.Reader, hardGaps, atgc, score bool) func() (
 		if err != nil {
 			return EncodedRecord{}, err
 		}
-		var encodedRecord EncodedRecord
-		if hardGaps {
-			encodedRecord, err = record.EncodeHardGaps()
-		} else {
-			encodedRecord, err = record.Encode()
-		}
-		if err != nil {
-			return EncodedRecord{}, err
-		}
-		if score {
-			encodedRecord.CalculateCompleteness()
-		}
-		if atgc {
-			encodedRecord.CalculateBaseContent()
-		}
-		return encodedRecord, nil
+		return EncodeRecord(record, hardGaps, atgc, score)
 	}
 }
 
