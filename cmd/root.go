@@ -20,6 +20,15 @@ https://doi.org/10.1093/bioinformatics/btac424`,
 	}
 )
 
+// strict makes a record that cannot be processed stop the run with an error, instead of a warning
+var strict bool
+
+// getStrictBoolVarArgs returns the arguments to BoolVar for the --strict flag, which each command that skips
+// records it can't process adds to its own flags
+func getStrictBoolVarArgs() (*bool, string, bool, string) {
+	return &strict, "strict", false, "Stop with an error at the first record that can't be processed, instead of warning and skipping it"
+}
+
 // Execute executes the root command.
 func Execute() {
 	// cobra prints the error (and usage) to stderr itself; stdout is reserved for data

@@ -1,0 +1,12 @@
+args: closest --query query.fasta --target msa_badnuc.fasta -n 1
+exit: 0
+--- stdout
+query,closest
+q1,q1
+q2,q2
+q5,q5
+--- stderr
+number of sequences in query alignment: 3
+warning: skipping badnuc (target 4): invalid nucleotide in fasta record ("J")
+warning: skipped 1 of 10 targets
+number of sequences in target alignment: 10

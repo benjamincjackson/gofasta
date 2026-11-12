@@ -10,23 +10,29 @@ to list mutations between pairs of sequences.
 package sam
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strconv"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	biogosam "github.com/biogo/hts/sam"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 )
 
 // samRecords is a struct that carries a group of sam lines (belonging to the
 // same sequence, probably) and a integer index which is used to keep track of
 // the order of the input when we parallelise
 type samRecords struct {
+	name    string // the query's name (QNAME)
 	records []biogosam.Record
 	idx     int
+	err     error // why one of the query's lines could not be parsed, if one could not
 }
 
 // getOneLine processes one non-header line of a SAM file into an aligned sequence
@@ -302,35 +308,33 @@ func swapInGapsNs(seq []byte) []byte {
 	return seq
 }
 
-// The biogo sam parser panics on some malformed input (e.g. a CIGAR string that ends in a number); these
-// wrappers turn its panics into errors.
-
-func newSamReader(r io.Reader) (s *biogosam.Reader, err error) {
+// parseSamHeader parses the header lines of a sam file. The biogo sam parser panics on some malformed
+// input (as well as returning errors), so panics are turned into errors.
+func parseSamHeader(text []byte) (h *biogosam.Header, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			err = fmt.Errorf("error parsing the sam header: %v", p)
 		}
 	}()
-	return biogosam.NewReader(r)
+	h, err = biogosam.NewHeader(nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.UnmarshalText(text); err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
-func readSamRecord(s *biogosam.Reader) (rec *biogosam.Record, err error) {
+// parseSamRecord parses one alignment line of a sam file, turning panics in the biogo parser into errors
+func parseSamRecord(h *biogosam.Header, line []byte) (rec biogosam.Record, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			err = fmt.Errorf("error parsing a sam record: %v", p)
 		}
 	}()
-	return s.Read()
-}
-
-// waitForHeader receives the sam header from groupSamRecords, or the error that stopped it from producing one
-func waitForHeader(cHeader chan biogosam.Header, cErr chan error) (biogosam.Header, error) {
-	select {
-	case h := <-cHeader:
-		return h, nil
-	case err := <-cErr:
-		return biogosam.Header{}, err
-	}
+	err = rec.UnmarshalSAM(h, line)
+	return rec, err
 }
 
 // validateRecord checks that a mapped sam record is internally consistent and fits the reference, so that
@@ -370,103 +374,220 @@ func validateRecord(rec *biogosam.Record, refLen int) error {
 	return nil
 }
 
-// groupSamRecords yields blocks of sam records that correspond to the same query
-// sequence (to a channel)
-func groupSamRecords(sam io.Reader, cHeader chan biogosam.Header, chnl chan samRecords, cdone chan bool, cerr chan error) {
+// samSource reads a sam file one query at a time (see newSamSource). The messages about skipped lines are
+// kept with the query they were read with, so that they can be written in input order with the
+// pipeline's own warnings (see withNotes).
+type samSource struct {
+	header biogosam.Header
+	next   func() (samRecords, error)
 
-	var err error
+	mu    sync.Mutex
+	notes map[int][]string // by the index of the query being read when the line was skipped
+	tail  []string         // lines skipped after the last query
+}
 
-	s, err := newSamReader(sam)
-	if err != nil {
-		cerr <- err
-		return
+func (s *samSource) note(idx int, msg string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.notes[idx] = append(s.notes[idx], msg)
+}
+
+// withNotes wraps a sink so that the messages about the lines skipped while reading each query are written
+// to stderr before the query's result is handled.
+func withNotes[T any](s *samSource, sink func(pipeline.Result[T]) error) func(pipeline.Result[T]) error {
+	return func(r pipeline.Result[T]) error {
+		s.mu.Lock()
+		msgs := s.notes[r.Idx]
+		delete(s.notes, r.Idx)
+		s.mu.Unlock()
+		for _, m := range msgs {
+			os.Stderr.WriteString(m)
+		}
+		return sink(r)
+	}
+}
+
+// writeTail writes the messages about the lines skipped after the last query
+func (s *samSource) writeTail() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, m := range s.tail {
+		os.Stderr.WriteString(m)
+	}
+	s.tail = nil
+}
+
+// newSamSource reads the header of a sam file and returns a samSource whose next function returns the
+// records for the next query each time it is called, and io.EOF after the last query. The records for a query are
+// consecutive lines with the same QNAME; unmapped and secondary records, and records mapped to any
+// reference other than the first @SQ, are skipped (with a message on stderr), and blank lines are
+// ignored. A line that can't be parsed is recorded as the error of its query (whose other lines are still
+// read, so that the next query starts in the right place). The records are not checked here: see
+// prepareQuery. An error from the returned function means the file could not be read.
+func newSamSource(sam io.Reader) (*samSource, error) {
+
+	br := bufio.NewReader(sam)
+
+	// readLine returns the next line without its line ending (a final line need not have one), or io.EOF
+	readLine := func() ([]byte, error) {
+		line, err := br.ReadBytes('\n')
+		if err == io.EOF && len(line) > 0 {
+			err = nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		line = bytes.TrimSuffix(line, []byte{'\n'})
+		line = bytes.TrimSuffix(line, []byte{'\r'})
+		return line, nil
 	}
 
-	if len(s.Header().Refs()) == 0 {
-		cerr <- errors.New("no reference sequence (@SQ line) in the sam header")
-		return
+	if _, err := br.Peek(1); err != nil {
+		return nil, err
 	}
-	refLen := s.Header().Refs()[0].Len()
-
-	cHeader <- *s.Header()
-
-	// this counter will be used to preserve order in input and output:
-	counter := 0
-
-	first := true
-	samLineGroup := samRecords{idx: counter}
-	var previous string
-
+	var headerText []byte
 	for {
-
-		rec, err := readSamRecord(s)
-
+		p, err := br.Peek(1)
 		if err == io.EOF {
-
 			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if p[0] != '@' {
+			break
+		}
+		line, err := readLine()
+		if err != nil {
+			return nil, err
+		}
+		headerText = append(append(headerText, line...), '\n')
+	}
+	h, err := parseSamHeader(headerText)
+	if err != nil {
+		return nil, err
+	}
+	if len(h.Refs()) == 0 {
+		return nil, errors.New("no reference sequence (@SQ line) in the sam header")
+	}
 
-		} else if err != nil {
+	src := &samSource{header: *h, notes: make(map[int][]string)}
+	counter := 0     // the index of the query being read
+	started := false // whether a line of that query has been read
+	// a skipped line is listed with the query that comes after it in the file: the one being read if
+	// none of its lines has been read yet, otherwise (as far as we know yet) the next one
+	noteIdx := func() int {
+		if started {
+			return counter + 1
+		}
+		return counter
+	}
 
-			cerr <- err
-			return
+	// a parsed line: its QNAME, and the record or why it could not be parsed
+	type samLine struct {
+		name string
+		rec  biogosam.Record
+		err  error
+	}
 
-		} else {
-			// if this read is unmapped, then skip it.
-			// the third bit (== 4) in the sam flag is set if the read is unmapped,
-			// can use the rightshift method to check this:
+	// readUsable returns the next line that is not skipped, or io.EOF
+	readUsable := func() (samLine, error) {
+		for {
+			line, err := readLine()
+			if err != nil {
+				return samLine{}, err
+			}
+			if len(line) == 0 {
+				continue
+			}
+			name, _, _ := bytes.Cut(line, []byte{'\t'})
+			rec, err := parseSamRecord(h, line)
+			if err != nil {
+				return samLine{name: string(name), err: err}, nil
+			}
+			// the third bit (== 4) in the sam flag is set if the read is unmapped
 			if ((rec.Flags >> 2) & 1) == 1 {
-				os.Stderr.WriteString("skipping unmapped read: " + rec.Name + "\n")
+				src.note(noteIdx(), "skipping unmapped read: "+rec.Name+"\n")
 				continue
 			}
-
-			// if this mapping is secondary, then skip it.
-			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary,
-			// can use the rightshift method to check this:
+			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary
 			if ((rec.Flags >> 8) & 1) == 1 {
-				os.Stderr.WriteString("ignoring secondary mapping: " + rec.Name + "\n")
+				src.note(noteIdx(), "ignoring secondary mapping: "+rec.Name+"\n")
 				continue
 			}
-
 			// only one reference sequence is supported: records mapped to any other @SQ are skipped
 			if rec.Ref != nil && rec.Ref.ID() != 0 {
-				os.Stderr.WriteString("skipping record mapped to a reference other than the first @SQ (" + rec.Ref.Name() + "): " + rec.Name + "\n")
+				src.note(noteIdx(), "skipping record mapped to a reference other than the first @SQ ("+rec.Ref.Name()+"): "+rec.Name+"\n")
 				continue
 			}
-
-			if err := validateRecord(rec, refLen); err != nil {
-				cerr <- err
-				return
-			}
-
-			if first {
-				samLineGroup.records = append(samLineGroup.records, *rec)
-				first = false
-				previous = rec.Name
-				continue
-			}
-
-			if rec.Name != previous {
-				samLineGroup.records = resolveOverlaps(samLineGroup.records)
-				chnl <- samLineGroup
-				counter++
-
-				samLineGroup = samRecords{idx: counter}
-				samLineGroup.records = append(samLineGroup.records, *rec)
-				previous = rec.Name
-				continue
-			}
-
-			samLineGroup.records = append(samLineGroup.records, *rec)
-			previous = rec.Name
-
+			return samLine{name: string(name), rec: rec}, nil
 		}
-
 	}
 
-	if len(samLineGroup.records) > 0 {
-		samLineGroup.records = resolveOverlaps(samLineGroup.records)
-		chnl <- samLineGroup
+	var pending *samLine // the first line of the next query, once it has been read
+	finished := false
+
+	next := func() (samRecords, error) {
+		group := samRecords{idx: counter}
+		started = false
+		for !finished {
+			var l samLine
+			if pending != nil {
+				l = *pending
+				pending = nil
+			} else {
+				l, err = readUsable()
+				if err == io.EOF {
+					finished = true
+					break
+				}
+				if err != nil {
+					return samRecords{}, err
+				}
+			}
+			if started && l.name != group.name {
+				pending = &l
+				break
+			}
+			started = true
+			group.name = l.name
+			if l.err != nil {
+				if group.err == nil {
+					group.err = l.err
+				}
+				continue
+			}
+			group.records = append(group.records, l.rec)
+		}
+		if !started {
+			src.mu.Lock()
+			src.tail = append(src.tail, src.notes[counter]...)
+			delete(src.notes, counter)
+			src.mu.Unlock()
+			return samRecords{}, io.EOF
+		}
+		counter++
+		return group, nil
 	}
 
-	cdone <- true
+	src.next = next
+	return src, nil
 }
+
+// prepareQuery checks the records for one query against a reference of length refLen and resolves the
+// overlaps between them. The error, if any, carries the query's name.
+func prepareQuery(group samRecords, refLen int) (samRecords, error) {
+	if group.err != nil {
+		return samRecords{}, pipeline.Named(group.name, group.err)
+	}
+	for i := range group.records {
+		if err := validateRecord(&group.records[i], refLen); err != nil {
+			return samRecords{}, pipeline.Named(group.name, err)
+		}
+	}
+	group.records = resolveOverlaps(group.records)
+	return group, nil
+}
+
+// queryNoun names the records of the sam pipelines (one query's records) in warnings
+var queryNoun = pipeline.Noun{One: "query", Many: "queries"}

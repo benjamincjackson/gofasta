@@ -1,6 +1,7 @@
 package updown
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,10 +9,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
+	"github.com/virus-evolution/gofasta/pkg/pipeline"
 )
 
 // updownLine is a struct for one records snps relative to a reference sequence and ambiguity tracts.
@@ -27,68 +28,24 @@ type updownLine struct {
 	ambCount   int   // total number of sites that are not ATGC
 }
 
-// writeOutput writes the output to stdout or a file as it arrives.
-// It uses a map to write things in the same order as they are in the input file.
-func writeOutput(w io.Writer, cudLs chan updownLine, cErr chan error, cWriteDone chan bool) {
-
-	outputMap := make(map[int]updownLine)
-
-	counter := 0
-
-	var err error
-
-	_, err = w.Write([]byte("query,SNPs,ambiguities,SNPcount,ambcount\n"))
-	if err != nil {
-		cErr <- err
-		return
-	}
-
-	var ambstrings []string
-
-	for udL := range cudLs {
-
-		outputMap[udL.idx] = udL
-
-		for {
-			if udLine, ok := outputMap[counter]; ok {
-				ambstrings = make([]string, 0)
-				for i := 0; i < len(udLine.ambs); i += 2 {
-					if udLine.ambs[i] == udLine.ambs[i+1] {
-						ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
-					} else {
-						ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
-					}
-				}
-				_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				delete(outputMap, counter)
-				counter++
-			} else {
-				break
-			}
+// writeLine writes one record's SNPs and ambiguities as a line of csv
+func writeLine(w io.Writer, udLine updownLine) error {
+	ambstrings := make([]string, 0)
+	for i := 0; i < len(udLine.ambs); i += 2 {
+		if udLine.ambs[i] == udLine.ambs[i+1] {
+			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
+		} else {
+			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
 		}
-
 	}
-
-	cWriteDone <- true
+	_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
+	return err
 }
 
 // List gets a list of ATGC SNPs with respect to reference + ambiguous sites for each query sequence in a fasta-format
-// alignment, and writes it to file
-func List(reference, alignment io.Reader, out io.Writer) error {
-
-	cErr := make(chan error)
-
-	cFR := make(chan fasta.EncodedRecord, runtime.NumCPU()+50)
-	cFRDone := make(chan bool)
-
-	cudLs := make(chan updownLine, runtime.NumCPU()+50)
-	cudLsDone := make(chan bool)
-
-	cWriteDone := make(chan bool)
+// alignment, and writes it to file. A record that can't be processed (an invalid character, or a different
+// length from the reference) is reported on stderr and skipped, unless strict, when it stops the run.
+func List(reference, alignment io.Reader, out io.Writer, strict bool) error {
 
 	temp, err := fasta.LoadEncodeAlignment(reference, false, false, false)
 	if err != nil {
@@ -109,53 +66,15 @@ func List(reference, alignment io.Reader, out io.Writer) error {
 		}
 	}
 
-	go fasta.StreamEncodeAlignment(alignment, cFR, cErr, cFRDone, false, false, false)
-
-	go writeOutput(out, cudLs, cErr, cWriteDone)
-
-	var wgudLs sync.WaitGroup
-	wgudLs.Add(runtime.NumCPU())
-
-	for n := 0; n < runtime.NumCPU(); n++ {
-		go func() {
-			getLines(refSeq, cFR, cudLs, cErr)
-			wgudLs.Done()
-		}()
+	if _, err := out.Write([]byte("query,SNPs,ambiguities,SNPcount,ambcount\n")); err != nil {
+		return err
 	}
-
-	go func() {
-		wgudLs.Wait()
-		cudLsDone <- true
-	}()
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cFRDone:
-			close(cFR)
-			n--
-		}
+	work := func(record fasta.Record) (updownLine, error) { return lineFromRecord(refSeq, record, DA) }
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "record", Many: "records"}, func(udL updownLine) error {
+		return writeLine(out, udL)
+	})
+	if err := pipeline.Run(context.Background(), runtime.NumCPU(), fasta.NewRecordSource(alignment), work, h.Sink); err != nil {
+		return err
 	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cudLsDone:
-			close(cudLs)
-			n--
-		}
-	}
-
-	for n := 1; n > 0; {
-		select {
-		case err := <-cErr:
-			return err
-		case <-cWriteDone:
-			n--
-		}
-	}
-
-	return nil
+	return h.Finish()
 }
