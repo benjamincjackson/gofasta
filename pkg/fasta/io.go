@@ -256,83 +256,52 @@ func LoadEncodeAlignment(
 	return encodedRecords, nil
 }
 
+// WriteRecord writes one record in fasta format: its ID on the header line, then its sequence, in lines
+// of wrap characters if wrap > 0, otherwise on one line. (With wrap > 0, an empty sequence gives no
+// sequence lines.)
+func WriteRecord(w io.Writer, record Record, wrap int) error {
+	if _, err := io.WriteString(w, ">"+record.ID+"\n"); err != nil {
+		return err
+	}
+	if wrap <= 0 {
+		_, err := io.WriteString(w, record.Seq+"\n")
+		return err
+	}
+	for written := 0; written < len(record.Seq); written += wrap {
+		end := min(written+wrap, len(record.Seq))
+		if _, err := io.WriteString(w, record.Seq[written:end]+"\n"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // WriteAlignment reads Records from a channel and writes them to file or stdout,
 // in the order in which they are present in the input file.
 // It passes a true to a done channel when the channel of fasta records is empty
 func WriteAlignment(cR chan Record, w io.Writer, cErr chan error, cDone chan bool) {
-	outputMap := make(map[int]Record)
-	counter := 0
-	var err error
-	for FR := range cR {
-		outputMap[FR.Idx] = FR
-		for {
-			if record, ok := outputMap[counter]; ok {
-				_, err = w.Write([]byte(">" + record.ID + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				_, err = w.Write([]byte(record.Seq + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				delete(outputMap, counter)
-				counter++
-			} else {
-				break
-			}
-		}
-	}
-	cDone <- true
+	WriteWrapAlignment(cR, w, 0, cErr, cDone)
 }
 
-// WriteWrapAlignment is as WriteAlignment but with sequence lines wrapped to w
-// characters in length
+// WriteWrapAlignment is as WriteAlignment but with sequence lines wrapped to wrap
+// characters in length (if wrap > 0)
 func WriteWrapAlignment(cR chan Record, w io.Writer, wrap int, cErr chan error, cDone chan bool) {
 	outputMap := make(map[int]Record)
-	var (
-		counter, written int
-		err              error
-	)
+	counter := 0
 	for R := range cR {
 		outputMap[R.Idx] = R
 		for {
-			if record, ok := outputMap[counter]; ok {
-				_, err = w.Write([]byte(">" + record.ID + "\n"))
-				if err != nil {
-					cErr <- err
-					return
-				}
-				for {
-					if written < len(record.Seq) {
-						if written+wrap >= len(record.Seq) {
-							_, err = w.Write([]byte(record.Seq[written:] + "\n"))
-							if err != nil {
-								cErr <- err
-								return
-							}
-							written = written + wrap
-						} else {
-							_, err = w.Write([]byte(record.Seq[written:written+wrap] + "\n"))
-							if err != nil {
-								cErr <- err
-								return
-							}
-							written = written + wrap
-						}
-					} else {
-						break
-					}
-				}
-				delete(outputMap, counter)
-				counter++
-				written = 0
-			} else {
+			record, ok := outputMap[counter]
+			if !ok {
 				break
 			}
+			if err := WriteRecord(w, record, wrap); err != nil {
+				cErr <- err
+				return
+			}
+			delete(outputMap, counter)
+			counter++
 		}
-
 	}
 	cDone <- true
 }
