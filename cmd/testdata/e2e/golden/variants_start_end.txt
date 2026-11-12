@@ -4,7 +4,7 @@ exit: 0
 query,mutations
 q1,aa:geneA:I2V
 q2,aa:geneB:R10H
-q3,del:21:3
+q3,aa:geneA:E4V|del:21:3|aa:geneA:I5-
 q4,nuc:C30R
 q5,aa:geneA:Y14H
 q6,aa:geneA:I2V

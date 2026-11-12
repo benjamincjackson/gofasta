@@ -86,8 +86,9 @@ func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int) []Variant {
 	return variants
 }
 
-// a version of the function that uses the Positions slice in the Region instead of the CodonStarts
-func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int) []Variant {
+// getAAsPair reports the amino acid changes in a CDS codon by codon, and the nucleotide changes in codons
+// whose amino acid is unchanged, leaving out the codons in skip (0-based codon indices).
+func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, skip map[int]bool) []Variant {
 
 	DA := encoding.MakeDecodingArray()
 	CD := alphabet.MakeCodonDict()
@@ -114,6 +115,14 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int) []Varian
 		decodedCodon = decodedCodon + DA[query[alignmentPos]]
 
 		codonCounter++
+
+		if codonCounter == 3 && skip[aaCounter] {
+			codonSNPs = make([]Variant, 0, 3)
+			decodedCodon = ""
+			codonCounter = 0
+			aaCounter++
+			continue
+		}
 
 		if codonCounter == 3 {
 			// if reverse strand, take complement (if we're using the slice of nucleotide positions,

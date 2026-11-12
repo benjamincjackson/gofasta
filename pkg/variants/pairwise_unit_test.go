@@ -109,7 +109,7 @@ func TestGetAAsPair(t *testing.T) {
 
 	offsetRefCoord, _ := GetMSAOffsets(refSeq)
 
-	AAs := getAAsPair(refSeq, queSeq, r, offsetRefCoord)
+	AAs := getAAsPair(refSeq, queSeq, r, offsetRefCoord, nil)
 
 	desiredResultV := []Variant{
 		Variant{RefAl: "S", QueAl: "C", Position: 4, Changetype: "aa", SNPs: "nuc:C5G", Residue: 2, Feature: "nspX"},

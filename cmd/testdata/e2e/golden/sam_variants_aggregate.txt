@@ -4,7 +4,10 @@ exit: 0
 mutation,frequency
 aa:geneA:I2V(nuc:A14G),0.166666667
 del:31:3,0.166666667
+aa:geneA:V8-(del:31:3),0.166666667
 nuc:T40C,0.166666667
+aa:geneA:12A(ins:44:3),0.166666667
+aa:geneA:T12N(ins:44:3),0.166666667
 ins:44:3,0.166666667
 nuc:A60G,0.166666667
 ins:73:2,0.166666667

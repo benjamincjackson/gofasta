@@ -277,6 +277,10 @@ Examples of the output formats:
 	aa:S:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
 	aa:nsp12:P323L - the amino acid at (1-based) residue 323 in the rdrp gene is a P in the reference and an L in this sequence
 	nuc:C3037T - the nucleotide at (1-based) position 3037 in reference coordinates is a C in the reference and a T in this sequence
+	aa:S:H69- - the amino acid at (1-based) residue 69 in the S gene is deleted in this sequence
+	aa:S:214EPE - the amino acids EPE are inserted after (1-based) residue 214 in the S gene in this sequence
+
+In-frame insertions and deletions in a CDS are also described at the amino acid level, residue by residue, in the coordinates of the reference protein: a deleted residue is written with `-`, inserted residues after the number of the residue they follow, and a residue changed next to an indel as a substitution. For example, the 6-base deletion at 22029 in the S gene of the SARS-CoV-2 Delta variant is `aa:S:E156G|del:22029:6|aa:S:F157-|aa:S:R158-`. The amino acid changes are worked out from the codons that the indel touches, as aligned, so they follow the alignment; an indel in a run of repeated residues is placed as far towards the C-terminus as possible. A change in the bases of those codons is part of the amino acid change rather than a separate `nuc` entry, and `--append-snps` lists the nucleotide indel (and any such changes) in the parentheses. Indels that shift the reading frame, come after one that does, run past the end of the CDS, or touch its start or stop codon are reported only as `ins` or `del`.
 
 As with `gofasta snps` the default mode writes a csv with one line per query sequence, and each sequence's mutations in the second column. Use `--aggregate` to get the overall frequencies of mutations in the alignment(s).
 

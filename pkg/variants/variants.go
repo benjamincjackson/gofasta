@@ -594,7 +594,9 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	nucs := getNucsPair(ref, query, intregions, offsetRefCoord)
 	AAs := make([]Variant, 0)
 	for _, r := range cdsregions {
-		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord)...)
+		indelAAs, handled := getIndelAAsPair(ref, query, r, offsetRefCoord)
+		AAs = append(AAs, indelAAs...)
+		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, handled)...)
 	}
 
 	variants := make([]Variant, 0)
