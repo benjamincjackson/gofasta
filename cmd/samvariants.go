@@ -55,7 +55,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				intAtLeast(cmd, 1, "threads"),
+				intAtLeast(cmd, 0, "threads"),
 				floatAtLeast(cmd, 0, "threshold"),
 				startNotAfterEnd(cmd),
 				checkAnnotationFlags(cmd, true),
@@ -94,7 +94,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, s.threads, o.strict)
+			err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(s.threads), o.strict)
 
 			return err
 		},

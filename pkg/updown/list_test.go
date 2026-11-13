@@ -23,7 +23,7 @@ ATTTTW
 
 	out := new(bytes.Buffer)
 
-	err := List(ref, query, out, true)
+	err := List(ref, query, out, 1, true)
 	if err != nil {
 		t.Error(err)
 	}

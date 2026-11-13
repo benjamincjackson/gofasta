@@ -6,7 +6,7 @@ Usage:
   gofasta closest [flags]
 
 Flags:
-  -t, --threads int       Number of CPUs to use (Default: all available CPUs)
+  -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
       --query string      Alignment of sequences to find neighbours for, in fasta format
       --target string     Alignment of sequences to search for neighbours in, in fasta format
   -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")

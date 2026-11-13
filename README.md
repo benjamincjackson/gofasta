@@ -148,14 +148,15 @@ Use `gofasta closest` to find the closest neighbours by traditional genetic dist
 ```
 ❯ gofasta closest --help | sed -n '/Flags/,$p'
 Flags:
-  -t, --threads int       Number of CPUs to use (Default: all available CPUs)
+  -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
       --query string      Alignment of sequences to find neighbours for, in fasta format
       --target string     Alignment of sequences to search for neighbours in, in fasta format
-  -m, --measure string    which distance measure to use (raw, snp or tn93) (default "raw")
+  -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
   -n, --number int        (Optional) the closest n sequences to each query will be returned
   -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
   -o, --outfile string    The output file to write (default "stdout")
-      --table             write a long-form table of the output
+      --table             Write a long-form table of the output
+      --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help              help for closest
 ```
  The available distance measures are `raw` (the default) which is the number of nucleotide differences <i>per site</i> ; `snp`, which is the total number of nucleotide differences, and `tn93`, which is [Tamura and Nei's (1993) evolutionary distance](https://academic.oup.com/mbe/article/10/3/512/1016366).

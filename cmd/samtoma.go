@@ -40,7 +40,7 @@ the fasta file to stdout, e.g.:
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				intAtLeast(cmd, 1, "threads"),
+				intAtLeast(cmd, 0, "threads"),
 				outputNotInput(cmd, "fasta-out", "samfile", "reference"),
 			)
 		},
@@ -58,7 +58,7 @@ the fasta file to stdout, e.g.:
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, s.threads, o.strict)
+			err = sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(s.threads), o.strict)
 
 			return
 		},

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -103,22 +102,19 @@ between every pair.
 			}
 			defer gfio.CloseOut(closestOut, &err)
 
-			// -t limits the CPUs gofasta uses, not just the number of workers
-			if o.threads > 0 && o.threads < runtime.NumCPU() {
-				runtime.GOMAXPROCS(o.threads)
-			}
+			threads := resolveThreads(o.threads)
 
 			if o.n > 0 || dist != -1.0 {
-				err = closest.ClosestN(o.n, dist, queryIn, targetIn, measure, closestOut, o.table, o.threads, o.strict)
+				err = closest.ClosestN(o.n, dist, queryIn, targetIn, measure, closestOut, o.table, threads, o.strict)
 			} else {
-				err = closest.Closest(queryIn, targetIn, measure, closestOut, o.threads, o.strict)
+				err = closest.Closest(queryIn, targetIn, measure, closestOut, threads, o.strict)
 			}
 
 			return err
 		},
 	}
 
-	c.Flags().IntVarP(&o.threads, "threads", "t", 0, "Number of CPUs to use (Default: all available CPUs)")
+	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().StringVarP(&o.query, "query", "", "", "Alignment of sequences to find neighbours for, in fasta format")
 	c.Flags().StringVarP(&o.target, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
 	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")

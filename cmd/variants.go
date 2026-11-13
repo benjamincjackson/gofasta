@@ -63,7 +63,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				intAtLeast(cmd, 1, "threads"),
+				intAtLeast(cmd, 0, "threads"),
 				floatAtLeast(cmd, 0, "threshold"),
 				startNotAfterEnd(cmd),
 				checkAnnotationFlags(cmd, false),
@@ -114,7 +114,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			if ref != nil {
 				refIn = ref
 			}
-			err = variants.Variants(msa, stdin, o.referenceID, refIn, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.threads, o.strict)
+			err = variants.Variants(msa, stdin, o.referenceID, refIn, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(o.threads), o.strict)
 
 			return
 		},
@@ -130,7 +130,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 	c.Flags().BoolVarP(&o.aggregate, "aggregate", "", false, "Report the proportions of each change")
 	c.Flags().Float64VarP(&o.threshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	c.Flags().BoolVarP(&o.appendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
-	c.Flags().IntVarP(&o.threads, "threads", "t", 1, "Number of threads to use")
+	addThreadsFlag(c.Flags(), &o.threads)
 
 	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
 	c.Flags().Lookup("append-snps").NoOptDefVal = "true"

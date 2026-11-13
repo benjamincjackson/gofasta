@@ -15,6 +15,7 @@ import (
 
 // toprankingOptions holds the values of the flags of the command newToprankingCmd returns
 type toprankingOptions struct {
+	threads         int
 	query           string
 	target          string
 	ignore          string
@@ -73,7 +74,7 @@ you haven't also invoked --dist-push).
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				intAtLeast(cmd, 0, "size-total", "size-up", "size-down", "size-side", "size-same",
+				intAtLeast(cmd, 0, "threads", "size-total", "size-up", "size-down", "size-side", "size-same",
 					"dist-all", "dist-up", "dist-down", "dist-side", "dist-push", "threshold-target"),
 				floatAtLeast(cmd, 0, "threshold-pair"),
 				outputNotInput(cmd, "outfile", "query", "target", "reference", "ignore"),
@@ -141,7 +142,7 @@ you haven't also invoked --dist-push).
 				qtype, ttype, ignoreArray,
 				o.sizeTotal, o.sizeUp, o.sizeDown, o.sizeSide, o.sizeSame,
 				o.distAll, o.distUp, o.distDown, o.distSide,
-				o.thresholdPair, o.thresholdTarget, o.noFill, o.distPush, o.strict)
+				o.thresholdPair, o.thresholdTarget, o.noFill, o.distPush, resolveThreads(o.threads), o.strict)
 
 			return
 		},
@@ -174,6 +175,7 @@ you haven't also invoked --dist-push).
 	c.Flags().Lookup("table").NoOptDefVal = "true"
 	c.Flags().Lookup("no-fill").NoOptDefVal = "true"
 
+	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)
 	c.MarkFlagRequired("query")
 	c.MarkFlagRequired("target")
