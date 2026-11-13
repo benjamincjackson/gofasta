@@ -4,11 +4,15 @@ package alphabet
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 var ErrorCDSNotModThree error = errors.New("Translation error: Nucleotide sequence not divisible by 3")
+
+// codonDict is MakeCodonDict's table, built once and only read
+var codonDict = MakeCodonDict()
 
 // Translate a nucleotide sequence to a protein sequence
 // Codons with ambiguous nucleotides are resolved if it can only possibly
@@ -17,29 +21,20 @@ func Translate(nuc string, strict bool) (string, error) {
 	if len(nuc)%3 != 0 {
 		return "", ErrorCDSNotModThree
 	}
-	translation := ""
-	codon := ""
-	counter := 0
-	CD := MakeCodonDict()
-	for i := 0; i < len(nuc); i++ {
-		codon = codon + string(nuc[i])
-		counter++
-		if counter == 3 {
-			if t, ok := CD[codon]; ok {
-				translation = translation + t
-			} else {
-				if strict {
-					return "", errors.New("Translation error: Untranslatable codon: " + codon)
-				} else {
-					translation = translation + "X"
-				}
-			}
-			counter = 0
-			codon = ""
+	var translation strings.Builder
+	translation.Grow(len(nuc) / 3)
+	for i := 0; i+3 <= len(nuc); i += 3 {
+		codon := nuc[i : i+3]
+		if t, ok := codonDict[codon]; ok {
+			translation.WriteString(t)
+		} else if strict {
+			return "", errors.New("Translation error: Untranslatable codon: " + codon)
+		} else {
+			translation.WriteByte('X')
 		}
 	}
 
-	return translation, nil
+	return translation.String(), nil
 }
 
 func Complement(nuc string) string {

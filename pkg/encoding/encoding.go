@@ -7,13 +7,16 @@ http://ape-package.ird.fr/misc/BitLevelCodingScheme.html
 */
 package encoding
 
+import "strings"
+
 func DecodeToString(bs []byte) string {
 	da := MakeDecodingArray()
-	s := ""
+	var s strings.Builder
+	s.Grow(len(bs))
 	for _, n := range bs {
-		s = s + da[n]
+		s.WriteString(da[n])
 	}
-	return s
+	return s.String()
 }
 
 // MakeEncodingArray returns an array whose indices are the byte representations

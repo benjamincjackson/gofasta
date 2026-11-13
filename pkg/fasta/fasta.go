@@ -2,6 +2,7 @@ package fasta
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
@@ -63,13 +64,7 @@ func (FR Record) EncodeHardGaps() (EncodedRecord, error) {
 // Strip the gaps from a Record's sequence, returning a new Record
 func (FR Record) Degap() Record {
 	NFR := Record{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
-	t := ""
-	for _, char := range FR.Seq {
-		if char != '-' {
-			t = t + string(char)
-		}
-	}
-	NFR.Seq = t
+	NFR.Seq = strings.ReplaceAll(FR.Seq, "-", "")
 	return NFR
 }
 
@@ -100,11 +95,12 @@ func (FR Record) ReverseComplement() Record {
 func (EFR EncodedRecord) Decode() Record {
 	FR := Record{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
 	DA := encoding.MakeDecodingArray()
-	seq := ""
+	var seq strings.Builder
+	seq.Grow(len(EFR.Seq))
 	for _, nuc := range EFR.Seq {
-		seq = seq + DA[nuc]
+		seq.WriteString(DA[nuc])
 	}
-	FR.Seq = seq
+	FR.Seq = seq.String()
 	return FR
 }
 
