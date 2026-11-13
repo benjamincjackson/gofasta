@@ -14,13 +14,14 @@ var ErrorCDSNotModThree error = errors.New("Translation error: Nucleotide sequen
 // codonDict is MakeCodonDict's table, built once and only read
 var codonDict = MakeCodonDict()
 
-// Translate a nucleotide sequence to a protein sequence
+// Translate a nucleotide sequence (in upper or lower case) to a protein sequence
 // Codons with ambiguous nucleotides are resolved if it can only possibly
 // represent one amino acid
 func Translate(nuc string, strict bool) (string, error) {
 	if len(nuc)%3 != 0 {
 		return "", ErrorCDSNotModThree
 	}
+	nuc = strings.ToUpper(nuc) // the codon table is upper case
 	var translation strings.Builder
 	translation.Grow(len(nuc) / 3)
 	for i := 0; i+3 <= len(nuc); i += 3 {

@@ -281,3 +281,17 @@ PVLKGVKLHYT*`
 // TODO: func TestDegenDict(t *testing.T){
 //
 // }
+
+// Lower and mixed case translate as upper case does
+func TestTranslateIgnoresCase(t *testing.T) {
+	for _, nuc := range []string{"ATGAAATAA", "atgaaataa", "AtGaAaTaA", "atgRaytaa"} {
+		got, err := Translate(nuc, false)
+		want, _ := Translate(strings.ToUpper(nuc), false)
+		if err != nil || got != want || got == "" {
+			t.Errorf("%s: got %q, %v, want %q", nuc, got, err, want)
+		}
+	}
+	if got, _ := Translate("atgaaataa", true); got != "MK*" {
+		t.Errorf("got %q, want MK*", got)
+	}
+}
