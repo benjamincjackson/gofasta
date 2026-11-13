@@ -173,6 +173,11 @@ records = [
 write("aln.sam", header + "\n".join(records) + "\n")
 bad = records[:4] + ["s9\t0\tref\t1\t60\t50M\t*\t0\t0\t" + ref[:40] + "\t*"] + records[4:]
 write("aln_badrecord.sam", header + "\n".join(bad) + "\n")
+# query names that give the same toPairAlign file name: a/b and a_b (/ becomes _), a/b again later, and two
+# long names (2-byte characters, cut to the same 248 bytes, at a character boundary)
+long = "\u00e9" * 150
+clash = [rec(q, 0, 1, [(120, "M")], {14 + i: other(ref[13 + i])}) for i, q in enumerate(["a/b", "a_b", "c", "a/b", long + "1", long + "2"])]
+write("aln_clash.sam", header + "\n".join(clash) + "\n")
 two_sq = header.replace("@SQ\tSN:ref\tLN:120\n", "@SQ\tSN:ref\tLN:120\n@SQ\tSN:other\tLN:120\n")
 write("aln_twosq.sam", two_sq + "\n".join(records[:2] + [rec("s10", 0, 1, [(120, "M")], rname="other")] + records[2:]) + "\n")
 write("aln_headeronly.sam", header)

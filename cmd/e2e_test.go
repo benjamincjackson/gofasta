@@ -154,6 +154,8 @@ var e2eCases = []e2eCase{
 	{name: "sam_topa_skipins", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout", "--skip-insertions"}},
 	{name: "sam_topa_start_end", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout", "--start", "20", "--end", "100"}},
 	{name: "sam_topa_dir", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "pairs", "-w", "60"}, threadsFlag: "-t"},
+	{name: "sam_topa_dir_clash", args: []string{"sam", "toPairAlign", "-s", "aln_clash.sam", "-r", "ref.fasta", "-o", "pairs"}, threadsFlag: "-t"},
+	{name: "sam_topa_dir_clash_strict", args: []string{"sam", "toPairAlign", "-s", "aln_clash.sam", "-r", "ref.fasta", "-o", "pairs", "--strict"}},
 	{name: "sam_topa_badrecord", args: []string{"sam", "toPairAlign", "-s", "aln_badrecord.sam", "-r", "ref.fasta", "-o", "stdout"}},
 	{name: "sam_topa_empty", args: []string{"sam", "toPairAlign", "-s", "empty.sam", "-r", "ref.fasta", "-o", "stdout"}},
 	{name: "sam_topa_no_outpath", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta"}},
