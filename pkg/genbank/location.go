@@ -2,13 +2,12 @@ package genbank
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 )
 
-var (
-	locationErr = errors.New("Error parsing Genbank location")
-)
+var locationErr = errors.New("Error parsing Genbank location")
 
 // Genbank location field
 type Location struct {
@@ -60,9 +59,7 @@ func parseLocation(s string, depth int) ([]int, error) {
 		if err != nil {
 			return nil, err
 		}
-		for i, j := 0, len(pos)-1; i < j; i, j = i+1, j-1 {
-			pos[i], pos[j] = pos[j], pos[i]
-		}
+		slices.Reverse(pos)
 		return pos, nil
 	case strings.HasPrefix(s, "join(") && strings.HasSuffix(s, ")"):
 		fields, err := splitOnOuterCommas(s[len("join(") : len(s)-1])

@@ -1,6 +1,4 @@
-/*
-TO DO
-*/
+// Package genbank reads annotation files in GenBank format.
 package genbank
 
 import (
@@ -54,13 +52,6 @@ type Genbank struct {
 	ORIGIN   []byte           // implemented
 }
 
-// genbankField is a utility struct for moving main toplevel genbank FIELDS +
-// their associated lines around through channels, etc.
-type genbankField struct {
-	header string
-	lines  []string
-}
-
 // GenbankFeature contains information about one feature from a genbank record's
 // FEATURES section
 type GenbankFeature struct {
@@ -89,7 +80,7 @@ func (F *GenbankFeature) Value(tag string) string {
 // parseGenbankFEATURES gets the FEATURES info from a genbank file, following the INSDC feature table
 // layout: a feature key, then its location (which may wrap onto further lines), then its qualifiers
 // (/key, /key=value or /key="value", where a quoted value may wrap onto further lines)
-func parseGenbankFEATURES(field genbankField) ([]GenbankFeature, error) {
+func parseGenbankFEATURES(lines []string) ([]GenbankFeature, error) {
 	features := make([]GenbankFeature, 0)
 
 	var cur *GenbankFeature
@@ -135,7 +126,7 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature, error) {
 		location.Reset()
 	}
 
-	for _, line := range field.lines {
+	for _, line := range lines {
 		text := strings.TrimSpace(line)
 		// blank (or whitespace-only) lines carry no information
 		if text == "" {
@@ -197,21 +188,16 @@ func parseGenbankFEATURES(field genbankField) ([]GenbankFeature, error) {
 	return features, nil
 }
 
-// parseGenbankORIGIN gets the ORIGIN info from a genbank file
-func parseGenbankORIGIN(field genbankField) []byte {
-
-	rawLines := field.lines
-
+// parseGenbankORIGIN gets the sequence from the lines of a genbank file's ORIGIN: its letters
+func parseGenbankORIGIN(lines []string) []byte {
 	seq := make([]byte, 0)
-
-	for _, line := range rawLines {
-		for _, character := range line {
-			if unicode.IsLetter(character) {
-				seq = append(seq, []byte(string(character))...)
+	for _, line := range lines {
+		for _, c := range line {
+			if unicode.IsLetter(c) {
+				seq = utf8.AppendRune(seq, c)
 			}
 		}
 	}
-
 	return seq
 }
 
@@ -219,7 +205,6 @@ func parseGenbankORIGIN(field genbankField) []byte {
 // parsed versions of the fields it contains. Not all fields are currently parsed. The file must hold
 // one record: anything after the record's closing "//" line is an error.
 func ReadGenBank(r io.Reader) (Genbank, error) {
-
 	gb := Genbank{}
 
 	s := bufio.NewScanner(r)
@@ -233,31 +218,29 @@ func ReadGenBank(r io.Reader) (Genbank, error) {
 		switch header {
 		case "FEATURES":
 			var err error
-			gb.FEATURES, err = parseGenbankFEATURES(genbankField{header: header, lines: lines})
+			gb.FEATURES, err = parseGenbankFEATURES(lines)
 			return err
 		case "ORIGIN":
-			gb.ORIGIN = parseGenbankORIGIN(genbankField{header: header, lines: lines})
+			gb.ORIGIN = parseGenbankORIGIN(lines)
 		}
 		return nil
 	}
 
 	for s.Scan() {
 		line := s.Text()
-
-		if strings.TrimSpace(line) == "" {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
 			continue
 		}
 		if ended {
 			return Genbank{}, errMultipleRecords
 		}
-		if strings.TrimSpace(line) == "//" {
+		if trimmed == "//" {
 			ended = true
 			continue
 		}
-
-		r, _ := utf8.DecodeRune([]byte{line[0]})
-
-		if unicode.IsUpper(r) {
+		// a line that starts with a capital letter starts a field
+		if 'A' <= line[0] && line[0] <= 'Z' {
 			if err := parseField(); err != nil {
 				return Genbank{}, err
 			}
