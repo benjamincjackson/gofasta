@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
@@ -237,7 +238,7 @@ func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (align
 	if omitIns {
 		Q := make([][]byte, 0, len(group.records))
 		for _, line := range group.records {
-			seq, _, err := getOneLinePlusRef(line, ref, false)
+			seq, _, err := alignRecord(line, ref, len(ref), false)
 			if err != nil {
 				return alignPair{}, err
 			}
@@ -249,7 +250,7 @@ func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (align
 
 	infoBlock := alignedBlockInfo{}
 	for _, line := range group.records {
-		seq, refseq, err := getOneLinePlusRef(line, ref, true)
+		seq, refseq, err := alignRecord(line, ref, len(ref), true)
 		if err != nil {
 			return alignPair{}, err
 		}
@@ -337,16 +338,28 @@ func writePair(w io.Writer, AP alignPair, wrapWidth int, omitRef bool) error {
 	return err
 }
 
+// pairFileName is the name of the file a query's alignment is written to: its name with '/' (not
+// allowed in file names) replaced by '_', cut to 249 bytes (at a character boundary) so that, with
+// ".fasta", it fits the usual 255-byte limit. It also reports whether the name was cut.
+func pairFileName(queryname string) (string, bool) {
+	des := strings.ReplaceAll(queryname, "/", "_")
+	if len(des) <= 249 {
+		return des + ".fasta", false
+	}
+	n := 249
+	for n > 0 && !utf8.RuneStart(des[n]) {
+		n--
+	}
+	return des[:n] + ".fasta", true
+}
+
 // writePairToFile writes a pairwise alignment to its own file in directory p, named after the query
 func writePairToFile(p string, AP alignPair, wrapWidth int, omitRef bool) (err error) {
-	// forward slashes are illegal in unix filenames (so is ascii NUL ?)
-	des := strings.ReplaceAll(AP.queryname, "/", "_")
-	// unix filenames must be <= 255 chars, (account for ".fasta")
-	if len(des) > 249 {
-		fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", des, des[0:249])
-		des = des[0:249]
+	name, cut := pairFileName(AP.queryname)
+	if cut {
+		fmt.Fprintf(os.Stderr, "Filename too long, truncating \"%s\" to: \"%s\"\n", strings.ReplaceAll(AP.queryname, "/", "_"), strings.TrimSuffix(name, ".fasta"))
 	}
-	f, err := os.Create(path.Join(p, des+".fasta"))
+	f, err := os.Create(path.Join(p, name))
 	if err != nil {
 		return err
 	}
@@ -356,6 +369,24 @@ func writePairToFile(p string, AP alignPair, wrapWidth int, omitRef bool) (err e
 		}
 	}()
 	return writePair(f, AP, wrapWidth, omitRef)
+}
+
+// oneFilePerName passes results to sink, but makes a query whose file name (see pairFileName) is that of
+// an earlier query's a failed record, so it is skipped (or stops the run, if strict) rather than
+// overwriting the earlier query's file. Results arrive in input order, so the first query keeps the name.
+func oneFilePerName(sink func(pipeline.Result[alignPair]) error) func(pipeline.Result[alignPair]) error {
+	written := make(map[string]string) // file name -> the query written to it
+	return func(r pipeline.Result[alignPair]) error {
+		if r.Err == nil {
+			name, _ := pairFileName(r.Val.queryname)
+			if first, ok := written[name]; ok {
+				r.Err = pipeline.Named(r.Val.queryname, fmt.Errorf("its output file %s is already used by %s", name, first))
+			} else {
+				written[name] = r.Val.queryname
+			}
+		}
+		return sink(r)
+	}
 }
 
 // ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
@@ -411,7 +442,11 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 	}
 
 	h := pipeline.NewHandler(strict, os.Stderr, queryNoun, write)
-	if err := pipeline.Run(context.Background(), threads, src.next, work, withNotes(src, h.Sink)); err != nil {
+	sink := h.Sink
+	if outpath != "stdout" {
+		sink = oneFilePerName(sink)
+	}
+	if err := pipeline.Run(context.Background(), threads, src.next, work, withNotes(src, sink)); err != nil {
 		return err
 	}
 	src.writeTail()

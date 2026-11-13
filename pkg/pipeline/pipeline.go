@@ -10,7 +10,8 @@ and carry on (Handler).
 
 Errors from reading (next) arrive as a *ReadError and end the input: a Handler always treats them as
 fatal. Errors from processing a record (work) belong to that record; wrapping them with Named gives the
-record's name to the warning.
+record's name to the warning. A panic in work also belongs to its record: it becomes that record's error,
+as a *RecordPanicError. Errors from work on a record with a RecordName method are named with it (see Namer).
 
 The number of records between reading and the sink is bounded, so a record that is slow to process does
 not let the others pile up without limit.
@@ -59,7 +60,31 @@ func Named(name string, err error) error {
 	return &RecordError{Name: name, Err: err}
 }
 
-// PanicError is the value Run panics with when next or work panicked. It holds the original panic value
+// Namer is implemented by records that know their own name. An error from work on a record that is a Namer
+// (including a panic) is named with it (see Named), unless it already has a name, so that the warning or
+// error about it can say which record it was.
+type Namer interface {
+	RecordName() string
+}
+
+// RecordPanicError is the error of a record whose work panicked. It holds the panic value and the stack of
+// the goroutine that panicked.
+type RecordPanicError struct {
+	Value any
+	Stack []byte
+}
+
+func (p *RecordPanicError) Error() string { return fmt.Sprintf("panic: %v", p.Value) }
+
+// Unwrap returns the panic value if it was an error.
+func (p *RecordPanicError) Unwrap() error {
+	if err, ok := p.Value.(error); ok {
+		return err
+	}
+	return nil
+}
+
+// PanicError is the value Run panics with when next panicked. It holds the original panic value
 // and the stack of the goroutine that panicked.
 type PanicError struct {
 	Value any
@@ -85,7 +110,8 @@ const inFlightPerThread = 8
 // one), and passes the results to sink in input order, from the calling goroutine.
 //
 // An error from next becomes a Result with that error (as a *ReadError), at the position of the record
-// that could not be read, and reading stops there. An error from work becomes the Err of that record's Result.
+// that could not be read, and reading stops there. An error from work becomes the Err of that record's Result,
+// and so does a panic in work, as a *RecordPanicError; either is named if the record is a Namer.
 //
 // Run stops early if sink returns an error, which Run then returns, or if ctx is cancelled before the end
 // of the input has been read and every record has reached the sink, in which case it returns ctx.Err()
@@ -93,7 +119,7 @@ const inFlightPerThread = 8
 // be in the middle of one call, whose result is discarded. Functions that should notice cancellation
 // themselves can close over ctx.
 //
-// If next or work panics, Run stops, waits for its workers, and panics in the calling goroutine with a
+// If next panics, Run stops, waits for its workers, and panics in the calling goroutine with a
 // *PanicError. (A panic in a call of next that is still running when Run returns for another reason is
 // discarded.)
 func Run[In, Out any](ctx context.Context, threads int, next func() (In, error), work func(In) (Out, error), sink func(Result[Out]) error) error {
@@ -103,7 +129,8 @@ func Run[In, Out any](ctx context.Context, threads int, next func() (In, error),
 	inner, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// the first panic in next or work; recordPanic must be deferred directly by the goroutine that may panic
+	// the first panic in next (or in the workers outside work); recordPanic must be deferred directly by the
+	// goroutine that may panic
 	var panicked atomic.Pointer[PanicError]
 	recordPanic := func() {
 		if v := recover(); v != nil {
@@ -179,7 +206,7 @@ func Run[In, Out any](ctx context.Context, threads int, next func() (In, error),
 				}
 				r := Result[Out]{Idx: j.idx, Err: j.err}
 				if j.err == nil {
-					r.Val, r.Err = work(j.in)
+					r.Val, r.Err = callWork(work, j.in)
 				}
 				select {
 				case results <- r:
@@ -230,6 +257,30 @@ func Run[In, Out any](ctx context.Context, threads int, next func() (In, error),
 	return nil
 }
 
+// callWork calls work on in, turning a panic into the record's error (a *RecordPanicError). If the record
+// is a Namer, an error that is not already named is named with the record's name.
+func callWork[In, Out any](work func(In) (Out, error), in In) (out Out, err error) {
+	defer func() {
+		if v := recover(); v != nil {
+			var zero Out
+			out, err = zero, &RecordPanicError{Value: v, Stack: debug.Stack()}
+		}
+		if err == nil {
+			return
+		}
+		var recErr *RecordError
+		if errors.As(err, &recErr) {
+			return
+		}
+		if n, ok := any(in).(Namer); ok {
+			if name := n.RecordName(); name != "" {
+				err = Named(name, err)
+			}
+		}
+	}()
+	return work(in)
+}
+
 // FirstError is a sink adapter: it returns a Result's error if it has one, and otherwise passes the
 // value to f. It gives a pipeline the policy of stopping at the first record that failed.
 func FirstError[T any](f func(T) error) func(Result[T]) error {
@@ -247,7 +298,7 @@ type Noun struct {
 }
 
 // Handler is a sink that applies gofasta's policy for records that fail. If strict, the first failure
-// stops the pipeline with that record's error. Otherwise each failed record is reported on warn, as
+// stops the pipeline with that record's error, as "NAME (NOUN N): ERROR". Otherwise each failed record is reported on warn, as
 //
 //	warning: skipping NAME (NOUN N): ERROR
 //
@@ -274,18 +325,25 @@ func (h *Handler[T]) Sink(r Result[T]) error {
 		return h.f(r.Val)
 	}
 	var readErr *ReadError
-	if h.strict || errors.As(r.Err, &readErr) {
+	if errors.As(r.Err, &readErr) {
 		return r.Err
+	}
+	if h.strict {
+		return fmt.Errorf("%s: %w", h.where(r), r.Err)
 	}
 	h.total++
 	h.skipped++
-	name := ""
+	_, err := fmt.Fprintf(h.warn, "warning: skipping %s: %v\n", h.where(r), r.Err)
+	return err
+}
+
+// where says which record a failed Result is, as "NAME (NOUN N)", or "(NOUN N)" if its error has no name
+func (h *Handler[T]) where(r Result[T]) string {
 	var recErr *RecordError
 	if errors.As(r.Err, &recErr) && recErr.Name != "" {
-		name = recErr.Name + " "
+		return fmt.Sprintf("%s (%s %d)", recErr.Name, h.noun.One, r.Idx+1)
 	}
-	_, err := fmt.Fprintf(h.warn, "warning: skipping %s(%s %d): %v\n", name, h.noun.One, r.Idx+1, r.Err)
-	return err
+	return fmt.Sprintf("(%s %d)", h.noun.One, r.Idx+1)
 }
 
 // Total is the number of records that reached the sink (not counting a read error).

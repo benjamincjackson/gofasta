@@ -7,6 +7,7 @@ and target_bad.csv is target.csv with two malformed lines added by hand.
 
 Reference: 120 bp; geneA on the forward strand (11..61), geneB on the reverse strand (complement(70..108)).
 """
+import gzip
 import os
 import random
 import sys
@@ -90,6 +91,7 @@ def genbank():
 
 
 write("ref.gb", genbank())
+write("ref_tworecords.gb", genbank() + genbank())
 write("ref.gff", "\n".join([
     "##gff-version 3",
     "##sequence-region ref 1 120",
@@ -112,6 +114,7 @@ msa = [("ref", ref)] + [(k, q[k]) for k in sorted(q)]
 write("msa.fasta", fasta(msa))
 write("query.fasta", fasta([(k, q[k]) for k in ("q1", "q2", "q5")]))
 write("target.fasta", fasta([(k, q[k]) for k in ("q3", "q4", "q6", "q7", "q8")], wrap=50))
+write("target.FNA", fasta([(k, q[k]) for k in ("q3", "q4", "q6", "q7", "q8")], wrap=50))
 
 # an msa where the reference has a gap column (an insertion in some queries)
 ins_ref = ref[:44] + "---" + ref[44:]
@@ -124,6 +127,7 @@ write("msa_badrow.fasta", fasta(msa[:3] + [("short", ref[:100])] + msa[3:]))
 write("msa_badnuc.fasta", fasta(msa[:3] + [("badnuc", ref[:50] + "J" + ref[51:])] + msa[3:]))
 write("empty.fasta", "")
 write("ignore.txt", "q6\n")
+write("ignore_crlf.txt", "q6\r\n  \r\n")
 
 
 # SAM
@@ -169,6 +173,11 @@ records = [
 write("aln.sam", header + "\n".join(records) + "\n")
 bad = records[:4] + ["s9\t0\tref\t1\t60\t50M\t*\t0\t0\t" + ref[:40] + "\t*"] + records[4:]
 write("aln_badrecord.sam", header + "\n".join(bad) + "\n")
+# query names that give the same toPairAlign file name: a/b and a_b (/ becomes _), a/b again later, and two
+# long names (2-byte characters, cut to the same 248 bytes, at a character boundary)
+long = "\u00e9" * 150
+clash = [rec(q, 0, 1, [(120, "M")], {14 + i: other(ref[13 + i])}) for i, q in enumerate(["a/b", "a_b", "c", "a/b", long + "1", long + "2"])]
+write("aln_clash.sam", header + "\n".join(clash) + "\n")
 two_sq = header.replace("@SQ\tSN:ref\tLN:120\n", "@SQ\tSN:ref\tLN:120\n@SQ\tSN:other\tLN:120\n")
 write("aln_twosq.sam", two_sq + "\n".join(records[:2] + [rec("s10", 0, 1, [(120, "M")], rname="other")] + records[2:]) + "\n")
 write("aln_headeronly.sam", header)
@@ -178,4 +187,16 @@ write("aln_badquery.sam", header + "\n".join(records[:3] + [past_end] + records[
 # a blank line between records, and no newline at the end of the last record
 write("aln_untidy.sam", header + "\n".join(records[:2]) + "\n\n" + "\n".join(records[2:]))
 write("empty.sam", "")
+
+# the annotations under names that don't say their format, for --genbank and --gff
+for src, dst in (("ref.gb", "annotation_gb.txt"), ("ref.gff", "annotation_gff.txt")):
+    with open(os.path.join(out, src)) as fh:
+        write(dst, fh.read())
+
+# gzipped copies, for the cases that read gzipped input (mtime=0 so they are the same on every run)
+for name in ("msa.fasta", "ref.gb", "aln.sam", "query.fasta", "target.fasta", "query.csv", "target.csv"):
+    with open(os.path.join(out, name), "rb") as fh:
+        data = fh.read()
+    with open(os.path.join(out, name + ".gz"), "wb") as fh:
+        fh.write(gzip.compress(data, mtime=0))
 print("wrote fixtures to", out)

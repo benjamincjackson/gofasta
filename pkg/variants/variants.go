@@ -11,9 +11,11 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
@@ -21,7 +23,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
-	"golang.org/x/exp/constraints"
 )
 
 type Region struct {
@@ -39,7 +40,8 @@ type Variant struct {
 	Queryname      string
 	RefAl          string
 	QueAl          string
-	Position       int    // (1-based) genomic location (for an amino acid change, this is the first position of the codon)
+	Position       int    // (1-based) genomic location (for an amino acid change, the codon's first base in CDS order)
+	Codon          [3]int // for an amino acid change, the reference positions of the codon, in CDS order
 	Residue        int    // (1-based) amino acid location
 	Changetype     string // one of {nuc,aa,ins,del}
 	Feature        string // this should be, for example, the name of the CDS that the thing is in
@@ -70,19 +72,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 	// Find the reference
 	// (Have to move the reader back to the beginning of the alignment, because we are scanning through it twice)
 	if refID != "" {
-		switch x := msaIn.(type) {
-		case *os.File:
-			if !stdin {
-				ref, err = findReference(msaIn, refID)
-				if err != nil {
-					return err
-				}
-				_, err = x.Seek(0, io.SeekStart)
-				if err != nil {
-					return err
-				}
-			}
-		case *bytes.Reader:
+		if x, ok := msaIn.(io.Seeker); ok && !stdin {
 			ref, err = findReference(msaIn, refID)
 			if err != nil {
 				return err
@@ -278,29 +268,30 @@ func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, er
 
 func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error) {
 
-	IDed := make(map[string][]gff.Feature)
-	other := make([]gff.Feature, 0)
+	// rows sharing an ID are one CDS, a row without an ID is a CDS by itself; CDSs are kept in order of
+	// their first row, so that CDSs with the same start are reported in file order
+	groups := make([][]gff.Feature, 0)
+	groupOfID := make(map[string]int)
 	for _, f := range anno.Features {
 		if !(f.Type == "CDS" || f.Type == "mature_protein_region_of_CDS") {
 			continue
 		}
-		if id := f.Attributes["ID"]; len(id) > 0 {
-			IDed[id[0]] = append(IDed[id[0]], f)
-		} else {
-			other = append(other, f)
+		id := f.Attributes["ID"]
+		if len(id) == 0 {
+			groups = append(groups, []gff.Feature{f})
+			continue
 		}
+		if g, ok := groupOfID[id[0]]; ok {
+			groups[g] = append(groups[g], f)
+			continue
+		}
+		groupOfID[id[0]] = len(groups)
+		groups = append(groups, []gff.Feature{f})
 	}
 
 	tempcds := make([]Region, 0)
-	for _, f := range IDed {
-		r, err := CDSRegionfromGFF(f, refSeqDegapped)
-		if err != nil {
-			return []Region{}, []int{}, err
-		}
-		tempcds = append(tempcds, r)
-	}
-	for _, f := range other {
-		r, err := CDSRegionfromGFF([]gff.Feature{f}, refSeqDegapped)
+	for _, fs := range groups {
+		r, err := CDSRegionfromGFF(fs, refSeqDegapped)
 		if err != nil {
 			return []Region{}, []int{}, err
 		}
@@ -336,7 +327,10 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			return r, errors.New("Error parsing gff: CDS feature " + strconv.Itoa(f.Start) + ".." + strconv.Itoa(f.End) + " is not within the reference sequence (length " + strconv.Itoa(len(refSeqDegapped)) + ")")
 		}
 	}
+	// the positions in 5' to 3' order, and the phase of the 5' segment (the first on the plus strand, the
+	// last on the minus strand); the phases of the other segments are not used
 	pos := make([]int, 0)
+	var phase int
 	switch fs[0].Strand {
 	case "+":
 		for _, f := range fs {
@@ -348,18 +342,7 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			}
 		}
 		r.Strand = 1
-		r.Positions = pos
-		r.Start = gmin(r.Positions)
-		r.Stop = gmax(r.Positions)
-		refSeqFeat := ""
-		for _, p := range r.Positions {
-			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
-		}
-		t, err := alphabet.Translate(strings.ToUpper(refSeqFeat), true)
-		if err != nil {
-			return r, err
-		}
-		r.Translation = t
+		phase = fs[0].Phase
 	case "-":
 		for j := len(fs) - 1; j >= 0; j-- {
 			f := fs[j]
@@ -371,23 +354,49 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 			}
 		}
 		r.Strand = -1
-		r.Positions = pos
-		r.Start = gmin(r.Positions)
-		r.Stop = gmax(r.Positions)
-		refSeqFeat := ""
-		for _, p := range r.Positions {
-			refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
-		}
-		t, err := alphabet.Translate(alphabet.Complement(strings.ToUpper(refSeqFeat)), true)
-		if err != nil {
-			return r, err
-		}
-		r.Translation = t
+		phase = fs[len(fs)-1].Phase
 	default:
 		return r, errors.New("Error parsing gff: protein coding feature needs a strand (+ or -), got \"" + fs[0].Strand + "\"")
 	}
 
+	var err error
+	r.Positions, err = codingPositions(pos, phase)
+	if err != nil {
+		return r, err
+	}
+	r.Start = slices.Min(r.Positions)
+	r.Stop = slices.Max(r.Positions)
+	refSeqFeat := ""
+	for _, p := range r.Positions {
+		refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
+	}
+	refSeqFeat = strings.ToUpper(refSeqFeat)
+	if r.Strand == -1 {
+		refSeqFeat = alphabet.Complement(refSeqFeat)
+	}
+	r.Translation, err = alphabet.Translate(refSeqFeat, true)
+	if err != nil {
+		return r, err
+	}
+
 	return r, nil
+}
+
+// codingPositions returns the positions of a CDS's complete codons, given all its positions in 5' to 3'
+// order and the number of bases before its first complete codon (its GFF phase, or GenBank codon_start
+// minus 1). With an offset, the CDS is partial at its 5' end, and a partial codon at its 3' end is left
+// out too; without one, its length must be a whole number of codons.
+func codingPositions(pos []int, offset int) ([]int, error) {
+	if len(pos)-offset < 3 {
+		return nil, errors.New("CDS of " + strconv.Itoa(len(pos)) + " bases has no complete codon after its first " + strconv.Itoa(offset))
+	}
+	coding := pos[offset:]
+	if offset > 0 {
+		coding = coding[:len(coding)-len(coding)%3]
+	} else if len(coding)%3 != 0 {
+		return nil, alphabet.ErrorCDSNotModThree
+	}
+	return coding, nil
 }
 
 // gffFeatureName is the name used to report a CDS: its Name attribute, or "" if it has none
@@ -415,7 +424,7 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 				return []Region{}, []int{}, err
 			}
 			// every position must lie within the reference
-			if len(REGION.Positions) > 0 && (gmin(REGION.Positions) < 1 || gmax(REGION.Positions) > refLength) {
+			if len(REGION.Positions) > 0 && (slices.Min(REGION.Positions) < 1 || slices.Max(REGION.Positions) > refLength) {
 				return []Region{}, []int{}, errors.New("Genbank CDS feature \"" + REGION.Name + "\" is not within the reference sequence (length " + strconv.Itoa(refLength) + ")")
 			}
 			cds = append(cds, REGION)
@@ -442,8 +451,8 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	}
 
 	r := Region{
-		Name:        f.Info["gene"],
-		Translation: f.Info["translation"] + "*",
+		Name:        f.Value("gene"),
+		Translation: f.Value("translation") + "*",
 	}
 
 	var err error
@@ -452,20 +461,20 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	if err != nil {
 		return Region{}, err
 	}
-	codon_start, err := strconv.Atoi(f.Info["codon_start"])
+	codon_start, err := strconv.Atoi(f.Value("codon_start"))
 	if err != nil || codon_start < 1 || codon_start > 3 || codon_start > len(temp) {
-		return Region{}, errors.New("Genbank CDS feature has an invalid \"codon_start\" attibute: " + f.Info["codon_start"])
+		return Region{}, errors.New("Genbank CDS feature has an invalid \"codon_start\" attibute: " + f.Value("codon_start"))
 	}
-	r.Positions = temp[codon_start-1:]
-	if len(r.Positions)%3 != 0 {
-		return Region{}, alphabet.ErrorCDSNotModThree
+	r.Positions, err = codingPositions(temp, codon_start-1)
+	if err != nil {
+		return Region{}, err
 	}
 	if len(r.Translation) < len(r.Positions)/3 {
 		return Region{}, errors.New("Genbank CDS feature \"" + r.Name + "\": the translation is shorter than the CDS")
 	}
 
-	r.Start = gmin(r.Positions)
-	r.Stop = gmax(r.Positions)
+	r.Start = slices.Min(r.Positions)
+	r.Stop = slices.Max(r.Positions)
 
 	reverse, err := f.Location.IsReverse()
 	if err != nil {
@@ -503,37 +512,37 @@ func codes(proteincoding []Region, refLength int) []int {
 	return intergenicregions
 }
 
-// outsideRange is true if pos is before start or after end. A bound that is not > 0 is not applied, so either
-// bound can be used on its own.
-func outsideRange(pos, start, end int) bool {
-	return (start > 0 && pos < start) || (end > 0 && pos > end)
-}
-
-// some generic functions because why not
-func gmin[T constraints.Ordered](s []T) T {
-	if len(s) == 0 {
-		panic("Can't obtain the minimum item from a 0-length slice")
-	}
-	min := s[0]
-	for _, x := range s {
-		if x < min {
-			min = x
+// indelInSpan reports whether one of the indels (from getIndelsPair) touches start..stop: a deletion
+// with a deleted base there, or an insertion after a base there. getIndelAAsPair can only find
+// something in a CDS for which this is true, so it is skipped for the others.
+func indelInSpan(indels []Variant, start, stop int) bool {
+	for _, v := range indels {
+		switch v.Changetype {
+		case "del":
+			if v.Position <= stop && v.Position+v.Length-1 >= start {
+				return true
+			}
+		case "ins":
+			if v.Position >= start && v.Position <= stop {
+				return true
+			}
 		}
 	}
-	return min
+	return false
 }
 
-func gmax[T constraints.Ordered](s []T) T {
-	if len(s) == 0 {
-		panic("Can't obtain the maximum item from a 0-length slice")
+// outsideRange reports whether a variant has no reference base in start..end: the bases of its codon for
+// an amino acid change, the deleted bases for a deletion, and its position otherwise (for an insertion,
+// the base it follows). A bound that is not > 0 is not applied, so either bound can be used on its own.
+func outsideRange(v Variant, start, end int) bool {
+	out := func(pos int) bool { return (start > 0 && pos < start) || (end > 0 && pos > end) }
+	switch v.Changetype {
+	case "aa":
+		return out(v.Codon[0]) && out(v.Codon[1]) && out(v.Codon[2])
+	case "del":
+		return (start > 0 && v.Position+v.Length-1 < start) || (end > 0 && v.Position > end)
 	}
-	max := s[0]
-	for _, x := range s {
-		if x > max {
-			max = x
-		}
-	}
-	return max
+	return out(v.Position)
 }
 
 // GetMSAOffsets returns two arrays which contain coordinate shifting information that can be used to
@@ -568,6 +577,25 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 	return refToMSA, MSAToRef
 }
 
+// zeroOffsets is a slice of zeros shared by RefToMSAOffsets
+var zeroOffsets atomic.Pointer[[]int]
+
+// RefToMSAOffsets returns GetMSAOffsets's first result, refToMSA, without the second. If refseq has no
+// gaps every offset is 0, and the slice returned is shared: callers must not change it.
+func RefToMSAOffsets(refseq []byte) []int {
+	if bytes.IndexByte(refseq, 244) >= 0 {
+		refToMSA, _ := GetMSAOffsets(refseq)
+		return refToMSA
+	}
+	n := len(refseq)
+	if z := zeroOffsets.Load(); z != nil && len(*z) >= n {
+		return (*z)[:n:n]
+	}
+	z := make([]int, n)
+	zeroOffsets.Store(&z)
+	return z
+}
+
 func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int) (AnnoStructs, error) {
 
 	AS := AnnoStructs{}
@@ -576,7 +604,13 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	nucs := getNucsPair(ref, query, intregions, offsetRefCoord)
 	AAs := make([]Variant, 0)
 	for _, r := range cdsregions {
-		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord)...)
+		var handled map[int]bool
+		if indelInSpan(indels, r.Start, r.Stop) {
+			var indelAAs []Variant
+			indelAAs, handled = getIndelAAsPair(ref, query, r, offsetRefCoord)
+			AAs = append(AAs, indelAAs...)
+		}
+		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, handled)...)
 	}
 
 	variants := make([]Variant, 0)
@@ -655,7 +689,7 @@ func (lw *LineWriter) Write(AS AnnoStructs) error {
 	}
 	sa := make([]string, 0, len(AS.Vs))
 	for _, v := range AS.Vs {
-		if outsideRange(v.Position, lw.start, lw.end) {
+		if outsideRange(v, lw.start, lw.end) {
 			continue
 		}
 		newVar, err := FormatVariant(v, lw.appendSNP)
@@ -695,7 +729,7 @@ func (a *Aggregator) Add(AS AnnoStructs) error {
 	}
 	a.n++
 	for _, v := range AS.Vs {
-		if outsideRange(v.Position, a.start, a.end) {
+		if outsideRange(v, a.start, a.end) {
 			continue
 		}
 		rep, err := FormatVariant(v, a.appendSNP)

@@ -10,8 +10,8 @@ func TestHasAttribute(t *testing.T) {
 	f := GenbankFeature{
 		Feature:  "CDS",
 		Location: Location{Representation: "1..6"},
-		Info: map[string]string{
-			"translation": "MM",
+		Info: map[string][]string{
+			"translation": {"MM"},
 		},
 	}
 
@@ -49,29 +49,29 @@ func TestParseGenbankFEATURES(t *testing.T) {
 		GenbankFeature{
 			Feature:  "source",
 			Location: Location{Representation: "1..8959"},
-			Info: map[string]string{
-				"organism": "Homo sapiens",
-				"db_xref":  "taxon:9606",
-				"mol_type": "genomic DNA",
+			Info: map[string][]string{
+				"organism": {"Homo sapiens"},
+				"db_xref":  {"taxon:9606"},
+				"mol_type": {"genomic DNA"},
 			},
 		},
 		GenbankFeature{
 			Feature:  "gene",
 			Location: Location{Representation: "212..8668"},
-			Info: map[string]string{
-				"gene": "NF1",
+			Info: map[string][]string{
+				"gene": {"NF1"},
 			},
 		},
 		GenbankFeature{
 			Feature:  "CDS",
 			Location: Location{Representation: "212..8668"},
-			Info: map[string]string{
-				"gene":        "NF1",
-				"note":        "putative",
-				"codon_start": "1",
-				"product":     "GAP-related protein",
-				"protein_id":  "AAA59924.1",
-				"translation": "MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTEMAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE",
+			Info: map[string][]string{
+				"gene":        {"NF1"},
+				"note":        {"putative"},
+				"codon_start": {"1"},
+				"product":     {"GAP-related protein"},
+				"protein_id":  {"AAA59924.1"},
+				"translation": {"MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTEMAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE"},
 			},
 		},
 	}) {
@@ -128,29 +128,29 @@ ORIGIN
 		GenbankFeature{
 			Feature:  "source",
 			Location: Location{Representation: "1..8959"},
-			Info: map[string]string{
-				"organism": "Homo sapiens",
-				"db_xref":  "taxon:9606",
-				"mol_type": "genomic DNA",
+			Info: map[string][]string{
+				"organism": {"Homo sapiens"},
+				"db_xref":  {"taxon:9606"},
+				"mol_type": {"genomic DNA"},
 			},
 		},
 		GenbankFeature{
 			Feature:  "gene",
 			Location: Location{Representation: "212..8668"},
-			Info: map[string]string{
-				"gene": "NF1",
+			Info: map[string][]string{
+				"gene": {"NF1"},
 			},
 		},
 		GenbankFeature{
 			Feature:  "CDS",
 			Location: Location{Representation: "212..8668"},
-			Info: map[string]string{
-				"gene":        "NF1",
-				"note":        "putative",
-				"codon_start": "1",
-				"product":     "GAP-related protein",
-				"protein_id":  "AAA59924.1",
-				"translation": "MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTEMAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE",
+			Info: map[string][]string{
+				"gene":        {"NF1"},
+				"note":        {"putative"},
+				"codon_start": {"1"},
+				"product":     {"GAP-related protein"},
+				"protein_id":  {"AAA59924.1"},
+				"translation": {"MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTEMAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE"},
 			},
 		},
 	}

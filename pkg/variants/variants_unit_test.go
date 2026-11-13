@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
@@ -213,7 +214,7 @@ ACGTAATGATGAG-TAG-TAAA-T
 
 	desiredResult := AnnoStructs{Queryname: "seq1", Vs: []Variant{
 		{RefAl: "C", QueAl: "T", Position: 2, Changetype: "nuc"},
-		{RefAl: "M", QueAl: "L", Position: 6, Residue: 1, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"},
+		{RefAl: "M", QueAl: "L", Position: 6, Codon: [3]int{6, 7, 8}, Residue: 1, Changetype: "aa", Feature: "gene1", SNPs: "nuc:A6T"},
 		{RefAl: "A", QueAl: "T", Position: 22, Changetype: "nuc"},
 	}, Idx: 1}
 	if !reflect.DeepEqual(mutations, desiredResult) {
@@ -417,8 +418,68 @@ func TestOutsideRange(t *testing.T) {
 		{1, 2, 8, true},
 		{9, 2, 8, true},
 	} {
-		if got := outsideRange(c.pos, c.start, c.end); got != c.want {
+		if got := outsideRange(Variant{Changetype: "nuc", Position: c.pos}, c.start, c.end); got != c.want {
 			t.Errorf("outsideRange(%d, %d, %d) = %v, want %v", c.pos, c.start, c.end, got, c.want)
 		}
+	}
+}
+
+// An amino acid change is in the range if any base of its codon is, whatever the strand or however the
+// codon is split; a deletion is in the range if any deleted base is
+func TestOutsideRangeCodonsAndDeletions(t *testing.T) {
+	plus := Variant{Changetype: "aa", Position: 100, Codon: [3]int{100, 101, 102}}
+	minus := Variant{Changetype: "aa", Position: 102, Codon: [3]int{102, 101, 100}}
+	split := Variant{Changetype: "aa", Position: 10, Codon: [3]int{10, 20, 21}}
+	del := Variant{Changetype: "del", Position: 100, Length: 3}
+	ins := Variant{Changetype: "ins", Position: 100, Length: 3}
+	for _, c := range []struct {
+		name       string
+		v          Variant
+		start, end int
+		want       bool
+	}{
+		{"plus, --end inside the codon", plus, -1, 101, false},
+		{"minus, --end inside the codon", minus, -1, 101, false},
+		{"plus, --start inside the codon", plus, 102, -1, false},
+		{"minus, --start inside the codon", minus, 102, -1, false},
+		{"plus, before --start", plus, 103, -1, true},
+		{"minus, after --end", minus, -1, 99, true},
+		{"split, range between its bases", split, 12, 18, true},
+		{"split, range holding its later bases", split, 15, 20, false},
+		{"deletion running into --start", del, 102, -1, false},
+		{"deletion before --start", del, 103, -1, true},
+		{"deletion running past --end", del, -1, 100, false},
+		{"deletion after --end", del, -1, 99, true},
+		{"insertion after --end", ins, -1, 99, true},
+		{"insertion at --end", ins, -1, 100, false},
+	} {
+		if got := outsideRange(c.v, c.start, c.end); got != c.want {
+			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+// RefToMSAOffsets gives GetMSAOffsets's refToMSA, with or without gaps in the reference; the shared
+// zeros for a gapless reference have no spare capacity, so appending to them can't change them
+func TestRefToMSAOffsets(t *testing.T) {
+	EA := encoding.MakeEncodingArray()
+	encode := func(s string) []byte {
+		b := []byte(s)
+		for i := range b {
+			b[i] = EA[b[i]]
+		}
+		return b
+	}
+	for _, s := range []string{"ACGTACGTAC", "ACG--TAC-GT", "ACGTA", "-ACGT-", ""} {
+		want, _ := GetMSAOffsets(encode(s))
+		if got := RefToMSAOffsets(encode(s)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: got %v, want %v", s, got, want)
+		}
+	}
+	long := RefToMSAOffsets(encode("ACGTACGTAC"))
+	short := RefToMSAOffsets(encode("ACGT"))
+	_ = append(short, 7)
+	if cap(short) != 4 || long[4] != 0 {
+		t.Errorf("appending to the shared zeros changed them: cap %d, long %v", cap(short), long)
 	}
 }

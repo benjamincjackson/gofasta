@@ -3,29 +3,37 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// resetFlags sets every flag of c back to its default
-func resetFlags(t *testing.T, c *cobra.Command) {
-	c.InheritedFlags() // merges the parent's persistent flags into c.Flags()
-	c.Flags().VisitAll(func(f *pflag.Flag) {
-		if err := f.Value.Set(f.DefValue); err != nil {
-			t.Fatalf("resetting --%s: %v", f.Name, err)
-		}
-		f.Changed = false
-	})
+// findCmd returns the command at path (e.g. "sam variants") in a newly built gofasta command, so its
+// flags are at their defaults
+func findCmd(t *testing.T, path string) *cobra.Command {
+	t.Helper()
+	c, _, err := newRootCmd().Find(strings.Fields(path))
+	if err != nil || c.CommandPath() != "gofasta "+path {
+		t.Fatalf("no command %q", path)
+	}
+	return c
 }
 
-// preRun resets every flag of c to its default, sets the given ones, and runs c's PreRunE. The flags are
-// reset again when the test ends, so later tests see the defaults.
-func preRun(t *testing.T, c *cobra.Command, set map[string]string) error {
+// preRun sets the given flags of a new command at path and runs its PreRunE. A flag marked required that
+// is not in set is given a placeholder value, so each case tests only what it sets.
+func preRun(t *testing.T, path string, set map[string]string) error {
 	t.Helper()
-	resetFlags(t, c)
-	t.Cleanup(func() { resetFlags(t, c) })
+	c := findCmd(t, path)
+	c.InheritedFlags() // merges the parent's persistent flags into c.Flags(), so they can be set
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if _, ok := set[f.Name]; !ok && len(f.Annotations[cobra.BashCompOneRequiredFlag]) > 0 {
+			if err := c.Flags().Set(f.Name, "required-placeholder"); err != nil {
+				t.Fatalf("setting --%s: %v", f.Name, err)
+			}
+		}
+	})
 	for k, v := range set {
 		if err := c.Flags().Set(k, v); err != nil {
 			t.Fatalf("setting --%s: %v", k, err)
@@ -43,64 +51,81 @@ func TestFlagValidation(t *testing.T) {
 	other := filepath.Join(dir, "out.csv")
 
 	type tc struct {
-		c   *cobra.Command
-		set map[string]string
+		path string
+		set  map[string]string
 	}
 
 	bad := []tc{
-		{closestCmd, map[string]string{"threads": "-1"}},
-		{closestCmd, map[string]string{"number": "-3"}},
-		{closestCmd, map[string]string{"query": f, "outfile": f}},
-		{closestCmd, map[string]string{"max-dist": "-1"}},
-		{closestCmd, map[string]string{"max-dist": "-0.5"}},
-		{closestCmd, map[string]string{"max-dist": "nan"}},
-		{closestCmd, map[string]string{"max-dist": "x"}},
-		{snpCmd, map[string]string{"threshold": "-0.5"}},
-		{snpCmd, map[string]string{"reference": f, "outfile": f}},
-		{variantsCmd, map[string]string{"threads": "0"}},
-		{variantsCmd, map[string]string{"threshold": "-0.2"}},
-		{variantsCmd, map[string]string{"msa": f, "outfile": f}},
-		{variantsCmd, map[string]string{"start": "9", "end": "5"}},
-		{samVariantsCmd, map[string]string{"start": "9", "end": "5"}},
-		{samVariantsCmd, map[string]string{"threads": "0"}},
-		{samVariantsCmd, map[string]string{"threshold": "-0.5"}},
-		{samVariantsCmd, map[string]string{"reference": f, "outfile": f}},
-		{toMultiAlignCmd, map[string]string{"samfile": f, "fasta-out": f}},
-		{toPairAlignCmd, map[string]string{"threads": "-1"}},
-		{toprankingCmd, map[string]string{"size-up": "-2"}},
-		{toprankingCmd, map[string]string{"dist-push": "-1"}},
-		{toprankingCmd, map[string]string{"threshold-pair": "-0.1"}},
-		{toprankingCmd, map[string]string{"ignore": f, "outfile": f}},
-		{updownListCmd, map[string]string{"query": f, "outfile": f}},
+		{"closest", map[string]string{"threads": "-1"}},
+		{"closest", map[string]string{"number": "-3"}},
+		{"closest", map[string]string{"query": f, "outfile": f}},
+		{"closest", map[string]string{"max-dist": "-1"}},
+		{"closest", map[string]string{"max-dist": "-0.5"}},
+		{"closest", map[string]string{"max-dist": "nan"}},
+		{"closest", map[string]string{"max-dist": "x"}},
+		{"snps", map[string]string{"threshold": "-0.5"}},
+		{"snps", map[string]string{"reference": f, "outfile": f}},
+		{"variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
+		{"variants", map[string]string{"threshold": "-0.2", "annotation": "a.gb"}},
+		{"variants", map[string]string{"msa": f, "outfile": f, "annotation": "a.gb"}},
+		{"variants", map[string]string{"start": "9", "end": "5", "annotation": "a.gb"}},
+		{"sam variants", map[string]string{"start": "9", "end": "5", "annotation": "a.gb"}},
+		{"sam variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
+		{"sam variants", map[string]string{"threshold": "-0.5", "annotation": "a.gb"}},
+		{"sam variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}},
+		{"sam toMultiAlign", map[string]string{"samfile": f, "fasta-out": f}},
+		{"sam toPairAlign", map[string]string{"threads": "-1"}},
+		{"updown topranking", map[string]string{"size-up": "-2"}},
+		{"updown topranking", map[string]string{"dist-push": "-1"}},
+		{"updown topranking", map[string]string{"threshold-pair": "-0.1"}},
+		{"updown topranking", map[string]string{"ignore": f, "outfile": f}},
+		{"updown topranking", map[string]string{"query": "q.csv", "target": "t.csv"}}, // no --size-* or --dist-*
+		{"updown topranking", map[string]string{"size-up": "2", "query": "q.txt", "target": "t.csv"}},
+		{"updown topranking", map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
+		{"closest", map[string]string{"measure": "bogus"}},
+		{"updown list", map[string]string{"query": f, "outfile": f}},
+		{"updown list", map[string]string{}}, // no --reference
+		{"variants", map[string]string{}},    // no annotation
+		{"variants", map[string]string{"annotation": "a.gb", "genbank": "a.gb"}},
+		{"sam variants", map[string]string{"gff": "a.gff", "annotation": "a.gff"}},
+		{"variants", map[string]string{"gff": "stdin"}}, // --msa is stdin too
+		{"sam variants", map[string]string{"genbank": "stdin", "samfile": "stdin"}},
+		{"sam toPairAlign", map[string]string{}}, // no --reference
 	}
 	for _, b := range bad {
-		if err := preRun(t, b.c, b.set); err == nil {
-			t.Errorf("%s %v: expected an error", b.c.CommandPath(), b.set)
+		if err := preRun(t, b.path, b.set); err == nil {
+			t.Errorf("%s %v: expected an error", b.path, b.set)
 		}
 	}
 
 	good := []tc{
-		{closestCmd, map[string]string{}},
-		{closestCmd, map[string]string{"threads": "0"}},
-		{closestCmd, map[string]string{"number": "5", "table": "true"}},
-		{closestCmd, map[string]string{"table": "true"}}, // ignored without -n/-d
-		{closestCmd, map[string]string{"max-dist": "0"}},
-		{closestCmd, map[string]string{"max-dist": "inf"}},
-		{closestCmd, map[string]string{"query": f, "outfile": other}},
-		{snpCmd, map[string]string{"threshold": "0.5"}},
-		{variantsCmd, map[string]string{"start": "5", "end": "5", "threshold": "0.1"}},
-		{variantsCmd, map[string]string{"start": "5"}},
-		{variantsCmd, map[string]string{"end": "5"}},
-		{samVariantsCmd, map[string]string{"start": "5"}},
-		{variantsCmd, map[string]string{"reference": f, "outfile": f}}, // --reference is a record ID here
-		{samVariantsCmd, map[string]string{"threads": "4", "reference": f, "outfile": other}},
-		{toMultiAlignCmd, map[string]string{}},
-		{toprankingCmd, map[string]string{"size-up": "2", "threshold-pair": "0.2"}},
-		{updownListCmd, map[string]string{}},
+		{"closest", map[string]string{}},
+		{"closest", map[string]string{"threads": "0"}},
+		{"closest", map[string]string{"number": "5", "table": "true"}},
+		{"closest", map[string]string{"table": "true"}}, // ignored without -n/-d
+		{"closest", map[string]string{"max-dist": "0"}},
+		{"closest", map[string]string{"max-dist": "inf"}},
+		{"closest", map[string]string{"query": f, "outfile": other}},
+		{"snps", map[string]string{"threshold": "0.5"}},
+		{"variants", map[string]string{"start": "5", "end": "5", "threshold": "0.1", "annotation": "a.gb"}},
+		{"variants", map[string]string{"start": "5", "annotation": "a.gb"}},
+		{"variants", map[string]string{"end": "5", "annotation": "a.gb"}},
+		{"sam variants", map[string]string{"start": "5", "annotation": "a.gb"}},
+		{"variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}}, // --reference is a record ID here
+		{"sam variants", map[string]string{"threads": "4", "reference": f, "outfile": other, "annotation": "a.gb"}},
+		{"sam toMultiAlign", map[string]string{}},
+		{"updown topranking", map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
+		{"updown topranking", map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
+		{"closest", map[string]string{"measure": "TN93"}},
+		{"updown list", map[string]string{"reference": f}},
+		{"sam toPairAlign", map[string]string{"reference": f}},
+		{"variants", map[string]string{"msa": f, "gff": "stdin"}},
+		{"variants", map[string]string{"genbank": "annotation.txt"}},
+		{"sam variants", map[string]string{"samfile": f, "gff": "stdin"}},
 	}
 	for _, g := range good {
-		if err := preRun(t, g.c, g.set); err != nil {
-			t.Errorf("%s %v: unexpected error %v", g.c.CommandPath(), g.set, err)
+		if err := preRun(t, g.path, g.set); err != nil {
+			t.Errorf("%s %v: unexpected error %v", g.path, g.set, err)
 		}
 	}
 }
@@ -108,12 +133,13 @@ func TestFlagValidation(t *testing.T) {
 func TestAnnotationFormat(t *testing.T) {
 	for path, want := range map[string]string{
 		"a.gb": "gb", "a.gbk": "gb", "a.GBFF": "gb", "dir.x/a.gff": "gff", "a.gff3": "gff", "A.GFF3": "gff",
+		"a.gff.gz": "gff", "a.gb.GZ": "gb",
 	} {
 		if got, err := annotationFormat(path); err != nil || got != want {
 			t.Errorf("annotationFormat(%q) = %q, %v; want %q", path, got, err, want)
 		}
 	}
-	for _, path := range []string{"a.gtf", "a", "a.gff.gz", ""} {
+	for _, path := range []string{"a.gtf", "a", "a.gtf.gz", "a.gz", ""} {
 		if _, err := annotationFormat(path); err == nil {
 			t.Errorf("annotationFormat(%q): want an error", path)
 		}

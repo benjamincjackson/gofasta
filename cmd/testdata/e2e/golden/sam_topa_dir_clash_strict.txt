@@ -1,0 +1,4 @@
+args: sam toPairAlign -s aln_clash.sam -r ref.fasta -o pairs --strict
+exit: 1
+--- stderr
+Error: a_b (query 2): its output file a_b.fasta is already used by a/b

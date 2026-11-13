@@ -15,6 +15,7 @@ func FuzzReadGenBank(f *testing.F) {
 		f.Add(b[:min(len(b), 6000)])
 	}
 	f.Add([]byte("LOCUS       X 10 bp\nFEATURES             Location/Qualifiers\n     CDS             1..9\n                     /gene=\"a\"\nORIGIN\n        1 atgaaataa\n//\n"))
+	f.Add([]byte("LOCUS       X 10 bp\nFEATURES             Location/Qualifiers\n     CDS             join(1..3,\n                     4..9)\n                     /note=\"a \"\"b\"\"\n                     c\"\n                     /transl_except=(pos:4..6,\n                     aa:TERM)\n                     /pseudo\nORIGIN\n        1 atgaaataa\n//\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		collect(data, func() {
 			gb, err := ReadGenBank(bytes.NewReader(data))

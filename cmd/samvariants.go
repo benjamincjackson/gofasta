@@ -1,8 +1,7 @@
 package cmd
 
 import (
-	"errors"
-	"os"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -10,42 +9,25 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/sam"
 )
 
-var samVariantsAnnotation string
-var samVariantsOutfile string
-var samVariantsAggregate bool
-var samVariantsThreshold float64
-var samVariantsAppendSNP bool
-var samVariantsStart int
-var samVariantsEnd int
-
-// for backwards compatibility:
-var samVariantsGenbank string
-
-func init() {
-	samCmd.AddCommand(samVariantsCmd)
-
-	samVariantsCmd.Flags().StringVarP(&samVariantsAnnotation, "annotation", "a", "", "GenBank or GFF3 format annotation file. Must have suffix .gb, .gbk, .gbff, .gff or .gff3")
-	samVariantsCmd.Flags().StringVarP(&samVariantsOutfile, "outfile", "o", "stdout", "Where to write the variants")
-	samVariantsCmd.Flags().IntVarP(&samVariantsStart, "start", "", -1, "Only report variants after (and including) this position")
-	samVariantsCmd.Flags().IntVarP(&samVariantsEnd, "end", "", -1, "Only report variants before (and including) this position")
-	samVariantsCmd.Flags().BoolVarP(&samVariantsAggregate, "aggregate", "", false, "Report the proportions of each change")
-	samVariantsCmd.Flags().Float64VarP(&samVariantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
-	samVariantsCmd.Flags().BoolVarP(&samVariantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
-
-	samVariantsCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
-	samVariantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
-
-	samVariantsCmd.Flags().BoolVar(getStrictBoolVarArgs())
-	samVariantsCmd.Flags().SortFlags = false
-
-	samVariantsCmd.Flags().StringVarP(&samVariantsGenbank, "genbank", "g", "", "Genbank format annotation of a sequence in the same coordinates as the alignment")
-	samVariantsCmd.Flags().MarkHidden("genbank")
+// samVariantsOptions holds the values of the flags of the command newSamVariantsCmd returns
+type samVariantsOptions struct {
+	outfile   string
+	aggregate bool
+	threshold float64
+	appendSNP bool
+	start     int
+	end       int
+	annotationOptions
+	strict bool
 }
 
-var samVariantsCmd = &cobra.Command{
-	Use:   "variants",
-	Short: "Annotate mutations relative to a reference from an alignment in sam format",
-	Long: `Annotate mutations relative to a reference from an alignment in sam format
+// newSamVariantsCmd builds the sam variants command; s holds the sam command's flags, which its subcommands share
+func newSamVariantsCmd(s *samOptions) *cobra.Command {
+	var o samVariantsOptions
+	c := &cobra.Command{
+		Use:   "variants",
+		Short: "Annotate mutations relative to a reference from an alignment in sam format",
+		Long: `Annotate mutations relative to a reference from an alignment in sam format
 
 Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gb -o variants.csv
@@ -71,65 +53,66 @@ isn't in a codon that is represented by an amino acid change). The formats are:
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.
 `,
 
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return firstError(
-			intAtLeast(cmd, 1, "threads"),
-			floatAtLeast(cmd, 0, "threshold"),
-			startNotAfterEnd(cmd),
-			outputNotInput(cmd, "outfile", "samfile", "reference", "annotation", "genbank"),
-		)
-	},
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return firstError(
+				intAtLeast(cmd, 1, "threads"),
+				floatAtLeast(cmd, 0, "threshold"),
+				startNotAfterEnd(cmd),
+				checkAnnotationFlags(cmd),
+				oneStdin(cmd, "samfile", "reference", "annotation", "genbank", "gff"),
+				outputNotInput(cmd, "outfile", "samfile", "reference", "annotation", "genbank", "gff"),
+			)
+		},
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
-		if err != nil {
+			samIn, err := openIn(cmd, "samfile")
+			if err != nil {
+				return err
+			}
+			defer samIn.Close()
+
+			refFromFile := false
+			var ref io.ReadCloser // without --reference, the annotation's sequence is the reference
+			if s.reference != "" {
+				ref, err = openIn(cmd, "reference")
+				if err != nil {
+					return err
+				}
+				defer ref.Close()
+				refFromFile = true
+			}
+
+			anno, annoSuffix, err := o.annotationOptions.open(cmd)
+			if err != nil {
+				return err
+			}
+			defer anno.Close()
+
+			out, err := openOut(cmd, "outfile")
+			if err != nil {
+				return err
+			}
+			defer gfio.CloseOut(out, &err)
+
+			err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, s.threads, o.strict)
+
 			return err
-		}
-		defer samIn.Close()
+		},
+	}
 
-		refFromFile := false
-		var ref *os.File
-		if samReference != "" {
-			ref, err = gfio.OpenIn(*cmd.Flag("reference"))
-			if err != nil {
-				return err
-			}
-			refFromFile = true
-		}
-		defer ref.Close()
+	addAnnotationFlags(c, &o.annotationOptions)
+	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Where to write the variants")
+	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")
+	c.Flags().IntVarP(&o.end, "end", "", -1, "Only report variants with a reference base at or before this position")
+	c.Flags().BoolVarP(&o.aggregate, "aggregate", "", false, "Report the proportions of each change")
+	c.Flags().Float64VarP(&o.threshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
+	c.Flags().BoolVarP(&o.appendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
 
-		// some backwards compatibility wrangling of --genbank vs --annotation
-		var anno *os.File
-		var annoSuffix string
-		if samVariantsGenbank != "" {
-			if samVariantsAnnotation != "" {
-				return errors.New("--annotation replaces --genbank")
-			}
-			anno, err = gfio.OpenIn(*cmd.Flag("genbank"))
-			if err != nil {
-				return err
-			}
-			annoSuffix = "gb"
-		} else {
-			annoSuffix, err = annotationFormat(samVariantsAnnotation)
-			if err != nil {
-				return err
-			}
-			anno, err = gfio.OpenIn(*cmd.Flag("annotation"))
-			if err != nil {
-				return err
-			}
-		}
-		defer anno.Close()
+	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
+	c.Flags().Lookup("append-snps").NoOptDefVal = "true"
 
-		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
-		if err != nil {
-			return err
-		}
-		defer gfio.CloseOut(out, &err)
+	addStrictFlag(c, &o.strict)
+	c.Flags().SortFlags = false
 
-		err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, samVariantsStart, samVariantsEnd, samVariantsAggregate, samVariantsThreshold, samVariantsAppendSNP, samThreads, strict)
-
-		return err
-	},
+	return c
 }

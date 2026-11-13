@@ -4,42 +4,38 @@ package alphabet
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 var ErrorCDSNotModThree error = errors.New("Translation error: Nucleotide sequence not divisible by 3")
 
-// Translate a nucleotide sequence to a protein sequence
+// codonDict is MakeCodonDict's table, built once and only read
+var codonDict = MakeCodonDict()
+
+// Translate a nucleotide sequence (in upper or lower case) to a protein sequence
 // Codons with ambiguous nucleotides are resolved if it can only possibly
 // represent one amino acid
 func Translate(nuc string, strict bool) (string, error) {
 	if len(nuc)%3 != 0 {
 		return "", ErrorCDSNotModThree
 	}
-	translation := ""
-	codon := ""
-	counter := 0
-	CD := MakeCodonDict()
-	for i := 0; i < len(nuc); i++ {
-		codon = codon + string(nuc[i])
-		counter++
-		if counter == 3 {
-			if t, ok := CD[codon]; ok {
-				translation = translation + t
-			} else {
-				if strict {
-					return "", errors.New("Translation error: Untranslatable codon: " + codon)
-				} else {
-					translation = translation + "X"
-				}
-			}
-			counter = 0
-			codon = ""
+	nuc = strings.ToUpper(nuc) // the codon table is upper case
+	var translation strings.Builder
+	translation.Grow(len(nuc) / 3)
+	for i := 0; i+3 <= len(nuc); i += 3 {
+		codon := nuc[i : i+3]
+		if t, ok := codonDict[codon]; ok {
+			translation.WriteString(t)
+		} else if strict {
+			return "", errors.New("Translation error: Untranslatable codon: " + codon)
+		} else {
+			translation.WriteByte('X')
 		}
 	}
 
-	return translation, nil
+	return translation.String(), nil
 }
 
 func Complement(nuc string) string {
@@ -59,7 +55,7 @@ func ReverseComplement(nuc string) string {
 	return string(temp)
 }
 
-func MakeCompArray() [256]byte {
+func buildCompArray() [256]byte {
 	var compArray [256]byte
 
 	compArray['A'] = 'T'
@@ -98,7 +94,12 @@ func MakeCompArray() [256]byte {
 	return compArray
 }
 
-func MakeEncodedCompArray() [256]byte {
+var compArrayTable = buildCompArray()
+
+// MakeCompArray returns a copy of the table buildCompArray builds, which is built only once
+func MakeCompArray() [256]byte { return compArrayTable }
+
+func buildEncodedCompArray() [256]byte {
 	var compArray [256]byte
 
 	EA := encoding.MakeEncodingArray()
@@ -138,6 +139,11 @@ func MakeEncodedCompArray() [256]byte {
 
 	return compArray
 }
+
+var encodedCompArrayTable = buildEncodedCompArray()
+
+// MakeEncodedCompArray returns a copy of the table buildEncodedCompArray builds, which is built only once
+func MakeEncodedCompArray() [256]byte { return encodedCompArrayTable }
 
 // MakeCodonDict returns a map from codon (string) to amino acid code (string)
 func MakeCodonDict() map[string]string {

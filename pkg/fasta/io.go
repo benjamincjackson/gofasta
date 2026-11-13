@@ -14,12 +14,14 @@ var (
 	ErrDiffLenSeqs      = errors.New("different length sequences in input file: is this an alignment?")
 )
 
+// Reader reads fasta records one at a time
 type Reader struct {
-	*bufio.Reader
+	br *bufio.Reader
 }
 
+// NewReader returns a Reader that reads from f
 func NewReader(f io.Reader) *Reader {
-	return &Reader{bufio.NewReader(f)}
+	return &Reader{br: bufio.NewReader(f)}
 }
 
 // Read reads one fasta record from the underlying reader. The final record is
@@ -44,7 +46,7 @@ func (r *Reader) Read() (Record, error) {
 			// it returns the data read before the error and the error itself (often io.EOF).
 			// ReadBytes returns err != nil if and only if the returned data does not end in delim.
 			// For simple uses, a Scanner may be more convenient."
-			line, err = r.ReadBytes('\n')
+			line, err = r.br.ReadBytes('\n')
 
 			// A header line that is the last thing in the file without a trailing newline comes back
 			// with err == io.EOF but non-empty data. It is kept, as a record with an empty sequence, the
@@ -87,7 +89,7 @@ func (r *Reader) Read() (Record, error) {
 		} else {
 			// peek at the first next byte of the underlying reader, in order
 			// to see if we've reached the end of this record (or the file)
-			peek, err = r.Peek(1)
+			peek, err = r.br.Peek(1)
 
 			// both these cases are fine if first = false, so we can exit the loop and return the fasta record
 			if err == io.EOF || (err == nil && peek[0] == '>') {
@@ -102,7 +104,7 @@ func (r *Reader) Read() (Record, error) {
 			// If we've got this far, this should be a sequence line.
 			// The err from ReadBytes() may be io.EOF if the file ends before a newline character, but this is okay because it will
 			// be caught when we peek in the next iteration of the while loop.
-			line, err = r.ReadBytes('\n')
+			line, err = r.br.ReadBytes('\n')
 			if err != nil && err != io.EOF {
 				return Record{}, err
 			}
@@ -214,51 +216,6 @@ func NewEncodedAlignmentSource(f io.Reader, hardGaps, atgc, score bool) func() (
 	}
 }
 
-// StreamAlignment reads an alignment in fasta format to a channel of Record structs
-func StreamAlignment(f io.Reader, cR chan Record, cErr chan error, cDone chan bool) {
-	next := NewAlignmentSource(f)
-	for {
-		record, err := next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			cErr <- err
-			return
-		}
-		cR <- record
-	}
-	cDone <- true
-}
-
-// StreamEncodeAlignment reads an alignment in fasta format to a channel of
-// Record structs - converting the nucleotide sequence to EP's bitwise coding
-// scheme optionally with or without hard gaps, scoring each record and getting
-// ATGC counts
-func StreamEncodeAlignment(
-	f io.Reader,
-	cER chan EncodedRecord,
-	cErr chan error,
-	cDone chan bool,
-	hardGaps bool,
-	atgc bool,
-	score bool) {
-
-	next := NewEncodedAlignmentSource(f, hardGaps, atgc, score)
-	for {
-		record, err := next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			cErr <- err
-			return
-		}
-		cER <- record
-	}
-	cDone <- true
-}
-
 // LoadEncodeAlignment reads and encodes every record of an alignment in fasta format (see
 // NewEncodedAlignmentSource) and returns them in input order
 func LoadEncodeAlignment(
@@ -299,36 +256,6 @@ func WriteRecord(w io.Writer, record Record, wrap int) error {
 		}
 	}
 	return nil
-}
-
-// WriteAlignment reads Records from a channel and writes them to file or stdout,
-// in the order in which they are present in the input file.
-// It passes a true to a done channel when the channel of fasta records is empty
-func WriteAlignment(cR chan Record, w io.Writer, cErr chan error, cDone chan bool) {
-	WriteWrapAlignment(cR, w, 0, cErr, cDone)
-}
-
-// WriteWrapAlignment is as WriteAlignment but with sequence lines wrapped to wrap
-// characters in length (if wrap > 0)
-func WriteWrapAlignment(cR chan Record, w io.Writer, wrap int, cErr chan error, cDone chan bool) {
-	outputMap := make(map[int]Record)
-	counter := 0
-	for R := range cR {
-		outputMap[R.Idx] = R
-		for {
-			record, ok := outputMap[counter]
-			if !ok {
-				break
-			}
-			if err := WriteRecord(w, record, wrap); err != nil {
-				cErr <- err
-				return
-			}
-			delete(outputMap, counter)
-			counter++
-		}
-	}
-	cDone <- true
 }
 
 // getAlignmentDims gets the dimensions (i.e. the number of sequences and the

@@ -543,7 +543,9 @@ func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct) error {
 
 // writeUpdownTable writes the output in table format, including SNP-distances
 func writeUpdownTable(w io.Writer, results []updownCatchmentStruct) error {
-	w.Write([]byte("query,direction,distance,target\n"))
+	if _, err := w.Write([]byte("query,direction,distance,target\n")); err != nil {
+		return err
+	}
 	for _, result := range results {
 		for _, neighbour := range result.same.catchment {
 			_, err := w.Write([]byte(strings.Join([]string{result.qname, "same", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
@@ -584,9 +586,17 @@ func allZero(s []int) bool {
 	return true
 }
 
-// checkArgs sanity checks the command line options
+// CheckTopRankingArgs checks the --size-* and --dist-* values given to TopRanking, which also checks
+// them, so that a command can report a problem before it opens any input
+func CheckTopRankingArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
+	distall int, distup int, distdown int, distside int, distpush int) error {
+	_, _, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush, io.Discard)
+	return err
+}
+
+// checkArgs sanity checks the command line options, writing warnings about overridden options to warn
 func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
-	distall int, distup int, distdown int, distside int, distpush int) ([4]int, [4]int, error) {
+	distall int, distup int, distdown int, distside int, distpush int, warn io.Writer) ([4]int, [4]int, error) {
 
 	for _, v := range []int{sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush} {
 		if v < 0 {
@@ -611,11 +621,11 @@ or to --dist-push`)
 	}
 
 	if sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame}) {
-		os.Stderr.WriteString("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same")
+		io.WriteString(warn, "warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same\n")
 	}
 
 	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
-		os.Stderr.WriteString("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side")
+		io.WriteString(warn, "warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side\n")
 	}
 
 	// bucket sizes for same,up,down,side,total respectively
@@ -681,6 +691,20 @@ func sum4(a [4]int) int {
 	return t
 }
 
+// targetIn is a target of topranking as read: a fasta record or a line of updown list's csv output
+type targetIn struct {
+	record *fasta.Record
+	row    csvRow
+}
+
+// RecordName returns the target's name (see pipeline.Namer)
+func (t targetIn) RecordName() string {
+	if t.record != nil {
+		return t.record.ID
+	}
+	return t.row.RecordName()
+}
+
 // TopRanking finds pseudo-tree-aware catchments for query sequences, given a large database of target sequences, the closest
 // of which should be returned in the output. Targets are split into bins depending on whether they are likely direct ancestors of,
 // direct descendants of, polyphyletic with, or exactly the same as, the query
@@ -690,7 +714,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	distall int, distup int, distdown int, distside int,
 	threshpair float32, threshtarg int, nofill bool, distpush int, strict bool) error {
 
-	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush)
+	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush, os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -731,11 +755,6 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		}
 	}
 
-	// a target is read as a fasta record or as a line of updown list's csv output
-	type targetIn struct {
-		record *fasta.Record
-		row    csvRow
-	}
 	// a target with its direction and snp distance from each query
 	type rankedTarget struct {
 		line                 updownLine

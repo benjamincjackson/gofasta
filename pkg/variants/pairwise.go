@@ -3,9 +3,6 @@ package variants
 import (
 	"strconv"
 	"strings"
-
-	"github.com/virus-evolution/gofasta/pkg/alphabet"
-	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 func getIndelsPair(ref, query []byte) []Variant {
@@ -75,79 +72,65 @@ func getIndelsPair(ref, query []byte) []Variant {
 }
 
 func getNucsPair(ref, query []byte, pos []int, offsetRefCoord []int) []Variant {
-	DA := encoding.MakeDecodingArray()
 	variants := make([]Variant, 0)
 	for _, p := range pos {
 		alignPos := (p - 1) + offsetRefCoord[p-1]
 		if (ref[alignPos] & query[alignPos]) < 16 { // check for SNPs
-			variants = append(variants, Variant{Changetype: "nuc", RefAl: DA[ref[alignPos]], QueAl: DA[query[alignPos]], Position: p})
+			variants = append(variants, Variant{Changetype: "nuc", RefAl: decodingArray[ref[alignPos]], QueAl: decodingArray[query[alignPos]], Position: p})
 		}
 	}
 	return variants
 }
 
-// a version of the function that uses the Positions slice in the Region instead of the CodonStarts
-func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int) []Variant {
-
-	DA := encoding.MakeDecodingArray()
-	CD := alphabet.MakeCodonDict()
+// getAAsPair reports the amino acid changes in a CDS codon by codon, and the nucleotide changes in codons
+// whose amino acid is unchanged, leaving out the codons in skip (0-based codon indices).
+func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, skip map[int]bool) []Variant {
 
 	variants := make([]Variant, 0)
-	codonSNPs := make([]Variant, 0, 3)
+	codonSNPs := make([]Variant, 0, 3) // reused for each codon
+	var codon [3]byte                  // the query's codon, as IUPAC characters, in CDS order
 
-	var decodedCodon, aa, refaa string
-	aaCounter := 0
-	codonCounter := 0
-
-	//
-	for _, refPos := range region.Positions {
+	for k, refPos := range region.Positions {
 		// here is the actual position in the msa:
 		alignmentPos := (refPos - 1) + offsetRefCoord[refPos-1]
 
 		// alignmentPos is the column of a reference base, so the reference is never a gap here: insertions
 		// relative to the reference are not visited.
-		// TO DO = if they are in this record log/take them into account in terms of the protein sequence?
 		if (query[alignmentPos] & ref[alignmentPos]) < 16 {
-			codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: DA[ref[alignmentPos]], QueAl: DA[query[alignmentPos]], Position: refPos})
-			// IF ON THE REVERSE STRAND- WHICH NUCLEOTIDE SHOULD BE REPRESENTED IN THE NUC VARIANT?
+			codonSNPs = append(codonSNPs, Variant{Changetype: "nuc", RefAl: decodingArray[ref[alignmentPos]], QueAl: decodingArray[query[alignmentPos]], Position: refPos})
 		}
-		decodedCodon = decodedCodon + DA[query[alignmentPos]]
+		codon[k%3] = decodingByte[query[alignmentPos]]
 
-		codonCounter++
+		if k%3 != 2 {
+			continue
+		}
+		aaCounter := k / 3
 
-		if codonCounter == 3 {
-			// if reverse strand, take complement (if we're using the slice of nucleotide positions,
-			// we're already going in the reverse direction, so don't need the reverse complement)
+		if !skip[aaCounter] {
+			// on the reverse strand the positions already run 3' to 5' on the forward strand, so the
+			// complement (not the reverse complement) gives the codon
 			if region.Strand == -1 {
-				decodedCodon = alphabet.Complement(decodedCodon)
+				for i := range codon {
+					codon[i] = compArray[codon[i]]
+				}
 			}
-
-			if _, ok := CD[decodedCodon]; ok {
-				aa = CD[decodedCodon]
-			} else {
+			aa, ok := codonDict[string(codon[:])]
+			if !ok {
 				aa = "X"
 			}
-
-			refaa = string(region.Translation[aaCounter])
+			refaa := region.Translation[aaCounter : aaCounter+1]
 
 			if aa != refaa && aa != "X" {
-				temp := []string{}
+				temp := make([]string, 0, len(codonSNPs))
 				for _, v := range codonSNPs {
 					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position)+v.QueAl)
 				}
-				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: refPos - (2 * region.Strand), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
-
+				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: region.Positions[3*aaCounter], Codon: codonPositions(region, aaCounter), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
 			} else {
-				for _, v := range codonSNPs {
-					variants = append(variants, v)
-				}
+				variants = append(variants, codonSNPs...)
 			}
-
-			codonSNPs = make([]Variant, 0, 3)
-			decodedCodon = ""
-			codonCounter = 0
-			aaCounter++
 		}
+		codonSNPs = codonSNPs[:0]
 	}
 
 	return variants

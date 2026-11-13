@@ -1,57 +1,33 @@
 package cmd
 
 import (
-	"errors"
-	"os"
-
 	"github.com/spf13/cobra"
 
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
-var variantsMSA string
-var variantsReference string
-var variantsAnnotation string
-var variantsOutfile string
-var variantsThreads int
-var variantsAggregate bool
-var variantsThreshold float64
-var variantsAppendSNP bool
-var variantsStart int
-var variantsEnd int
-
-// for backwards compatibility:
-var variantsGenbank string
-
-func init() {
-	rootCmd.AddCommand(variantsCmd)
-
-	variantsCmd.Flags().StringVarP(&variantsMSA, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
-	variantsCmd.Flags().StringVarP(&variantsReference, "reference", "r", "", "The ID of the reference record in the msa")
-	variantsCmd.Flags().StringVarP(&variantsAnnotation, "annotation", "a", "", "GenBank or GFF3 format annotation file. Must have suffix .gb, .gbk, .gbff, .gff or .gff3")
-	variantsCmd.Flags().StringVarP(&variantsOutfile, "outfile", "o", "stdout", "Name of the file of variants to write")
-	variantsCmd.Flags().IntVarP(&variantsStart, "start", "", -1, "Only report variants after (and including) this position")
-	variantsCmd.Flags().IntVarP(&variantsEnd, "end", "", -1, "Only report variants before (and including) this position")
-	variantsCmd.Flags().BoolVarP(&variantsAggregate, "aggregate", "", false, "Report the proportions of each change")
-	variantsCmd.Flags().Float64VarP(&variantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
-	variantsCmd.Flags().BoolVarP(&variantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
-	variantsCmd.Flags().IntVarP(&variantsThreads, "threads", "t", 1, "Number of threads to use")
-
-	variantsCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
-	variantsCmd.Flags().Lookup("append-snps").NoOptDefVal = "true"
-
-	variantsCmd.Flags().StringVarP(&variantsGenbank, "genbank", "", "", "Genbank format annotation")
-	variantsCmd.Flags().MarkHidden("genbank")
-
-	variantsCmd.Flags().BoolVar(getStrictBoolVarArgs())
-	variantsCmd.Flags().SortFlags = false
+// variantsOptions holds the values of the flags of the command newVariantsCmd returns
+type variantsOptions struct {
+	msa       string
+	reference string
+	outfile   string
+	threads   int
+	aggregate bool
+	threshold float64
+	appendSNP bool
+	start     int
+	end       int
+	annotationOptions
+	strict bool
 }
 
-var variantsCmd = &cobra.Command{
-	Use:   "variants",
-	Short: "Annotate mutations relative to a reference from a multiple sequence alignment in fasta format",
-	Long: `Annotate mutations relative to a reference from a multiple sequence alignment in fasta format
+func newVariantsCmd() *cobra.Command {
+	var o variantsOptions
+	c := &cobra.Command{
+		Use:   "variants",
+		Short: "Annotate mutations relative to a reference from a multiple sequence alignment in fasta format",
+		Long: `Annotate mutations relative to a reference from a multiple sequence alignment in fasta format
 
 Example usage:
 
@@ -81,60 +57,63 @@ isn't in a codon that is represented by an amino acid change). The formats are:
 
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.	
 `,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		// --reference is the ID of a record in the msa, not a file
-		return firstError(
-			intAtLeast(cmd, 1, "threads"),
-			floatAtLeast(cmd, 0, "threshold"),
-			startNotAfterEnd(cmd),
-			outputNotInput(cmd, "outfile", "msa", "annotation", "genbank"),
-		)
-	},
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			// --reference is the ID of a record in the msa, not a file
+			return firstError(
+				intAtLeast(cmd, 1, "threads"),
+				floatAtLeast(cmd, 0, "threshold"),
+				startNotAfterEnd(cmd),
+				checkAnnotationFlags(cmd),
+				oneStdin(cmd, "msa", "annotation", "genbank", "gff"),
+				outputNotInput(cmd, "outfile", "msa", "annotation", "genbank", "gff"),
+			)
+		},
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		msa, err := gfio.OpenIn(*cmd.Flag("msa"))
-		if err != nil {
-			return err
-		}
-		defer msa.Close()
-
-		stdin := false
-		if variantsMSA == "stdin" {
-			stdin = true
-		}
-
-		// some backwards compatibility wrangling of --genbank vs --annotation
-		var anno *os.File
-		var annoSuffix string
-		if variantsGenbank != "" {
-			if variantsAnnotation != "" {
-				return errors.New("--annotation replaces --genbank")
-			}
-			anno, err = gfio.OpenIn(*cmd.Flag("genbank"))
+			msa, err := openIn(cmd, "msa")
 			if err != nil {
 				return err
 			}
-			annoSuffix = "gb"
-		} else {
-			annoSuffix, err = annotationFormat(variantsAnnotation)
+			defer msa.Close()
+
+			stdin := false
+			if o.msa == "stdin" {
+				stdin = true
+			}
+
+			anno, annoSuffix, err := o.annotationOptions.open(cmd)
 			if err != nil {
 				return err
 			}
-			anno, err = gfio.OpenIn(*cmd.Flag("annotation"))
+			defer anno.Close()
+
+			out, err := openOut(cmd, "outfile")
 			if err != nil {
 				return err
 			}
-		}
-		defer anno.Close()
+			defer gfio.CloseOut(out, &err)
 
-		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
-		if err != nil {
-			return err
-		}
-		defer gfio.CloseOut(out, &err)
+			err = variants.Variants(msa, stdin, o.reference, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.threads, o.strict)
 
-		err = variants.Variants(msa, stdin, variantsReference, anno, annoSuffix, out, variantsStart, variantsEnd, variantsAggregate, variantsThreshold, variantsAppendSNP, variantsThreads, strict)
+			return
+		},
+	}
 
-		return
-	},
+	c.Flags().StringVarP(&o.msa, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "The ID of the reference record in the msa")
+	addAnnotationFlags(c, &o.annotationOptions)
+	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Name of the file of variants to write")
+	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")
+	c.Flags().IntVarP(&o.end, "end", "", -1, "Only report variants with a reference base at or before this position")
+	c.Flags().BoolVarP(&o.aggregate, "aggregate", "", false, "Report the proportions of each change")
+	c.Flags().Float64VarP(&o.threshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
+	c.Flags().BoolVarP(&o.appendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
+	c.Flags().IntVarP(&o.threads, "threads", "t", 1, "Number of threads to use")
+
+	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
+	c.Flags().Lookup("append-snps").NoOptDefVal = "true"
+
+	addStrictFlag(c, &o.strict)
+	c.Flags().SortFlags = false
+	return c
 }

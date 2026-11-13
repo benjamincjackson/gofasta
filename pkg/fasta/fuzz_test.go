@@ -32,7 +32,7 @@ func FuzzReader(f *testing.F) {
 	})
 }
 
-// FuzzStreamAlignment: the alignment reader on arbitrary bytes.
+// FuzzGetAlignmentDims: getAlignmentDims on arbitrary bytes.
 func FuzzGetAlignmentDims(f *testing.F) {
 	for _, s := range []string{">a\nACGT\n>b\nAC-T\n", ">a\nAC\n>b\nACG\n", ">a\n", ""} {
 		f.Add([]byte(s))

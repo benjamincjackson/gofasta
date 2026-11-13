@@ -79,6 +79,14 @@ type csvRow struct {
 	idx    int
 }
 
+// RecordName returns the row's query name, its first field (see pipeline.Namer)
+func (r csvRow) RecordName() string {
+	if len(r.fields) == 0 {
+		return ""
+	}
+	return r.fields[0]
+}
+
 // newCSVSource returns a function that reads one data line per call from a csv file in the format
 // written by gofasta updown list, and returns io.EOF after the last one. It checks the header, returning
 // badHeader if it is not updown list's, but not the data lines (see parseCSVRow).

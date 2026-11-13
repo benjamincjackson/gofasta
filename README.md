@@ -68,6 +68,8 @@ Global Flags:
 
 ## Usage
 
+Any input file (or stdin) can be gzipped: gofasta recognises gzip by its content, so the file can be called anything, and decompresses it as it reads it. Output is not compressed.
+
 ### Sam to fasta format conversion
 
 [minimap2](https://github.com/lh3/minimap2) provides fast and reliable pairwise alignments between SARS-CoV-2 consensus genomes. gofasta provides utility functions to convert the sam format alignments it outputs into fasta format.
@@ -260,13 +262,15 @@ C3037T,0.833333333
 <details><summary><b>Amino acid, indel and neutral nucleotide changes</b></summary>
 </br>
 
-If you provide an annotation, gofasta can also annotate amino acid changes relative to a reference sequence. The annotation can be provided (with the suffix `.gb`, `.gbk` or `.gbff`) in [genbank flat file format](https://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html) or (with the suffix `.gff` or `.gff3`) [gff version 3 format](https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md). Examples of both for SARS-CoV-2 are available under `resources/` in this repository.
+If you provide an annotation, gofasta can also annotate amino acid changes relative to a reference sequence. The annotation can be provided (with the suffix `.gb`, `.gbk` or `.gbff`) in [genbank flat file format](https://www.ncbi.nlm.nih.gov/Sitemap/samplerecord.html) or (with the suffix `.gff` or `.gff3`) [gff version 3 format](https://github.com/The-Sequence-Ontology/Specifications/blob/master/gff3.md). Examples of both for SARS-CoV-2 are available under `resources/` in this repository. Give it with `--annotation`, which takes the format from the suffix, or with `--genbank` or `--gff` to say the format whatever the file is called (`--gff stdin` reads it from stdin, if nothing else is).
 
 The two relevant routines are `gofasta variants` (for annotating mutations in alignments in fasta format) and `gofasta sam variants` (for annotating mutations in alignments in sam format). They should give the same output for the same alignment and the same annotation. Multiple sequence alignments in fasta format don't need to be in reference coordinates for `gofasta variants`, but if they aren't, a sequence in the same space as the annotation must be present in the alignment. If the alignment is being read from stdin, this sequence must be the first sequence in the alignment, but doesn't have to be if the file is being read from disk. The reference sequence in fasta format needs to be provided to `gofasta sam variants` unless it is present in your annotation. As usual, run either command with the `-h` flag for example command lines and detailed help.
 
 For a genbank format annotation, the annotation will be parsed such that the genome is split into protein-coding regions based on CDS features, and intergenic regions (everything that isn't in CDS). Mutations are then annotated with `ins` (insertion), `del` (deletion), `aa` (amino acid change) or `nuc` (a nucleotide change in intergenic sequence, or a synonymous change in a CDS). Where CDSs overlap, a change is reported as an `aa` for each CDS in which it changes the amino acid, and also as a `nuc` if it is synonymous in any of them: for example, a change that alters an amino acid in gene A but is synonymous in an overlapping gene B is reported both as `aa:A:...` and as `nuc:...`.
 
 gff format annotation gives you more flexibility for naming amino acid changes. Currently, the annotation will be parsed such that the genome is split into protein-coding regions based on feature lines whose `type` (in column 3) is either `CDS` or `mature_protein_region_of_CDS`, and intergenic regions (everything else). For the purposes of annotating amino acids, `CDS` or `mature_protein_region_of_CDS` feature lines that have a `Name=something` tag,value pair in the attributes column (column 9) will be represented in the output, under that name. Thus you can define regions as protein-coding using a `CDS` feature line (for example orf1a in SARS-CoV-2) but annotate amino acid changes in its constituent protein products using `mature_protein_region_of_CDS` feature lines with `Name=` attributes. [See the example](https://github.com/virus-evolution/gofasta/blob/master/resources/sarscov2-reduced.gff). Other attributes such as `gene=` are not used, so with GFF3 files from NCBI, whose `Name=` is the protein accession, amino acid changes are reported as e.g. `aa:YP_009724390.1:D614G`; edit the `Name=` values (or use the GenBank file) to report gene names instead.
+
+The reading frame of a CDS is given by the phase (column 8) of its 5'-most line in a gff file (the last line of a CDS on the minus strand), or by its `/codon_start` in a genbank file: translation starts that many bases (phase), or one fewer (`/codon_start`), from its 5' end. A CDS that starts with a partial codon in this way may also end with one, which is ignored. A CDS that starts with a complete codon must be a whole number of codons long. Changes in the bases of these partial codons are reported as `nuc`.
 
 Examples of the output formats:
 
@@ -275,6 +279,10 @@ Examples of the output formats:
 	aa:S:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
 	aa:nsp12:P323L - the amino acid at (1-based) residue 323 in the rdrp gene is a P in the reference and an L in this sequence
 	nuc:C3037T - the nucleotide at (1-based) position 3037 in reference coordinates is a C in the reference and a T in this sequence
+	aa:S:H69- - the amino acid at (1-based) residue 69 in the S gene is deleted in this sequence
+	aa:S:214EPE - the amino acids EPE are inserted after (1-based) residue 214 in the S gene in this sequence
+
+In-frame insertions and deletions in a CDS are also described at the amino acid level, residue by residue, in the coordinates of the reference protein: a deleted residue is written with `-`, inserted residues after the number of the residue they follow, and a residue changed next to an indel as a substitution. For example, the 6-base deletion at 22029 in the S gene of the SARS-CoV-2 Delta variant is `aa:S:E156G|del:22029:6|aa:S:F157-|aa:S:R158-`. The amino acid changes are worked out from the codons that the indel touches, as aligned, so they follow the alignment; an indel in a run of repeated residues is placed as far towards the C-terminus as possible. A change in the bases of those codons is part of the amino acid change rather than a separate `nuc` entry, and `--append-snps` lists the nucleotide indel (and any such changes) in the parentheses. Nothing after a stop codon is reported (an insertion that brings in a stop gives, e.g., `aa:N:Y87*`). Indels that shift the reading frame, come after one that does, run past the end of the CDS, touch its start or stop codon, or touch missing data (`N`, or the uncovered ends of an alignment) are reported only as `ins` or `del`.
 
 As with `gofasta snps` the default mode writes a csv with one line per query sequence, and each sequence's mutations in the second column. Use `--aggregate` to get the overall frequencies of mutations in the alignment(s).
 
@@ -307,7 +315,7 @@ Other software exists for calculating pairwise genetic distances, including [tn9
 
 ## Acknowledgements and third party licences
 
-gofasta incorporates [bíogo](https://github.com/biogo/biogo), which is distributed under licence. Its licence is reproduced under `THIRD_PARTY_LICENCES/biogo` or run `gofasta licences` to print it.
+gofasta incorporates [bíogo hts](https://github.com/biogo/hts), [cobra](https://github.com/spf13/cobra) and [pflag](https://github.com/spf13/pflag), each distributed under its own licence. Their licence notices are reproduced in `NOTICE`; `gofasta licences` prints a summary and `gofasta licences -l` prints them in full.
 
 gofasta uses a slightly modified version of the bit-level coding scheme for nucleotides by Emmanuel Paradis, which is used in [ape](https://doi.org/10.1093/bioinformatics/btg412). For a description of it, see [here](https://emmanuelparadis.github.io/misc/BitLevelCodingScheme.html).
 

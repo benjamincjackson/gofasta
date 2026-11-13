@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -11,35 +12,25 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 )
 
-var closestThreads int
-var closestQuery string
-var closestTarget string
-var closestOutfile string
-var closestN int
-var closestDist string
-var closestMeasure string
-var closestTable bool
-
-func init() {
-	rootCmd.AddCommand(closestCmd)
-
-	closestCmd.Flags().IntVarP(&closestThreads, "threads", "t", 0, "Number of CPUs to use (Default: all available CPUs)")
-	closestCmd.Flags().StringVarP(&closestQuery, "query", "", "", "Alignment of sequences to find neighbours for, in fasta format")
-	closestCmd.Flags().StringVarP(&closestTarget, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
-	closestCmd.Flags().StringVarP(&closestMeasure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
-	closestCmd.Flags().IntVarP(&closestN, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
-	closestCmd.Flags().StringVarP(&closestDist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
-	closestCmd.Flags().StringVarP(&closestOutfile, "outfile", "o", "stdout", "The output file to write")
-	closestCmd.Flags().BoolVarP(&closestTable, "table", "", false, "Write a long-form table of the output")
-
-	closestCmd.Flags().BoolVar(getStrictBoolVarArgs())
-	closestCmd.Flags().SortFlags = false
+// closestOptions holds the values of the flags of the command newClosestCmd returns
+type closestOptions struct {
+	threads int
+	query   string
+	target  string
+	outfile string
+	n       int
+	dist    string
+	measure string
+	table   bool
+	strict  bool
 }
 
-var closestCmd = &cobra.Command{
-	Use:   "closest",
-	Short: "Find the closest sequence(s) to a query by genetic distance",
-	Long: `Find the closest sequence(s) to a query by genetic distance
+func newClosestCmd() *cobra.Command {
+	var o closestOptions
+	c := &cobra.Command{
+		Use:   "closest",
+		Short: "Find the closest sequence(s) to a query by genetic distance",
+		Long: `Find the closest sequence(s) to a query by genetic distance
 
 The usecase is imagined to be a small number of query sequences, whose nearest neighbours
 by genetic distance need to be found amongst a large number of target sequences. The query 
@@ -71,59 +62,88 @@ of nucleotide changes in total (snp), or Tamura and Nei's 1993 evolutionary dist
 Use --table in combination with the -n and/or -d flags to write a long-form output including the distance
 between every pair.
 `,
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return firstError(
-			intAtLeast(cmd, 0, "threads", "number"),
-			limitAtLeast(cmd, 0, "max-dist"),
-			outputNotInput(cmd, "outfile", "query", "target"),
-		)
-	},
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return firstError(
+				intAtLeast(cmd, 0, "threads", "number"),
+				limitAtLeast(cmd, 0, "max-dist"),
+				outputNotInput(cmd, "outfile", "query", "target"),
+				measureErr(o.measure),
+			)
+		},
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		queryIn, err := gfio.OpenIn(*cmd.Flag("query"))
-		if err != nil {
-			return err
-		}
-		defer queryIn.Close()
-
-		targetIn, err := gfio.OpenIn(*cmd.Flag("target"))
-		if err != nil {
-			return err
-		}
-		defer targetIn.Close()
-
-		var measure string
-		switch strings.ToLower(closestMeasure) {
-		case "raw":
-			measure = "raw"
-		case "snp":
-			measure = "snp"
-		case "tn93":
-			measure = "tn93"
-		default:
-			return errors.New("Couldn't tell which distance --measure / -m to use (choose one of \"raw\", \"snp\" or \"tn93\")")
-		}
-
-		dist := -1.0
-		if closestDist != "" {
-			dist, err = strconv.ParseFloat(closestDist, 64)
+			queryIn, err := openIn(cmd, "query")
 			if err != nil {
 				return err
 			}
-		}
+			defer queryIn.Close()
 
-		closestOut, err := gfio.OpenOut(*cmd.Flag("outfile"))
-		if err != nil {
+			targetIn, err := openIn(cmd, "target")
+			if err != nil {
+				return err
+			}
+			defer targetIn.Close()
+
+			measure, err := closestMeasureName(o.measure)
+			if err != nil {
+				return err
+			}
+
+			dist := -1.0
+			if o.dist != "" {
+				dist, err = strconv.ParseFloat(o.dist, 64)
+				if err != nil {
+					return err
+				}
+			}
+
+			closestOut, err := openOut(cmd, "outfile")
+			if err != nil {
+				return err
+			}
+			defer gfio.CloseOut(closestOut, &err)
+
+			// -t limits the CPUs gofasta uses, not just the number of workers
+			if o.threads > 0 && o.threads < runtime.NumCPU() {
+				runtime.GOMAXPROCS(o.threads)
+			}
+
+			if o.n > 0 || dist != -1.0 {
+				err = closest.ClosestN(o.n, dist, queryIn, targetIn, measure, closestOut, o.table, o.threads, o.strict)
+			} else {
+				err = closest.Closest(queryIn, targetIn, measure, closestOut, o.threads, o.strict)
+			}
+
 			return err
-		}
-		defer gfio.CloseOut(closestOut, &err)
+		},
+	}
 
-		if closestN > 0 || dist != -1.0 {
-			err = closest.ClosestN(closestN, dist, queryIn, targetIn, measure, closestOut, closestTable, closestThreads, strict)
-		} else {
-			err = closest.Closest(queryIn, targetIn, measure, closestOut, closestThreads, strict)
-		}
+	c.Flags().IntVarP(&o.threads, "threads", "t", 0, "Number of CPUs to use (Default: all available CPUs)")
+	c.Flags().StringVarP(&o.query, "query", "", "", "Alignment of sequences to find neighbours for, in fasta format")
+	c.Flags().StringVarP(&o.target, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
+	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
+	c.Flags().IntVarP(&o.n, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
+	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
+	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "The output file to write")
+	c.Flags().BoolVarP(&o.table, "table", "", false, "Write a long-form table of the output")
 
-		return err
-	},
+	addStrictFlag(c, &o.strict)
+	c.MarkFlagRequired("query")
+	c.MarkFlagRequired("target")
+	c.Flags().SortFlags = false
+	return c
+}
+
+// closestMeasureName returns the distance measure measure (-m) names: raw, snp or tn93, in any case
+func closestMeasureName(measure string) (string, error) {
+	switch m := strings.ToLower(measure); m {
+	case "raw", "snp", "tn93":
+		return m, nil
+	}
+	return "", errors.New("Couldn't tell which distance --measure / -m to use (choose one of \"raw\", \"snp\" or \"tn93\")")
+}
+
+func measureErr(measure string) error {
+	_, err := closestMeasureName(measure)
+	return err
 }

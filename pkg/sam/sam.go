@@ -35,173 +35,39 @@ type samRecords struct {
 	err     error // why one of the query's lines could not be parsed, if one could not
 }
 
-// getOneLine processes one non-header line of a SAM file into an aligned sequence
-func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
-
-	var lambda_dict map[string]func(int, int, int, []byte) (int, int, []byte)
-
-	if includeInsertions {
-		lambda_dict = getCigarOperationMapWithInsertions()
-	} else {
-		lambda_dict = getCigarOperationMapNoInsertions()
-	}
-
-	POS := samLine.Pos
-
-	if POS < 0 {
-		return []byte{}, errors.New("unmapped read")
-	}
-
-	SEQ := samLine.Seq.Expand()
-
-	CIGAR := samLine.Cigar
-
-	newSeqArray := make([]byte, POS)
-	for i, _ := range newSeqArray {
-		newSeqArray[i] = '*'
-	}
-
-	qstart := 0
-	rstart := POS
-
-	for _, op := range CIGAR {
-
-		operation := op.Type().String()
-		size := op.Len()
-
-		new_qstart, new_rstart, extension := lambda_dict[operation](qstart, rstart, size, SEQ)
-
-		newSeqArray = append(newSeqArray, extension...)
-
-		qstart = new_qstart
-		rstart = new_rstart
-
-	}
-
-	if !includeInsertions {
-		rightpad := make([]byte, refLen-len(newSeqArray))
-		for i, _ := range rightpad {
-			rightpad[i] = '*'
-		}
-
-		newSeqArray = append(newSeqArray, rightpad...)
-	}
-
-	return newSeqArray, nil
-}
-
-// getOneLinePlusRef processes one non-header line of a SAM file into a pair of
-// (aligned) sequences which are the query and the reference
-func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInsertions bool) ([]byte, []byte, error) {
-
-	var lambda_dict map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte)
-
-	if includeInsertions {
-		lambda_dict = getCigarOperationMapWithInsertionsWithRef()
-	} else {
-		lambda_dict = getCigarOperationMapNoInsertionsWithRef()
-	}
-
-	POS := samLine.Pos
-
-	if POS < 0 {
-		return []byte{}, []byte{}, errors.New("unmapped read")
-	}
-
-	SEQ := samLine.Seq.Expand()
-
-	CIGAR := samLine.Cigar
-
-	newSeqArray := make([]byte, POS)
-	for i, _ := range newSeqArray {
-		newSeqArray[i] = '*'
-	}
-
-	newRefSeqArray := make([]byte, POS)
-	for i, _ := range newRefSeqArray {
-		newRefSeqArray[i] = reference[i]
-	}
-
-	qstart := 0
-	rstart := POS
-
-	for _, op := range CIGAR {
-
-		operation := op.Type().String()
-		size := op.Len()
-
-		new_qstart, new_rstart, extension, refextension := lambda_dict[operation](qstart, rstart, size, SEQ, reference)
-
-		newSeqArray = append(newSeqArray, extension...)
-		newRefSeqArray = append(newRefSeqArray, refextension...)
-
-		qstart = new_qstart
-		rstart = new_rstart
-
-	}
-
-	if !includeInsertions {
-		rightpad := make([]byte, len(reference)-len(newSeqArray))
-
-		for i, _ := range rightpad {
-			rightpad[i] = '*'
-		}
-
-		newSeqArray = append(newSeqArray, rightpad...)
-	}
-
-	return newSeqArray, newRefSeqArray, nil
-}
-
-// getSetFromSlice returns the Set of bytes from an array of bytes. It is used
-// to get the set of nucleotides at an alignment column within one query sequence
-// in order to flatten the site properly.
-func getSetFromSlice(s []byte) []byte {
-
-	s_out := make([]byte, 0)
-
-	m := make(map[byte]bool)
-
-	for _, b := range s {
-		m[b] = true
-	}
-
-	for key, value := range m {
-		if value {
-			s_out = append(s_out, key)
-		}
-	}
-
-	return s_out
-}
+// RecordName returns the query's name (see pipeline.Namer)
+func (g samRecords) RecordName() string { return g.name }
 
 // getNucFromSite flattens a site to a single nucleotide when a query sequence
 // has secondary mappings (multiple records/lines) in the SAM file.
-// * If there is more than one alphabetic character at this site, an N is returned.
-// * Alphabetic characters override '-'s and '*'s
+// * If there is more than one distinct alphabetic character at this site, an N is returned (with a
+// message on stderr listing the distinct characters, in byte order).
+// * Otherwise the largest byte at the site is returned, so alphabetic characters override '-'s and '*'s.
 func getNucFromSite(s []byte, qname string, pos int) byte {
-
-	check := 0
-
-	ss := getSetFromSlice(s)
-
-	for _, e := range ss {
-		r, _ := utf8.DecodeRune([]byte{e})
-		if unicode.IsLetter(r) {
-			check++
-		}
-	}
-
-	if check > 1 {
-		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos+1) + ": " + string(ss) + "\n")
-		return 'N'
-	}
-
 	var m byte
-	for i, e := range ss {
-		if i == 0 || e > m {
+	var seen [256]bool
+	letters := 0
+	for _, e := range s {
+		if e > m {
 			m = e
 		}
+		if !seen[e] {
+			seen[e] = true
+			if unicode.IsLetter(rune(e)) && e < utf8.RuneSelf {
+				letters++
+			}
+		}
+	}
+
+	if letters > 1 {
+		distinct := make([]byte, 0, len(s))
+		for b := range seen {
+			if seen[b] {
+				distinct = append(distinct, byte(b))
+			}
+		}
+		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos+1) + ": " + string(distinct) + "\n")
+		return 'N'
 	}
 
 	return m
@@ -212,14 +78,17 @@ func getNucFromSite(s []byte, qname string, pos int) byte {
 func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 
 	seq := make([]byte, len(block[0]))
+	if len(block) == 1 {
+		copy(seq, block[0])
+		return seq
+	}
 	site := make([]byte, len(block))
 
-	for j, _ := range block[0] {
-		for i, _ := range block {
+	for j := range block[0] {
+		for i := range block {
 			site[i] = block[i][j]
 		}
-		nuc := getNucFromSite(site, qname, j)
-		seq[j] = nuc
+		seq[j] = getNucFromSite(site, qname, j)
 	}
 
 	return seq
@@ -238,7 +107,7 @@ func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bo
 	}
 
 	for i, line := range records {
-		temp, err := getOneLine(line, refLen, includeInsertions)
+		temp, _, err := alignRecord(line, nil, refLen, includeInsertions)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -266,24 +135,20 @@ func swapInNs(seq []byte) []byte {
 	return seq
 }
 
-// swapInGapNss replaces internal unmapped positions with Ns and external
+// swapInGapsNs replaces internal unmapped positions with Ns and external
 // unmapped positions with '-'s
 func swapInGapsNs(seq []byte) []byte {
-	firstLetter := true
-	var firstLetterIndx int
-	var lastLetterIndx int
+	// with no letters, every position is before the first letter and after the last one
+	firstLetterIndx := len(seq)
+	lastLetterIndx := -1
 
 	for i, L := range seq {
 		r, _ := utf8.DecodeRune([]byte{L})
 		if unicode.IsLetter(r) {
-
-			if firstLetter {
+			if firstLetterIndx == len(seq) {
 				firstLetterIndx = i
-				firstLetter = false
 			}
-
 			lastLetterIndx = i
-
 		}
 	}
 
@@ -342,7 +207,7 @@ func parseSamRecord(h *biogosam.Header, line []byte) (rec biogosam.Record, err e
 func validateRecord(rec *biogosam.Record, refLen int) error {
 
 	bad := func(msg string) error {
-		return errors.New("bad sam record " + rec.Name + ": " + msg)
+		return errors.New("bad sam record: " + msg)
 	}
 
 	if rec.Ref == nil {
@@ -417,6 +282,9 @@ func (s *samSource) writeTail() {
 	s.tail = nil
 }
 
+// errEmptySam is the error for a sam file with nothing in it
+var errEmptySam = errors.New("the sam file is empty")
+
 // newSamSource reads the header of a sam file and returns a samSource whose next function returns the
 // records for the next query each time it is called, and io.EOF after the last query. The records for a query are
 // consecutive lines with the same QNAME; unmapped and secondary records, and records mapped to any
@@ -442,7 +310,9 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 		return line, nil
 	}
 
-	if _, err := br.Peek(1); err != nil {
+	if _, err := br.Peek(1); err == io.EOF {
+		return nil, errEmptySam
+	} else if err != nil {
 		return nil, err
 	}
 	var headerText []byte
