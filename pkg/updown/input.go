@@ -1,6 +1,8 @@
 package updown
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/csv"
 	"errors"
@@ -268,4 +270,30 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 		ambCount:   ambCount,
 		snpsSorted: snpsSorted,
 	}, nil
+}
+
+// listHeader is the header line of the CSV that gofasta updown list writes (see List)
+const listHeader = "query,SNPs,ambiguities,SNPcount,ambcount"
+
+// InputType tells whether r holds a fasta file or the CSV output of gofasta updown list, from its start: the
+// first non-blank character of a fasta file is '>', and the CSV starts with its header. It returns "fasta"
+// or "csv", and a reader that gives all of r (including what was looked at).
+func InputType(r io.Reader) (io.Reader, string, error) {
+	br := bufio.NewReaderSize(r, 64*1024)
+	b, err := br.Peek(len(listHeader))
+	if err != nil && err != io.EOF && err != bufio.ErrBufferFull {
+		return br, "", err
+	}
+	if len(b) == len(listHeader) && string(b) == listHeader {
+		return br, "csv", nil
+	}
+	// skip leading blank lines (up to the buffer's size) to find the first character of a fasta file
+	b, _ = br.Peek(br.Size())
+	switch text := bytes.TrimLeft(b, " \t\r\n"); {
+	case len(text) > 0 && text[0] == '>':
+		return br, "fasta", nil
+	case len(text) == 0:
+		return br, "", errors.New("it is empty")
+	}
+	return br, "", errors.New("it is neither a fasta file nor the CSV output of gofasta updown list (which starts with the header " + listHeader + ")")
 }

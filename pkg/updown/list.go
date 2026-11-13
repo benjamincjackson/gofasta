@@ -66,7 +66,7 @@ func List(reference, alignment io.Reader, out io.Writer, threads int, strict boo
 		}
 	}
 
-	if _, err := out.Write([]byte("query,SNPs,ambiguities,SNPcount,ambcount\n")); err != nil {
+	if _, err := out.Write([]byte(listHeader + "\n")); err != nil {
 		return err
 	}
 	work := func(record fasta.Record) (updownLine, error) { return lineFromRecord(refSeq, record, DA) }

@@ -78,8 +78,6 @@ func TestFlagValidation(t *testing.T) {
 		{"updown topranking", map[string]string{"threshold-pair": "-0.1"}},
 		{"updown topranking", map[string]string{"ignore": f, "outfile": f}},
 		{"updown topranking", map[string]string{"query": "q.csv", "target": "t.csv"}}, // no --size-* or --dist-*
-		{"updown topranking", map[string]string{"size-up": "2", "query": "q.txt", "target": "t.csv"}},
-		{"updown topranking", map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
 		{"closest", map[string]string{"measure": "bogus"}},
 		{"updown list", map[string]string{"query": f, "outfile": f}},
 		{"updown list", map[string]string{}}, // no --reference
