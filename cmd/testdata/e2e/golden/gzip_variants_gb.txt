@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta.gz -r ref -a ref.gb.gz
+args: variants -q msa.fasta.gz --reference-id ref -a ref.gb.gz
 exit: 0
 --- stdout
 query,mutations

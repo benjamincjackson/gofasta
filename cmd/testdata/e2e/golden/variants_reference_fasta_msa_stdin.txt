@@ -1,4 +1,4 @@
-args: variants --reference-fasta ref.fasta
+args: variants -r ref.fasta
 stdin: msa.fasta
 exit: 0
 --- stdout

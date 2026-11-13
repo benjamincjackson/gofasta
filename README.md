@@ -217,13 +217,13 @@ Use `gofasta variants` to extract nucleotide changes and indels relative to a re
 <details><summary><b>Nucleotide changes</b></summary>
 </br>
 
-Without an annotation, `gofasta variants` lists the nucleotide changes, deletions and insertions in a multiple sequence alignment (`--msa`) compared to a reference sequence. The reference can be a record of the alignment (`--reference`, its ID), or a sequence in a separate fasta file (`--reference-fasta`) of the same width as the alignment (i.e. aligned to the same thing).
+Without an annotation, `gofasta variants` lists the nucleotide changes, deletions and insertions in a multiple sequence alignment (`--query`) compared to a reference sequence. The reference can be a sequence in a separate fasta file (`--reference`) of the same width as the alignment (i.e. aligned to the same thing), or a record of the alignment (`--reference-id`, its ID).
 
-The basic usage creates a csv file with a header and a line for each sequence in `--msa`. The first column is the sequence name, and the second column is a '|'-delimited list of changes: `nuc:` followed by the reference allele, the 1-based position in reference coordinates and the query allele; `del:POS:LEN` for a deletion starting at reference position POS; `ins:POS:LEN` for an insertion after reference position POS. Deletions at the start and end of the alignment (uncovered ends) are not reported.
+The basic usage creates a csv file with a header and a line for each sequence in `--query`. The first column is the sequence name, and the second column is a '|'-delimited list of changes: `nuc:` followed by the reference allele, the 1-based position in reference coordinates and the query allele; `del:POS:LEN` for a deletion starting at reference position POS; `ins:POS:LEN` for an insertion after reference position POS. Deletions at the start and end of the alignment (uncovered ends) are not reported.
 
 IUPAC ambiguity codes are treated as the set of bases that they represent, and only certainly-different changes are reported. For example an output of `nuc:A101S` is possible, but `nuc:A101W` is not.
 ```
-❯ gofasta variants --reference-fasta MN908947.fa --msa aligned.fasta -o variants.csv
+❯ gofasta variants -r MN908947.fa -q aligned.fasta -o variants.csv
 ❯
 ❯ head -n2 variants.csv
 query,mutations
@@ -232,7 +232,7 @@ query1,nuc:T670G|nuc:G4184A|nuc:C4321T|nuc:C9344T|nuc:A9424G|nuc:C9534T|nuc:C101
 
 If you invoke `--aggregate`, the proportion of each change in the whole alignment is written.
 ```
-❯ gofasta variants --reference-fasta MN908947.fa --msa aligned.fasta --aggregate
+❯ gofasta variants -r MN908947.fa -q aligned.fasta --aggregate
 mutation,frequency
 nuc:C44T,0.250000000
 nuc:C241T,0.750000000
@@ -277,14 +277,14 @@ As without an annotation, the default mode writes a csv with one line per query 
 So, for example, you can find the frequencies of all the amino acid changes at residue 681 in the Spike gene, and the nucleotide changes underlying them, from the sample of SARS-CoV-2 sequences in `aligned.fasta` like:
 
 ```
-❯ gofasta variants --msa aligned.fasta --annotation MN908947.gb --aggregate --append-snps | grep "^aa:S:P681"
+❯ gofasta variants -q aligned.fasta --annotation MN908947.gb --aggregate --append-snps | grep "^aa:S:P681"
 aa:S:P681H(nuc:C23604A),0.004000000
 aa:S:P681R(nuc:C23604G),0.983000000
 ```
 
 or find which sequences have `P681H`:
 ```
-❯ gofasta variants --msa aligned.fasta --annotation MN908947.gb | grep "S:P681H" | cut -d, -f1
+❯ gofasta variants -q aligned.fasta --annotation MN908947.gb | grep "S:P681H" | cut -d, -f1
 COGUK/PHEC-XXXX107/PHEC
 COGUK/PHEC-XXXX003/PHEC
 COGUK/PHEC-XXXX996/PHEC

@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta --reference-fasta ref_short.fasta
+args: variants -q msa.fasta -r ref_short.fasta
 exit: 1
 --- stderr
 warning: skipping ref (record 1): Gapped reference sequence and alignment are not the same width

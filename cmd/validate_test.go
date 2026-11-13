@@ -65,7 +65,7 @@ func TestFlagValidation(t *testing.T) {
 		{"closest", map[string]string{"max-dist": "x"}},
 		{"variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
 		{"variants", map[string]string{"threshold": "-0.2", "annotation": "a.gb"}},
-		{"variants", map[string]string{"msa": f, "outfile": f, "annotation": "a.gb"}},
+		{"variants", map[string]string{"query": f, "outfile": f, "annotation": "a.gb"}},
 		{"variants", map[string]string{"start": "9", "end": "5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"start": "9", "end": "5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
@@ -86,7 +86,7 @@ func TestFlagValidation(t *testing.T) {
 		{"variants", map[string]string{}},    // no annotation
 		{"variants", map[string]string{"annotation": "a.gb", "genbank": "a.gb"}},
 		{"sam variants", map[string]string{"gff": "a.gff", "annotation": "a.gff"}},
-		{"variants", map[string]string{"gff": "stdin"}}, // --msa is stdin too
+		{"variants", map[string]string{"gff": "stdin"}}, // --query is stdin too
 		{"sam variants", map[string]string{"genbank": "stdin", "samfile": "stdin"}},
 		{"sam toPairAlign", map[string]string{}}, // no --reference
 	}
@@ -108,7 +108,7 @@ func TestFlagValidation(t *testing.T) {
 		{"variants", map[string]string{"start": "5", "annotation": "a.gb"}},
 		{"variants", map[string]string{"end": "5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"start": "5", "annotation": "a.gb"}},
-		{"variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}}, // --reference is a record ID here
+		{"variants", map[string]string{"reference-id": f, "outfile": f, "annotation": "a.gb"}}, // --reference-id is a record ID, not a file
 		{"sam variants", map[string]string{"threads": "4", "reference": f, "outfile": other, "annotation": "a.gb"}},
 		{"sam toMultiAlign", map[string]string{}},
 		{"updown topranking", map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
@@ -116,7 +116,7 @@ func TestFlagValidation(t *testing.T) {
 		{"closest", map[string]string{"measure": "TN93"}},
 		{"updown list", map[string]string{"reference": f}},
 		{"sam toPairAlign", map[string]string{"reference": f}},
-		{"variants", map[string]string{"msa": f, "gff": "stdin"}},
+		{"variants", map[string]string{"query": f, "gff": "stdin"}},
 		{"variants", map[string]string{"genbank": "annotation.txt"}},
 		{"sam variants", map[string]string{"samfile": f, "gff": "stdin"}},
 	}

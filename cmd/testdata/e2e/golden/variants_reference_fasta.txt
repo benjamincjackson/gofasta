@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta --reference-fasta ref.fasta
+args: variants -q msa.fasta -r ref.fasta
 exit: 0
 --- stdout
 query,mutations

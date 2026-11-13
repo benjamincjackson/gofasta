@@ -97,7 +97,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 			return err
 		}
 		if first.ID != refID {
-			return errors.New("--reference is not the first record in --msa")
+			return errors.New("--reference-id is not the first record in --query")
 		}
 		ref, err = first.Encode()
 		if err != nil {
@@ -121,7 +121,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 			return err
 		}
 		if len(refs) != 1 {
-			return errors.New("--reference-fasta must have one record (it has " + strconv.Itoa(len(refs)) + ")")
+			return errors.New("--reference must have one record (it has " + strconv.Itoa(len(refs)) + ")")
 		}
 		ref = refs[0]
 	}
@@ -136,7 +136,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 	switch annoSuffix {
 	case "":
 		if !explicitRef {
-			return errors.New("no reference sequence: give --reference, --reference-fasta or an annotation that contains the reference sequence")
+			return errors.New("no reference sequence: give --reference, --reference-id or an annotation that contains the reference sequence")
 		}
 
 	case "gb":
@@ -182,7 +182,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 		if len(ref.Seq) == 0 {
 			switch len(gff.FASTA) {
 			case 0:
-				return errors.New("couldn't find a reference sequence in the --msa or the gff")
+				return errors.New("couldn't find a reference sequence in the --query or the gff")
 			case 1:
 				var encodedrefseq []byte
 				for _, v := range gff.FASTA {
@@ -288,7 +288,7 @@ func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, er
 	for {
 		record, err := next()
 		if err == io.EOF || errors.Is(err, fasta.ErrEmptyFasta) {
-			return fasta.EncodedRecord{}, errors.New("Couldn't find reference (" + referenceID + ") in msa")
+			return fasta.EncodedRecord{}, errors.New("Couldn't find --reference-id (" + referenceID + ") in --query")
 		}
 		if err != nil {
 			return fasta.EncodedRecord{}, err

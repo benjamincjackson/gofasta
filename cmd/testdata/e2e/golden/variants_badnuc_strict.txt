@@ -1,4 +1,4 @@
-args: variants --msa msa_badnuc.fasta -r ref -a ref.gb --strict
+args: variants -q msa_badnuc.fasta --reference-id ref -a ref.gb --strict
 exit: 1
 --- stderr
 Error: badnuc (record 4): invalid nucleotide in fasta record ("J")

@@ -10,16 +10,16 @@ import (
 
 // variantsOptions holds the values of the flags of the command newVariantsCmd returns
 type variantsOptions struct {
-	msa            string
-	reference      string
-	referenceFasta string
-	outfile        string
-	threads        int
-	aggregate      bool
-	threshold      float64
-	appendSNP      bool
-	start          int
-	end            int
+	query       string
+	referenceID string // a record of the query alignment
+	reference   string // a fasta file
+	outfile     string
+	threads     int
+	aggregate   bool
+	threshold   float64
+	appendSNP   bool
+	start       int
+	end         int
 	annotationOptions
 	strict bool
 }
@@ -33,20 +33,22 @@ func newVariantsCmd() *cobra.Command {
 
 Example usage:
 
-	./gofasta variants --msa alignment.fasta --annotation MN908947.gb --reference MN908947.3 > variants.csv
-	./gofasta variants --msa another.fasta --annotation MN908947.gff --reference Wuhan-Hu-1 > variants.csv
+	gofasta variants -q alignment.fasta -a MN908947.gb -r MN908947.fasta > variants.csv
+	gofasta variants -q alignment.fasta -a MN908947.gb --reference-id MN908947.3 > variants.csv
+	gofasta variants -q alignment.fasta -r MN908947.fasta > variants.csv
 
---reference is the name of the reference record in --msa. If you are reading the --msa from stdin, it must
-be the first sequence. If you don't provide a --reference the program will try to use the fasta record in the
-annotation file, in which case the --msa must be in the same coordinates.
+The reference is a fasta file of its own, the same width as the alignment (--reference), or a record of the
+alignment (--reference-id; if the alignment is read from stdin, it must be the first record). Without either,
+the sequence in the annotation file is used, in which case the alignment must be in the same coordinates.
+Without an annotation, only nucleotide changes, deletions and insertions are reported, and a reference must
+be given.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
 of the format.
 
-If input --msa and output csv files are not specified, the behaviour is to read the alignment from stdin and write
-the variants to stdout.
+If --query and --outfile are not given, the alignment is read from stdin and the variants are written to stdout.
 
-You can use --aggregate to report the overall proportions of each mutation in the --msa, and --threshold to filter on 
+You can use --aggregate to report the overall proportions of each mutation in the alignment, and --threshold to filter on 
 frequency.
 
 Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
@@ -60,33 +62,32 @@ isn't in a codon that is represented by an amino acid change). The formats are:
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.	
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// --reference is the ID of a record in the msa, not a file
 			return firstError(
 				intAtLeast(cmd, 1, "threads"),
 				floatAtLeast(cmd, 0, "threshold"),
 				startNotAfterEnd(cmd),
 				checkAnnotationFlags(cmd, false),
 				referenceFlags(cmd, o.annotationOptions.given(cmd)),
-				oneStdin(cmd, "msa", "reference-fasta", "annotation", "genbank", "gff"),
-				outputNotInput(cmd, "outfile", "msa", "reference-fasta", "annotation", "genbank", "gff"),
+				oneStdin(cmd, "query", "reference", "annotation", "genbank", "gff"),
+				outputNotInput(cmd, "outfile", "query", "reference", "annotation", "genbank", "gff"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-			msa, err := openIn(cmd, "msa")
+			msa, err := openIn(cmd, "query")
 			if err != nil {
 				return err
 			}
 			defer msa.Close()
 
 			stdin := false
-			if o.msa == "stdin" {
+			if o.query == "stdin" {
 				stdin = true
 			}
 
-			var ref io.ReadCloser // nil unless --reference-fasta
-			if o.referenceFasta != "" {
-				ref, err = openIn(cmd, "reference-fasta")
+			var ref io.ReadCloser // nil unless --reference
+			if o.reference != "" {
+				ref, err = openIn(cmd, "reference")
 				if err != nil {
 					return err
 				}
@@ -109,19 +110,19 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			}
 			defer gfio.CloseOut(out, &err)
 
-			var refIn io.Reader // (an untyped nil if there is no --reference-fasta)
+			var refIn io.Reader // (an untyped nil if there is no --reference)
 			if ref != nil {
 				refIn = ref
 			}
-			err = variants.Variants(msa, stdin, o.reference, refIn, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.threads, o.strict)
+			err = variants.Variants(msa, stdin, o.referenceID, refIn, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.threads, o.strict)
 
 			return
 		},
 	}
 
-	c.Flags().StringVarP(&o.msa, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", "The ID of the reference record in the msa")
-	c.Flags().StringVar(&o.referenceFasta, "reference-fasta", "", "Reference sequence in a fasta file of its own, the same width as the msa (instead of --reference)")
+	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of the sequences to annotate, in fasta format")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the alignment")
+	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the alignment (instead of --reference)")
 	addAnnotationFlags(c, &o.annotationOptions)
 	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Name of the file of variants to write")
 	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")

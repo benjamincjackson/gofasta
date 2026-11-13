@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r nosuchref -a ref.gb
+args: variants -q msa.fasta --reference-id nosuchref -a ref.gb
 exit: 1
 --- stderr
-Error: Couldn't find reference (nosuchref) in msa
+Error: Couldn't find --reference-id (nosuchref) in --query

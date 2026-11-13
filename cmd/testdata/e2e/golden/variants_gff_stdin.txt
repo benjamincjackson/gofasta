@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref --gff stdin
+args: variants -q msa.fasta --reference-id ref --gff stdin
 stdin: ref.gff
 exit: 0
 --- stdout

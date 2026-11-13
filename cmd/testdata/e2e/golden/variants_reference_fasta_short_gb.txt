@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta --reference-fasta ref_short.fasta -a ref.gb
+args: variants -q msa.fasta -r ref_short.fasta -a ref.gb
 exit: 1
 --- stderr
 Error: the degapped reference sequence (ref_short, 100 bases) is not the same length as the genbank annotation's sequence (120 bases)

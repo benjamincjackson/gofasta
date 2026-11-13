@@ -1,4 +1,4 @@
-args: variants --msa msa_badrow.fasta --reference-fasta ref.fasta
+args: variants -q msa_badrow.fasta -r ref.fasta
 exit: 0
 --- stdout
 query,mutations
