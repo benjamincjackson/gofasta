@@ -3854,3 +3854,20 @@ ACAGTGAACAATGCTAGGGAGAGCTGCCTATATGGAAGAGCCCTAATGTGTAAAATTAATTTTAGTAGTGCTAT------
 	}
 
 }
+
+// Uncovered ends become '-' and uncovered stretches between bases 'N'; a query with no bases at all is
+// all '-'
+func TestSwapInGapsNs(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"**AC**GT**", "--ACNNGT--"},
+		{"A", "A"},
+		{"*A*", "-A-"},
+		{"****", "----"},
+		{"*---", "----"},
+		{"", ""},
+	} {
+		if got := string(swapInGapsNs([]byte(tc.in))); got != tc.want {
+			t.Errorf("swapInGapsNs(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}

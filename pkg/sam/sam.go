@@ -269,24 +269,20 @@ func swapInNs(seq []byte) []byte {
 	return seq
 }
 
-// swapInGapNss replaces internal unmapped positions with Ns and external
+// swapInGapsNs replaces internal unmapped positions with Ns and external
 // unmapped positions with '-'s
 func swapInGapsNs(seq []byte) []byte {
-	firstLetter := true
-	var firstLetterIndx int
-	var lastLetterIndx int
+	// with no letters, every position is before the first letter and after the last one
+	firstLetterIndx := len(seq)
+	lastLetterIndx := -1
 
 	for i, L := range seq {
 		r, _ := utf8.DecodeRune([]byte{L})
 		if unicode.IsLetter(r) {
-
-			if firstLetter {
+			if firstLetterIndx == len(seq) {
 				firstLetterIndx = i
-				firstLetter = false
 			}
-
 			lastLetterIndx = i
-
 		}
 	}
 
