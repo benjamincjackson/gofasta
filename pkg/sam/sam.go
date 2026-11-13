@@ -156,55 +156,36 @@ func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInserti
 	return newSeqArray, newRefSeqArray, nil
 }
 
-// getSetFromSlice returns the Set of bytes from an array of bytes. It is used
-// to get the set of nucleotides at an alignment column within one query sequence
-// in order to flatten the site properly.
-func getSetFromSlice(s []byte) []byte {
-
-	s_out := make([]byte, 0)
-
-	m := make(map[byte]bool)
-
-	for _, b := range s {
-		m[b] = true
-	}
-
-	for key, value := range m {
-		if value {
-			s_out = append(s_out, key)
-		}
-	}
-
-	return s_out
-}
-
 // getNucFromSite flattens a site to a single nucleotide when a query sequence
 // has secondary mappings (multiple records/lines) in the SAM file.
-// * If there is more than one alphabetic character at this site, an N is returned.
-// * Alphabetic characters override '-'s and '*'s
+// * If there is more than one distinct alphabetic character at this site, an N is returned (with a
+// message on stderr listing the distinct characters, in byte order).
+// * Otherwise the largest byte at the site is returned, so alphabetic characters override '-'s and '*'s.
 func getNucFromSite(s []byte, qname string, pos int) byte {
-
-	check := 0
-
-	ss := getSetFromSlice(s)
-
-	for _, e := range ss {
-		r, _ := utf8.DecodeRune([]byte{e})
-		if unicode.IsLetter(r) {
-			check++
-		}
-	}
-
-	if check > 1 {
-		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos+1) + ": " + string(ss) + "\n")
-		return 'N'
-	}
-
 	var m byte
-	for i, e := range ss {
-		if i == 0 || e > m {
+	var seen [256]bool
+	letters := 0
+	for _, e := range s {
+		if e > m {
 			m = e
 		}
+		if !seen[e] {
+			seen[e] = true
+			if unicode.IsLetter(rune(e)) && e < utf8.RuneSelf {
+				letters++
+			}
+		}
+	}
+
+	if letters > 1 {
+		distinct := make([]byte, 0, len(s))
+		for b := range seen {
+			if seen[b] {
+				distinct = append(distinct, byte(b))
+			}
+		}
+		os.Stderr.WriteString("ambiguous overlapping alignment: " + qname + ": " + strconv.Itoa(pos+1) + ": " + string(distinct) + "\n")
+		return 'N'
 	}
 
 	return m
@@ -215,14 +196,17 @@ func getNucFromSite(s []byte, qname string, pos int) byte {
 func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 
 	seq := make([]byte, len(block[0]))
+	if len(block) == 1 {
+		copy(seq, block[0])
+		return seq
+	}
 	site := make([]byte, len(block))
 
-	for j, _ := range block[0] {
-		for i, _ := range block {
+	for j := range block[0] {
+		for i := range block {
 			site[i] = block[i][j]
 		}
-		nuc := getNucFromSite(site, qname, j)
-		seq[j] = nuc
+		seq[j] = getNucFromSite(site, qname, j)
 	}
 
 	return seq
