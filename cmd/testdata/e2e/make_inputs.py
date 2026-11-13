@@ -113,6 +113,7 @@ msa = [("ref", ref)] + [(k, q[k]) for k in sorted(q)]
 write("msa.fasta", fasta(msa))
 write("query.fasta", fasta([(k, q[k]) for k in ("q1", "q2", "q5")]))
 write("target.fasta", fasta([(k, q[k]) for k in ("q3", "q4", "q6", "q7", "q8")], wrap=50))
+write("target.FNA", fasta([(k, q[k]) for k in ("q3", "q4", "q6", "q7", "q8")], wrap=50))
 
 # an msa where the reference has a gap column (an insertion in some queries)
 ins_ref = ref[:44] + "---" + ref[44:]
@@ -125,6 +126,7 @@ write("msa_badrow.fasta", fasta(msa[:3] + [("short", ref[:100])] + msa[3:]))
 write("msa_badnuc.fasta", fasta(msa[:3] + [("badnuc", ref[:50] + "J" + ref[51:])] + msa[3:]))
 write("empty.fasta", "")
 write("ignore.txt", "q6\n")
+write("ignore_crlf.txt", "q6\r\n  \r\n")
 
 
 # SAM

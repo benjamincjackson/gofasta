@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -51,7 +52,7 @@ whether they are likely children, parents, or siblings of, or on a polytomy with
 SNPs relative to a common reference sequence which is imagined to be the root of the tree.
 
 --query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or one of each. They
-must have file extensions .csv .fasta or .fa . If either is an alignment, you must provide --reference, and this should be the
+must have file extensions .csv, .fasta, .fa, .fna or .fas (in any case). If either is an alignment, you must provide --reference, and this should be the
 same sequence that was used by gofasta updown list.
 
 Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size flags,
@@ -98,7 +99,10 @@ you haven't also invoked --dist-push).
 				defer f.Close()
 				s := bufio.NewScanner(f)
 				for s.Scan() {
-					ignoreArray = append(ignoreArray, s.Text())
+					// one ID per line; surrounding whitespace (including the \r of a CRLF line end) is not part of it
+					if id := strings.TrimSpace(s.Text()); id != "" {
+						ignoreArray = append(ignoreArray, id)
+					}
 				}
 				err = s.Err()
 				if err != nil {
@@ -178,16 +182,16 @@ you haven't also invoked --dist-push).
 }
 
 // toprankingInputTypes returns the types ("csv" or "fasta") of --query and --target, from their
-// extensions, and checks that reference (--reference) is given if either is a fasta file
+// extensions (in any case), and checks that reference (--reference) is given if either is a fasta file
 func toprankingInputTypes(o *toprankingOptions, reference string) (string, string, error) {
 	inputType := func(path, flag string) (string, error) {
-		switch filepath.Ext(path) {
+		switch strings.ToLower(filepath.Ext(path)) {
 		case ".csv":
 			return "csv", nil
-		case ".fasta", ".fa":
+		case ".fasta", ".fa", ".fna", ".fas":
 			return "fasta", nil
 		}
-		return "", errors.New("couldn't tell if --" + flag + " was a .csv or a .fasta file")
+		return "", errors.New("couldn't tell if --" + flag + " was a .csv or a fasta (.fasta, .fa, .fna, .fas) file")
 	}
 	qtype, err := inputType(o.query, "query")
 	if err != nil {
