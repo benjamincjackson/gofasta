@@ -39,7 +39,8 @@ type Variant struct {
 	Queryname      string
 	RefAl          string
 	QueAl          string
-	Position       int    // (1-based) genomic location (for an amino acid change, this is the first position of the codon)
+	Position       int    // (1-based) genomic location (for an amino acid change, the codon's first base in CDS order)
+	Codon          [3]int // for an amino acid change, the reference positions of the codon, in CDS order
 	Residue        int    // (1-based) amino acid location
 	Changetype     string // one of {nuc,aa,ins,del}
 	Feature        string // this should be, for example, the name of the CDS that the thing is in
@@ -522,10 +523,18 @@ func codes(proteincoding []Region, refLength int) []int {
 	return intergenicregions
 }
 
-// outsideRange is true if pos is before start or after end. A bound that is not > 0 is not applied, so either
-// bound can be used on its own.
-func outsideRange(pos, start, end int) bool {
-	return (start > 0 && pos < start) || (end > 0 && pos > end)
+// outsideRange reports whether a variant has no reference base in start..end: the bases of its codon for
+// an amino acid change, the deleted bases for a deletion, and its position otherwise (for an insertion,
+// the base it follows). A bound that is not > 0 is not applied, so either bound can be used on its own.
+func outsideRange(v Variant, start, end int) bool {
+	out := func(pos int) bool { return (start > 0 && pos < start) || (end > 0 && pos > end) }
+	switch v.Changetype {
+	case "aa":
+		return out(v.Codon[0]) && out(v.Codon[1]) && out(v.Codon[2])
+	case "del":
+		return (start > 0 && v.Position+v.Length-1 < start) || (end > 0 && v.Position > end)
+	}
+	return out(v.Position)
 }
 
 // some generic functions because why not
@@ -676,7 +685,7 @@ func (lw *LineWriter) Write(AS AnnoStructs) error {
 	}
 	sa := make([]string, 0, len(AS.Vs))
 	for _, v := range AS.Vs {
-		if outsideRange(v.Position, lw.start, lw.end) {
+		if outsideRange(v, lw.start, lw.end) {
 			continue
 		}
 		newVar, err := FormatVariant(v, lw.appendSNP)
@@ -716,7 +725,7 @@ func (a *Aggregator) Add(AS AnnoStructs) error {
 	}
 	a.n++
 	for _, v := range AS.Vs {
-		if outsideRange(v.Position, a.start, a.end) {
+		if outsideRange(v, a.start, a.end) {
 			continue
 		}
 		rep, err := FormatVariant(v, a.appendSNP)

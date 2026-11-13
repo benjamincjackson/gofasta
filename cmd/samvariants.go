@@ -26,8 +26,8 @@ func init() {
 
 	samVariantsCmd.Flags().StringVarP(&samVariantsAnnotation, "annotation", "a", "", "GenBank or GFF3 format annotation file. Must have suffix .gb, .gbk, .gbff, .gff or .gff3")
 	samVariantsCmd.Flags().StringVarP(&samVariantsOutfile, "outfile", "o", "stdout", "Where to write the variants")
-	samVariantsCmd.Flags().IntVarP(&samVariantsStart, "start", "", -1, "Only report variants after (and including) this position")
-	samVariantsCmd.Flags().IntVarP(&samVariantsEnd, "end", "", -1, "Only report variants before (and including) this position")
+	samVariantsCmd.Flags().IntVarP(&samVariantsStart, "start", "", -1, "Only report variants with a reference base at or after this position")
+	samVariantsCmd.Flags().IntVarP(&samVariantsEnd, "end", "", -1, "Only report variants with a reference base at or before this position")
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAggregate, "aggregate", "", false, "Report the proportions of each change")
 	samVariantsCmd.Flags().Float64VarP(&samVariantsThreshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	samVariantsCmd.Flags().BoolVarP(&samVariantsAppendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")

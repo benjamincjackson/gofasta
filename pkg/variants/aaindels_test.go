@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
@@ -137,6 +138,65 @@ func TestInFrameIndelAAsMinusStrand(t *testing.T) {
 	} {
 		if got := callPair(t, tc.refRow, tc.queRow, r, false); got != tc.want {
 			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// An amino acid change records its codon's reference positions in CDS order, and its position is the
+// first of them, on either strand and when a join splits the codon
+func TestAAChangeCodonPositions(t *testing.T) {
+	// a join that skips 11..13 splits the codon 10,14,15
+	split := Region{Name: "g", Start: 1, Stop: 30, Strand: 1}
+	for p := 1; p <= 30; p++ {
+		if p < 11 || p > 13 {
+			split.Positions = append(split.Positions, p)
+		}
+	}
+	split.Positions = split.Positions[:27]
+	minusRef := revComp(aaIndelRef)
+	for _, tc := range []struct {
+		name, ref, query string
+		r                Region
+		want             [3]int
+	}{
+		// F3 is at 24,23,22 on the minus strand
+		{"minus strand", minusRef, snp(minusRef, 23, "C"), minusCDS(), [3]int{24, 23, 22}},
+		{"split codon", aaIndelRef, snp(aaIndelRef, 14, "T"), split, [3]int{10, 14, 15}},
+	} {
+		var nuc strings.Builder
+		for _, p := range tc.r.Positions {
+			nuc.WriteByte(tc.ref[p-1])
+		}
+		cds := nuc.String()
+		if tc.r.Strand == -1 {
+			cds = alphabet.Complement(cds)
+		}
+		var err error
+		if tc.r.Translation, err = alphabet.Translate(cds, false); err != nil {
+			t.Fatal(err)
+		}
+		EA := encoding.MakeEncodingArray()
+		ref, que := []byte(tc.ref), []byte(tc.query)
+		for i := range ref {
+			ref[i], que[i] = EA[ref[i]], EA[que[i]]
+		}
+		off, _ := GetMSAOffsets(ref)
+		AS, err := GetVariantsPair(ref, que, "ref", "q", 0, []Region{tc.r}, codes([]Region{tc.r}, len(ref)), off)
+		if err != nil {
+			t.Fatal(err)
+		}
+		aas := 0
+		for _, v := range AS.Vs {
+			if v.Changetype != "aa" {
+				continue
+			}
+			aas++
+			if v.Codon != tc.want || v.Position != tc.want[0] {
+				t.Errorf("%s: got position %d, codon %v, want codon %v", tc.name, v.Position, v.Codon, tc.want)
+			}
+		}
+		if aas != 1 {
+			t.Errorf("%s: got %d amino acid changes, want 1: %v", tc.name, aas, AS.Vs)
 		}
 	}
 }

@@ -233,7 +233,7 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 				}
 			}
 			reported[j] = true
-			newVariants = append(newVariants, Variant{Changetype: "aa", Feature: region.Name, RefAl: string(rChanged[i]), QueAl: que, Position: region.Positions[3*j], Residue: j + 1})
+			newVariants = append(newVariants, Variant{Changetype: "aa", Feature: region.Name, RefAl: string(rChanged[i]), QueAl: que, Position: region.Positions[3*j], Codon: codonPositions(region, j), Residue: j + 1})
 		}
 		if len(qChanged) > paired {
 			ins := qChanged[paired:]
@@ -246,7 +246,7 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 				}
 			}
 			if after >= 0 { // (an insertion before the first residue can't be numbered)
-				newVariants = append(newVariants, Variant{Changetype: "aa", Feature: region.Name, QueAl: ins, Position: region.Positions[3*after], Residue: after + 1})
+				newVariants = append(newVariants, Variant{Changetype: "aa", Feature: region.Name, QueAl: ins, Position: region.Positions[3*after], Codon: codonPositions(region, after), Residue: after + 1})
 			}
 		} else if len(qChanged) == 0 && len(rChanged) > 0 {
 			start, end := firstChanged, firstChanged+len(rChanged)-1
@@ -257,7 +257,7 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 			if start != firstChanged {
 				newVariants = newVariants[:0]
 				for j := start; j <= end; j++ {
-					newVariants = append(newVariants, Variant{Changetype: "aa", Feature: region.Name, RefAl: string(refAA[j]), QueAl: "-", Position: region.Positions[3*j], Residue: j + 1})
+					newVariants = append(newVariants, Variant{Changetype: "aa", Feature: region.Name, RefAl: string(refAA[j]), QueAl: "-", Position: region.Positions[3*j], Codon: codonPositions(region, j), Residue: j + 1})
 				}
 			}
 		}
@@ -281,6 +281,11 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		variants = append(variants, newVariants...)
 	}
 	return variants, handled
+}
+
+// codonPositions returns the reference positions of codon j (0-based) of a CDS, in CDS order
+func codonPositions(region Region, j int) [3]int {
+	return [3]int{region.Positions[3*j], region.Positions[3*j+1], region.Positions[3*j+2]}
 }
 
 // windowIndels describes the nucleotide deletions and insertions in a window, as they are reported

@@ -112,8 +112,8 @@ func TestGetAAsPair(t *testing.T) {
 	AAs := getAAsPair(refSeq, queSeq, r, offsetRefCoord, nil)
 
 	desiredResultV := []Variant{
-		Variant{RefAl: "S", QueAl: "C", Position: 4, Changetype: "aa", SNPs: "nuc:C5G", Residue: 2, Feature: "nspX"},
-		Variant{RefAl: "P", QueAl: "K", Position: 10, Changetype: "aa", SNPs: "nuc:C10A;nuc:C11A;nuc:C12A", Residue: 4, Feature: "nspX"},
+		Variant{RefAl: "S", QueAl: "C", Position: 4, Codon: [3]int{4, 5, 6}, Changetype: "aa", SNPs: "nuc:C5G", Residue: 2, Feature: "nspX"},
+		Variant{RefAl: "P", QueAl: "K", Position: 10, Codon: [3]int{10, 11, 12}, Changetype: "aa", SNPs: "nuc:C10A;nuc:C11A;nuc:C12A", Residue: 4, Feature: "nspX"},
 	}
 
 	if !reflect.DeepEqual(desiredResultV, AAs) {
