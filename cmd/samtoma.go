@@ -41,7 +41,7 @@ the fasta file to stdout, e.g.:
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				intAtLeast(cmd, 0, "threads"),
-				outputNotInput(cmd, "fasta-out", "samfile", "reference"),
+				outputNotInput(cmd, "outfile", "samfile", "reference"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -52,7 +52,7 @@ the fasta file to stdout, e.g.:
 			}
 			defer samIn.Close()
 
-			out, err := openOut(cmd, "fasta-out")
+			out, err := openOut(cmd, "outfile")
 			if err != nil {
 				return err
 			}
@@ -67,7 +67,7 @@ the fasta file to stdout, e.g.:
 	c.Flags().IntVarP(&o.start, "start", "", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
 	c.Flags().IntVarP(&o.end, "end", "", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
 	c.Flags().BoolVarP(&o.pad, "pad", "", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
-	c.Flags().StringVarP(&o.outfile, "fasta-out", "o", "stdout", "Where to write the alignment")
+	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Where to write the alignment")
 	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
 
 	addStrictFlag(c, &o.strict)

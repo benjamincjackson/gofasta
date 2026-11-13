@@ -71,7 +71,7 @@ func TestFlagValidation(t *testing.T) {
 		{"sam variants", map[string]string{"threads": "-1", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"threshold": "-0.5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}},
-		{"sam toMultiAlign", map[string]string{"samfile": f, "fasta-out": f}},
+		{"sam toMultiAlign", map[string]string{"samfile": f, "outfile": f}},
 		{"sam toPairAlign", map[string]string{"threads": "-1"}},
 		{"updown topranking", map[string]string{"size-up": "-2"}},
 		{"updown topranking", map[string]string{"dist-push": "-1"}},
