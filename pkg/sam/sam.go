@@ -270,7 +270,7 @@ var errEmptySam = errors.New("the sam file is empty")
 // prepareQuery. An error from the returned function means the file could not be read.
 func newSamSource(sam io.Reader) (*samSource, error) {
 
-	br := bufio.NewReader(sam)
+	br := bufio.NewReaderSize(sam, 1<<20)
 
 	// readLine returns the next line without its line ending (a final line need not have one), or io.EOF
 	readLine := func() ([]byte, error) {

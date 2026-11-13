@@ -19,9 +19,10 @@ type Reader struct {
 	br *bufio.Reader
 }
 
-// NewReader returns a Reader that reads from f
+// NewReader returns a Reader that reads from f (through a 1 MiB buffer: alignments often have one long
+// line per record)
 func NewReader(f io.Reader) *Reader {
-	return &Reader{br: bufio.NewReader(f)}
+	return &Reader{br: bufio.NewReaderSize(f, 1<<20)}
 }
 
 // trimNewline removes a trailing "\n" or "\r\n" from a line
