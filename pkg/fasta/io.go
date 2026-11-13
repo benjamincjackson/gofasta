@@ -14,12 +14,14 @@ var (
 	ErrDiffLenSeqs      = errors.New("different length sequences in input file: is this an alignment?")
 )
 
+// Reader reads fasta records one at a time
 type Reader struct {
-	*bufio.Reader
+	br *bufio.Reader
 }
 
+// NewReader returns a Reader that reads from f
 func NewReader(f io.Reader) *Reader {
-	return &Reader{bufio.NewReader(f)}
+	return &Reader{br: bufio.NewReader(f)}
 }
 
 // Read reads one fasta record from the underlying reader. The final record is
@@ -44,7 +46,7 @@ func (r *Reader) Read() (Record, error) {
 			// it returns the data read before the error and the error itself (often io.EOF).
 			// ReadBytes returns err != nil if and only if the returned data does not end in delim.
 			// For simple uses, a Scanner may be more convenient."
-			line, err = r.ReadBytes('\n')
+			line, err = r.br.ReadBytes('\n')
 
 			// A header line that is the last thing in the file without a trailing newline comes back
 			// with err == io.EOF but non-empty data. It is kept, as a record with an empty sequence, the
@@ -87,7 +89,7 @@ func (r *Reader) Read() (Record, error) {
 		} else {
 			// peek at the first next byte of the underlying reader, in order
 			// to see if we've reached the end of this record (or the file)
-			peek, err = r.Peek(1)
+			peek, err = r.br.Peek(1)
 
 			// both these cases are fine if first = false, so we can exit the loop and return the fasta record
 			if err == io.EOF || (err == nil && peek[0] == '>') {
@@ -102,7 +104,7 @@ func (r *Reader) Read() (Record, error) {
 			// If we've got this far, this should be a sequence line.
 			// The err from ReadBytes() may be io.EOF if the file ends before a newline character, but this is okay because it will
 			// be caught when we peek in the next iteration of the while loop.
-			line, err = r.ReadBytes('\n')
+			line, err = r.br.ReadBytes('\n')
 			if err != nil && err != io.EOF {
 				return Record{}, err
 			}
