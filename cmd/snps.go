@@ -7,34 +7,27 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/snps"
 )
 
-var snpsReference string
-var snpsQuery string
-var snpsOutfile string
-var hardGaps bool
-var aggregate bool
-var thresh float64
-
 func init() {
-	rootCmd.AddCommand(snpCmd)
-
-	snpCmd.Flags().StringVarP(&snpsReference, "reference", "r", "", "Reference sequence, in fasta format")
-	snpCmd.Flags().StringVarP(&snpsQuery, "query", "q", "stdin", "Alignment of sequences to find snps in, in fasta format")
-	snpCmd.Flags().StringVarP(&snpsOutfile, "outfile", "o", "stdout", "Output to write")
-	snpCmd.Flags().BoolVarP(&hardGaps, "hard-gaps", "", false, "Don't treat alignment gaps as missing data")
-	snpCmd.Flags().BoolVarP(&aggregate, "aggregate", "", false, "Report the proportions of each change")
-	snpCmd.Flags().Float64VarP(&thresh, "threshold", "", 0.0, "If --aggregate, only report snps with a freq greater than or equal to this value")
-
-	snpCmd.Flags().Lookup("hard-gaps").NoOptDefVal = "true"
-	snpCmd.Flags().Lookup("aggregate").NoOptDefVal = "true"
-
-	snpCmd.Flags().BoolVar(getStrictBoolVarArgs())
-	snpCmd.Flags().SortFlags = false
+	rootCmd.AddCommand(newSNPsCmd())
 }
 
-var snpCmd = &cobra.Command{
-	Use:   "snps",
-	Short: "Find snps relative to a reference",
-	Long: `Find snps relative to a reference.
+// snpsOptions holds the values of the flags of the command newSNPsCmd returns
+type snpsOptions struct {
+	reference string
+	query     string
+	outfile   string
+	hardGaps  bool
+	aggregate bool
+	threshold float64
+	strict    bool
+}
+
+func newSNPsCmd() *cobra.Command {
+	var o snpsOptions
+	c := &cobra.Command{
+		Use:   "snps",
+		Short: "Find snps relative to a reference",
+		Long: `Find snps relative to a reference.
 
 Example usage:
 	gofasta snps -r reference.fasta -q alignment.fasta -o snps.csv
@@ -53,34 +46,49 @@ If query and outfile are not specified, the behaviour is to read the query align
 from stdin and write the snps file to stdout, e.g. you could do this:
 	cat alignment.fasta | gofasta snps -r reference.fasta > snps.csv`,
 
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return firstError(
-			floatAtLeast(cmd, 0, "threshold"),
-			outputNotInput(cmd, "outfile", "query", "reference"),
-		)
-	},
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return firstError(
+				floatAtLeast(cmd, 0, "threshold"),
+				outputNotInput(cmd, "outfile", "query", "reference"),
+			)
+		},
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		query, err := openIn(cmd, "query")
-		if err != nil {
-			return err
-		}
-		defer query.Close()
+			query, err := openIn(cmd, "query")
+			if err != nil {
+				return err
+			}
+			defer query.Close()
 
-		ref, err := openIn(cmd, "reference")
-		if err != nil {
-			return err
-		}
-		defer ref.Close()
+			ref, err := openIn(cmd, "reference")
+			if err != nil {
+				return err
+			}
+			defer ref.Close()
 
-		out, err := openOut(cmd, "outfile")
-		if err != nil {
-			return err
-		}
-		defer gfio.CloseOut(out, &err)
+			out, err := openOut(cmd, "outfile")
+			if err != nil {
+				return err
+			}
+			defer gfio.CloseOut(out, &err)
 
-		err = snps.SNPs(ref, query, hardGaps, aggregate, thresh, out, strict)
+			err = snps.SNPs(ref, query, o.hardGaps, o.aggregate, o.threshold, out, o.strict)
 
-		return
-	},
+			return
+		},
+	}
+
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format")
+	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of sequences to find snps in, in fasta format")
+	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Output to write")
+	c.Flags().BoolVarP(&o.hardGaps, "hard-gaps", "", false, "Don't treat alignment gaps as missing data")
+	c.Flags().BoolVarP(&o.aggregate, "aggregate", "", false, "Report the proportions of each change")
+	c.Flags().Float64VarP(&o.threshold, "threshold", "", 0.0, "If --aggregate, only report snps with a freq greater than or equal to this value")
+
+	c.Flags().Lookup("hard-gaps").NoOptDefVal = "true"
+	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
+
+	addStrictFlag(c, &o.strict)
+	c.Flags().SortFlags = false
+	return c
 }
