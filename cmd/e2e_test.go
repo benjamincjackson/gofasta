@@ -80,6 +80,12 @@ var e2eCases = []e2eCase{
 	{name: "snps_removed", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "--hard-gaps"}},
 	{name: "variants_reference_both", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-r", "ref.fasta"}},
 	{name: "variants_no_reference", args: []string{"variants", "-q", "msa.fasta"}},
+	// "-" is stdin for an input and stdout for an output; at most one input on stdin, in every command
+	{name: "dash_stdin_variants", args: []string{"variants", "-q", "-", "-r", "ref.fasta", "-o", "-"}, stdin: "msa.fasta"},
+	{name: "dash_stdout_sam_topa", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "-"}},
+	{name: "two_stdin_updown_list", args: []string{"updown", "list", "-r", "-"}, stdin: "ref.fasta"},
+	{name: "two_stdin_closest", args: []string{"closest", "--query", "stdin", "--target", "-"}, stdin: "query.fasta"},
+	{name: "two_stdin_sam_topa", args: []string{"sam", "toPairAlign", "-r", "stdin", "-o", "stdout"}, stdin: "ref.fasta"},
 	{name: "variants_gb_two_records", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref_tworecords.gb"}},
 	{name: "variants_append_snps", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--append-snps"}},
 	{name: "variants_aggregate", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--aggregate"}, threadsFlag: "-t"},

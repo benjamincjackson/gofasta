@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"io"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -69,18 +68,4 @@ func (a annotationOptions) open(cmd *cobra.Command) (io.ReadCloser, string, erro
 	}
 	f, err := openIn(cmd, name)
 	return f, format, err
-}
-
-// oneStdin checks that at most one of the named input flags is stdin (its default may be)
-func oneStdin(cmd *cobra.Command, names ...string) error {
-	stdin := make([]string, 0)
-	for _, name := range names {
-		if f := cmd.Flag(name); f != nil && f.Value.String() == "stdin" {
-			stdin = append(stdin, "--"+name)
-		}
-	}
-	if len(stdin) > 1 {
-		return errors.New("only one input can be read from stdin, but " + strings.Join(stdin, " and ") + " are both stdin")
-	}
-	return nil
 }

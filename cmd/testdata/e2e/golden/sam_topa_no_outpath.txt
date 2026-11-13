@@ -20,6 +20,6 @@ Flags:
 
 Global Flags:
   -r, --reference string   Reference fasta file used to generate the sam file
-  -s, --samfile string     Samfile to read. If none is specified, will read from stdin (default "stdin")
+  -s, --samfile string     SAM file to read (default "stdin")
   -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
 

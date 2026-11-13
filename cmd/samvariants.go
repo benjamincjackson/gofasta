@@ -59,7 +59,6 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				floatAtLeast(cmd, 0, "threshold"),
 				startNotAfterEnd(cmd),
 				checkAnnotationFlags(cmd, true),
-				oneStdin(cmd, "samfile", "reference", "annotation", "genbank", "gff"),
 				outputNotInput(cmd, "outfile", "samfile", "reference", "annotation", "genbank", "gff"),
 			)
 		},

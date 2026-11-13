@@ -68,7 +68,6 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				startNotAfterEnd(cmd),
 				checkAnnotationFlags(cmd, false),
 				referenceFlags(cmd, o.annotationOptions.given(cmd)),
-				oneStdin(cmd, "query", "reference", "annotation", "genbank", "gff"),
 				outputNotInput(cmd, "outfile", "query", "reference", "annotation", "genbank", "gff"),
 			)
 		},
@@ -80,10 +79,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			}
 			defer msa.Close()
 
-			stdin := false
-			if o.query == "stdin" {
-				stdin = true
-			}
+			stdin := gfio.IsStdin(o.query)
 
 			var ref io.ReadCloser // nil unless --reference
 			if o.reference != "" {

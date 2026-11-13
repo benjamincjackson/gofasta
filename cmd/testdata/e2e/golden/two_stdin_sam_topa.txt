@@ -1,0 +1,26 @@
+args: sam toPairAlign -r stdin -o stdout
+stdin: ref.fasta
+exit: 1
+--- stderr
+Error: only one input can be read from stdin, but --reference and --samfile are both stdin
+Usage:
+  gofasta sam toPairAlign [flags]
+
+Aliases:
+  toPairAlign, topairalign, topa
+
+Flags:
+  -o, --outpath string    Directory to write one fasta file per query to, or stdout to write all the alignments to stdout (required)
+      --omit-reference    Omit the reference sequences from the output alignments
+      --skip-insertions   Skip insertions relative to the reference from the output alignments
+      --start int         1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted (default -1)
+      --end int           1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted (default -1)
+  -w, --wrap int          Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output. (default -1)
+      --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -h, --help              help for toPairAlign
+
+Global Flags:
+  -r, --reference string   Reference fasta file used to generate the sam file
+  -s, --samfile string     SAM file to read (default "stdin")
+  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
+
