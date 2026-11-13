@@ -1,0 +1,9 @@
+args: snps --help
+exit: 1
+--- stderr
+Error: gofasta snps was removed in version 2: gofasta variants does the same without an annotation.
+Instead of
+	gofasta snps -r reference.fasta -q alignment.fasta
+use
+	gofasta variants --reference-fasta reference.fasta --msa alignment.fasta
+which reports changes as nuc:A123T (and deletions and insertions as del: and ins:), in reference coordinates

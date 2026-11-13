@@ -1,0 +1,29 @@
+args: updown list --help
+exit: 0
+--- stdout
+Generate input CSV files for gofasta updown topranking
+
+Example usage:
+
+	gofasta updown list -r reference.fasta -q alignment.fasta -o mutationlist.csv
+
+Non-ATGC nucleotides are not recommended in the --reference, and --reference and --query must be aligned to
+the same thing.
+
+--outfile is a CSV-format file with the columns: query,SNPs,ambiguities,SNPcount,ambcount. There is one row
+for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to --reference. ambiguities is a
+"|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (anything that isn't ATGC).
+
+Usage:
+  gofasta updown list [flags]
+
+Flags:
+  -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
+  -o, --outfile string   Output to write (default "stdout")
+  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
+      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -h, --help             help for list
+
+Global Flags:
+  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+--- stderr
