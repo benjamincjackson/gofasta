@@ -19,9 +19,9 @@ func newRootCmd() *cobra.Command {
 		Use:   "gofasta",
 		Short: "Command-line utilities for genomic epidemiology research",
 		Long: `Command-line utilities for genomic epidemiology research
-		
-Files are named by their paths; "stdin" or "-" reads an input from stdin, and "stdout" or "-" writes an
-output to stdout. Any input can be gzipped.
+
+Files are named by their paths; "stdin" or "-" reads an input from stdin, and "stdout" or "-" writes an output
+to stdout. Any input can be gzipped.
 
 If you use gofasta in your work, please cite:
 

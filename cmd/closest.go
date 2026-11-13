@@ -31,10 +31,9 @@ func newClosestCmd() *cobra.Command {
 		Short: "Find the closest sequence(s) to a query by genetic distance",
 		Long: `Find the closest sequence(s) to a query by genetic distance
 
-The usecase is imagined to be a small number of query sequences, whose nearest neighbours
-by genetic distance need to be found amongst a large number of target sequences. The query 
-alignment is read into memory and the target alignment is streamed from disk and iterated 
-over once, so it can be arbitrarily large.
+The usecase is imagined to be a small number of query sequences, whose nearest neighbours by genetic distance
+need to be found amongst a large number of target sequences. The query alignment is read into memory and the
+target alignment is streamed from disk and iterated over once, so it can be arbitrarily large.
 
 You can find the single closest neighbour like:
 
@@ -50,13 +49,13 @@ or you can find all the neighbours under a -d distance away:
 
 	gofasta closest -t 2 --measure snp -d 5 --query query.fasta --target target.fasta -o closest.d5snps.csv
 
-and the default output will be a CSV format file with the headers query, closest.  The 'closest' column
-is a ";"-delimited list of neighbours, closest first. Ties for distance are broken by genome completeness.
+and the default output will be a CSV format file with the headers query, closest.  The 'closest' column is a
+";"-delimited list of neighbours, closest first. Ties for distance are broken by genome completeness.
 
 You can combine -d with -n to find the nearest n neighbours less than or equal to a distance, d.
 
-Possible measures of distance are raw number of nucleotide changes per site (the default, raw), raw number
-of nucleotide changes in total (snp), or Tamura and Nei's 1993 evolutionary distance (tn93).
+Possible measures of distance are raw number of nucleotide changes per site (the default, raw), raw number of
+nucleotide changes in total (snp), or Tamura and Nei's 1993 evolutionary distance (tn93).
 
 Use --table in combination with the -n and/or -d flags to write a long-form output including the distance
 between every pair.

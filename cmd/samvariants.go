@@ -33,24 +33,26 @@ Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gb -o variants.csv
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gff -o variants.csv
 
-If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write
-the variants to stdout.
+If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write the
+variants to stdout.
 
---reference should be the same sequence that was used to generate the sam file, and should be in the same coordinates
-as the --annotation. You don't have to provide a file to --reference if your annotation has the fasta record in it.
+--reference should be the same sequence that was used to generate the sam file, and should be in the same
+coordinates as the --annotation. You don't have to provide a file to --reference if your annotation has the
+fasta record in it.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
 of the format.
 
-Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
-isn't in a codon that is represented by an amino acid change). The formats are:
+Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide
+change that isn't in a codon that is represented by an amino acid change). The formats are:
 
 	ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
 	del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
 	aa:S:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
 	nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
 
-Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.
+Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids
+in the alignment.
 `,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {

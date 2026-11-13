@@ -48,29 +48,32 @@ func newToprankingCmd(u *updownOptions) *cobra.Command {
 Example usage:
 	gofasta updown topranking --query smallquery.fasta -r WH04.fasta --target mutationlist.csv --size-total 1000 -o catchment.csv
 
-For each sequence in --query, this routine finds the closest sequences by SNP-distance in --target, binned according to
-whether they are likely children, parents, or siblings of, or on a polytomy with, the query sequence. It does this by comparing
-SNPs relative to a common reference sequence which is imagined to be the root of the tree.
+For each sequence in --query, this routine finds the closest sequences by SNP-distance in --target, binned
+according to whether they are likely children, parents, or siblings of, or on a polytomy with, the query
+sequence. It does this by comparing SNPs relative to a common reference sequence which is imagined to be the
+root of the tree.
 
---query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or one of each. They
-must have file extensions .csv, .fasta, .fa, .fna or .fas (in any case, optionally followed by .gz). If either is an alignment, you must provide --reference, and this should be the
-same sequence that was used by gofasta updown list.
+--query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or
+one of each. They must have file extensions .csv, .fasta, .fa, .fna or .fas (in any case, optionally followed
+by .gz). If either is an alignment, you must provide --reference, and this should be the same sequence that
+was used by gofasta updown list.
 
-Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size flags,
-the program will return all the targets that are equal or less than the specified SNP-distance(s) away. If --dist-push 
-is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to cover the all sequences
-that are the closest i SNP-distances away, and then it will return all the neighbours at those distances in that bin.
+Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size
+flags, the program will return all the targets that are equal or less than the specified SNP-distance(s) away.
+If --dist-push is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to
+cover the all sequences that are the closest i SNP-distances away, and then it will return all the neighbours
+at those distances in that bin.
 
-If you provide a number to --size-total, the output will try to include this many closest sequences to the query, split evenly
-between the four bins. If one or more bins has a shortfall, the sizes of the other bins will increase until --size-total is met,
-if possible, unless you use --no-fill.
+If you provide a number to --size-total, the output will try to include this many closest sequences to the
+query, split evenly between the four bins. If one or more bins has a shortfall, the sizes of the other bins
+will increase until --size-total is met, if possible, unless you use --no-fill.
 
-You can provide --size-up, -down, -side and -same, instead of --size-total, if you want different proportions for each bin.
-The program will aim to provide the sum of these numbers in total in the output, and will make up for a shortfall in one bin
-by increasing the count of the other bins where possible, unless --no-fill.
+You can provide --size-up, -down, -side and -same, instead of --size-total, if you want different proportions
+for each bin. The program will aim to provide the sum of these numbers in total in the output, and will make
+up for a shortfall in one bin by increasing the count of the other bins where possible, unless --no-fill.
 
-You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance (as long as
-you haven't also invoked --dist-push).
+You can combine the two types of flag (size and dist), to return only the closest n sequences under a set
+distance (as long as you haven't also invoked --dist-push).
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
