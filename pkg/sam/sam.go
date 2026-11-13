@@ -38,124 +38,6 @@ type samRecords struct {
 // RecordName returns the query's name (see pipeline.Namer)
 func (g samRecords) RecordName() string { return g.name }
 
-// getOneLine processes one non-header line of a SAM file into an aligned sequence
-func getOneLine(samLine biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
-
-	var lambda_dict map[string]func(int, int, int, []byte) (int, int, []byte)
-
-	if includeInsertions {
-		lambda_dict = getCigarOperationMapWithInsertions()
-	} else {
-		lambda_dict = getCigarOperationMapNoInsertions()
-	}
-
-	POS := samLine.Pos
-
-	if POS < 0 {
-		return []byte{}, errors.New("unmapped read")
-	}
-
-	SEQ := samLine.Seq.Expand()
-
-	CIGAR := samLine.Cigar
-
-	newSeqArray := make([]byte, POS)
-	for i, _ := range newSeqArray {
-		newSeqArray[i] = '*'
-	}
-
-	qstart := 0
-	rstart := POS
-
-	for _, op := range CIGAR {
-
-		operation := op.Type().String()
-		size := op.Len()
-
-		new_qstart, new_rstart, extension := lambda_dict[operation](qstart, rstart, size, SEQ)
-
-		newSeqArray = append(newSeqArray, extension...)
-
-		qstart = new_qstart
-		rstart = new_rstart
-
-	}
-
-	if !includeInsertions {
-		rightpad := make([]byte, refLen-len(newSeqArray))
-		for i, _ := range rightpad {
-			rightpad[i] = '*'
-		}
-
-		newSeqArray = append(newSeqArray, rightpad...)
-	}
-
-	return newSeqArray, nil
-}
-
-// getOneLinePlusRef processes one non-header line of a SAM file into a pair of
-// (aligned) sequences which are the query and the reference
-func getOneLinePlusRef(samLine biogosam.Record, reference []byte, includeInsertions bool) ([]byte, []byte, error) {
-
-	var lambda_dict map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte)
-
-	if includeInsertions {
-		lambda_dict = getCigarOperationMapWithInsertionsWithRef()
-	} else {
-		lambda_dict = getCigarOperationMapNoInsertionsWithRef()
-	}
-
-	POS := samLine.Pos
-
-	if POS < 0 {
-		return []byte{}, []byte{}, errors.New("unmapped read")
-	}
-
-	SEQ := samLine.Seq.Expand()
-
-	CIGAR := samLine.Cigar
-
-	newSeqArray := make([]byte, POS)
-	for i, _ := range newSeqArray {
-		newSeqArray[i] = '*'
-	}
-
-	newRefSeqArray := make([]byte, POS)
-	for i, _ := range newRefSeqArray {
-		newRefSeqArray[i] = reference[i]
-	}
-
-	qstart := 0
-	rstart := POS
-
-	for _, op := range CIGAR {
-
-		operation := op.Type().String()
-		size := op.Len()
-
-		new_qstart, new_rstart, extension, refextension := lambda_dict[operation](qstart, rstart, size, SEQ, reference)
-
-		newSeqArray = append(newSeqArray, extension...)
-		newRefSeqArray = append(newRefSeqArray, refextension...)
-
-		qstart = new_qstart
-		rstart = new_rstart
-
-	}
-
-	if !includeInsertions {
-		rightpad := make([]byte, len(reference)-len(newSeqArray))
-
-		for i, _ := range rightpad {
-			rightpad[i] = '*'
-		}
-
-		newSeqArray = append(newSeqArray, rightpad...)
-	}
-
-	return newSeqArray, newRefSeqArray, nil
-}
-
 // getNucFromSite flattens a site to a single nucleotide when a query sequence
 // has secondary mappings (multiple records/lines) in the SAM file.
 // * If there is more than one distinct alphabetic character at this site, an N is returned (with a
@@ -225,7 +107,7 @@ func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bo
 	}
 
 	for i, line := range records {
-		temp, err := getOneLine(line, refLen, includeInsertions)
+		temp, _, err := alignRecord(line, nil, refLen, includeInsertions)
 		if err != nil {
 			return []byte{}, err
 		}

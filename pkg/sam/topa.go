@@ -237,7 +237,7 @@ func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (align
 	if omitIns {
 		Q := make([][]byte, 0, len(group.records))
 		for _, line := range group.records {
-			seq, _, err := getOneLinePlusRef(line, ref, false)
+			seq, _, err := alignRecord(line, ref, len(ref), false)
 			if err != nil {
 				return alignPair{}, err
 			}
@@ -249,7 +249,7 @@ func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (align
 
 	infoBlock := alignedBlockInfo{}
 	for _, line := range group.records {
-		seq, refseq, err := getOneLinePlusRef(line, ref, true)
+		seq, refseq, err := alignRecord(line, ref, len(ref), true)
 		if err != nil {
 			return alignPair{}, err
 		}

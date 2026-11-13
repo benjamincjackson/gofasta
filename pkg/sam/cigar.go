@@ -1,189 +1,70 @@
 package sam
 
-// getCigarOperationMapNoInsertions is a map of SAM CIGAR operation types to function literals
-// that are used to build an aligned sequence. This version DISCARDS insertions relative
-// to the reference.
-func getCigarOperationMapNoInsertions() map[string]func(int, int, int, []byte) (int, int, []byte) {
-	cigarOperationMap := map[string]func(int, int, int, []byte) (int, int, []byte){
-		"M": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		},
-		"I": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start, []byte{}
-		},
+import (
+	"bytes"
+	"errors"
 
-		"D": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
+	biogosam "github.com/biogo/hts/sam"
+)
+
+// alignRecord builds the aligned query row of a SAM record from its CIGAR, in reference coordinates:
+// reference positions before the record and (if insertions are not kept) after it are '*', deletions
+// are '-', and skipped regions (N) are '*'. If reference is not nil it also builds the aligned
+// reference row, which starts with the reference bases before the record and has '-' opposite kept
+// insertions; refLen is then len(reference). Insertions relative to the reference are kept if
+// includeInsertions, and otherwise left out (so the query row has refLen columns).
+func alignRecord(rec biogosam.Record, reference []byte, refLen int, includeInsertions bool) ([]byte, []byte, error) {
+	if rec.Pos < 0 {
+		return nil, nil, errors.New("unmapped read")
+	}
+	withRef := reference != nil
+	seq := rec.Seq.Expand()
+
+	query := bytes.Repeat([]byte{'*'}, rec.Pos)
+	var ref []byte
+	if withRef {
+		ref = append(make([]byte, 0, len(reference)), reference[:rec.Pos]...)
+	}
+
+	q, r := 0, rec.Pos // the next query and reference positions
+	for _, op := range rec.Cigar {
+		n := op.Len()
+		switch op.Type() {
+		case biogosam.CigarMatch, biogosam.CigarEqual, biogosam.CigarMismatch:
+			query = append(query, seq[q:q+n]...)
+			if withRef {
+				ref = append(ref, reference[r:r+n]...)
 			}
-			return query_start, ref_start + length, gaps
-		},
-
-		"N": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			skip := make([]byte, length)
-			for i, _ := range skip {
-				skip[i] = '*'
+			q, r = q+n, r+n
+		case biogosam.CigarInsertion:
+			if includeInsertions {
+				query = append(query, seq[q:q+n]...)
+				if withRef {
+					ref = append(ref, bytes.Repeat([]byte{'-'}, n)...)
+				}
 			}
-			return query_start, ref_start + length, skip
-		},
-
-		"S": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start, []byte{}
-		},
-		"H": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start, ref_start, []byte{}
-		},
-		"P": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start, ref_start, []byte{}
-		},
-		"=": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		},
-		"X": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		}}
-	return cigarOperationMap
-}
-
-// getCigarOperationMapWithInsertions is a map of SAM CIGAR operation types to function literals
-// that are used to build an aligned sequence. This version INCLUDES insertions relative
-// to the reference.
-func getCigarOperationMapWithInsertions() map[string]func(int, int, int, []byte) (int, int, []byte) {
-	cigarOperationMap := map[string]func(int, int, int, []byte) (int, int, []byte){
-		"M": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		},
-		"I": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start, seq[query_start : query_start+length]
-		},
-
-		"D": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
+			q += n
+		case biogosam.CigarDeletion, biogosam.CigarSkipped:
+			fill := byte('-')
+			if op.Type() == biogosam.CigarSkipped {
+				fill = '*'
 			}
-			return query_start, ref_start + length, gaps
-		},
-
-		"N": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			skip := make([]byte, length)
-			for i, _ := range skip {
-				skip[i] = '*'
+			query = append(query, bytes.Repeat([]byte{fill}, n)...)
+			if withRef {
+				ref = append(ref, reference[r:r+n]...)
 			}
-			return query_start, ref_start + length, skip
-		},
+			r += n
+		case biogosam.CigarSoftClipped:
+			q += n
+		case biogosam.CigarHardClipped, biogosam.CigarPadded:
+		default:
+			// (validateRecord has already rejected these)
+			return nil, nil, errors.New("unsupported CIGAR operation " + op.Type().String())
+		}
+	}
 
-		"S": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start, []byte{}
-		},
-		"H": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start, ref_start, []byte{}
-		},
-		"P": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start, ref_start, []byte{}
-		},
-		"=": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		},
-		"X": func(query_start, ref_start, length int, seq []byte) (int, int, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length]
-		}}
-	return cigarOperationMap
-}
-
-// getCigarOperationMapNoInsertionsWithRef is a map of SAM CIGAR operation types to function literals
-// that are used to build an aligned sequence. This version DISCARDS insertions relative
-// to the reference.
-func getCigarOperationMapNoInsertionsWithRef() map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte) {
-	cigarOperationMap := map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte){
-		"M": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length], refseq[ref_start : ref_start+length]
-		},
-		"I": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start, []byte{}, []byte{}
-		},
-
-		"D": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
-			}
-			return query_start, ref_start + length, gaps, refseq[ref_start : ref_start+length]
-		},
-
-		"N": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			skip := make([]byte, length)
-			for i, _ := range skip {
-				skip[i] = '*'
-			}
-			return query_start, ref_start + length, skip, refseq[ref_start : ref_start+length]
-		},
-
-		"S": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start, []byte{}, []byte{}
-		},
-		"H": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start, ref_start, []byte{}, []byte{}
-		},
-		"P": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start, ref_start, []byte{}, []byte{}
-		},
-		"=": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length], refseq[ref_start : ref_start+length]
-		},
-		"X": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length], refseq[ref_start : ref_start+length]
-		}}
-	return cigarOperationMap
-}
-
-// getCigarOperationMapWithInsertionsWithRef is a map of SAM CIGAR operation types to function literals
-// that are used to build an aligned sequence. This version INCLUDES insertions relative
-// to the reference.
-func getCigarOperationMapWithInsertionsWithRef() map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte) {
-	cigarOperationMap := map[string]func(int, int, int, []byte, []byte) (int, int, []byte, []byte){
-		"M": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length], refseq[ref_start : ref_start+length]
-		},
-		"I": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
-			}
-			return query_start + length, ref_start, seq[query_start : query_start+length], gaps
-		},
-
-		"D": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			gaps := make([]byte, length)
-			for i, _ := range gaps {
-				gaps[i] = '-'
-			}
-			return query_start, ref_start + length, gaps, refseq[ref_start : ref_start+length]
-		},
-
-		"N": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			skip := make([]byte, length)
-			for i, _ := range skip {
-				skip[i] = '*'
-			}
-			return query_start, ref_start + length, skip, refseq[ref_start : ref_start+length]
-		},
-
-		"S": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start, []byte{}, []byte{}
-		},
-		"H": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start, ref_start, []byte{}, []byte{}
-		},
-		"P": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start, ref_start, []byte{}, []byte{}
-		},
-		"=": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length], refseq[ref_start : ref_start+length]
-		},
-		"X": func(query_start, ref_start, length int, seq []byte, refseq []byte) (int, int, []byte, []byte) {
-			return query_start + length, ref_start + length, seq[query_start : query_start+length], refseq[ref_start : ref_start+length]
-		}}
-	return cigarOperationMap
+	if !includeInsertions {
+		query = append(query, bytes.Repeat([]byte{'*'}, refLen-len(query))...)
+	}
+	return query, ref, nil
 }
