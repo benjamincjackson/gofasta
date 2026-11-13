@@ -1,6 +1,7 @@
 package variants
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
 
@@ -21,7 +22,17 @@ func getIndelsPair(ref, query []byte) []Variant {
 	)
 	variants := make([]Variant, 0)
 
-	for pos := range ref {
+	const gaps = 0xf4f4f4f4f4f4f4f4 // a gap (244) in every byte
+	for pos := 0; pos < len(ref); pos++ {
+		// skip eight columns at a time where neither sequence has a gap and no indel is open
+		for !insOpen && !delOpen && pos+8 <= len(ref) &&
+			zeroBytes(binary.LittleEndian.Uint64(ref[pos:])^gaps) == 0 && zeroBytes(binary.LittleEndian.Uint64(query[pos:])^gaps) == 0 {
+			refPos += 8
+			pos += 8
+		}
+		if pos == len(ref) {
+			break
+		}
 		if ref[pos] == 244 { // a gap in the reference: an insertion, if the query has a base here
 			if query[pos] != 244 {
 				if !insOpen {
