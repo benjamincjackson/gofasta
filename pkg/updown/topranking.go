@@ -584,9 +584,17 @@ func allZero(s []int) bool {
 	return true
 }
 
-// checkArgs sanity checks the command line options
+// CheckTopRankingArgs checks the --size-* and --dist-* values given to TopRanking, which also checks
+// them, so that a command can report a problem before it opens any input
+func CheckTopRankingArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
+	distall int, distup int, distdown int, distside int, distpush int) error {
+	_, _, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush, io.Discard)
+	return err
+}
+
+// checkArgs sanity checks the command line options, writing warnings about overridden options to warn
 func checkArgs(sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
-	distall int, distup int, distdown int, distside int, distpush int) ([4]int, [4]int, error) {
+	distall int, distup int, distdown int, distside int, distpush int, warn io.Writer) ([4]int, [4]int, error) {
 
 	for _, v := range []int{sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush} {
 		if v < 0 {
@@ -611,11 +619,11 @@ or to --dist-push`)
 	}
 
 	if sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame}) {
-		os.Stderr.WriteString("warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same\n")
+		io.WriteString(warn, "warning: setting --size-total overrides --size-up, --size-down, --size-side and --size-same\n")
 	}
 
 	if distall != 0 && !allZero([]int{distup, distdown, distside}) {
-		os.Stderr.WriteString("warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side\n")
+		io.WriteString(warn, "warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side\n")
 	}
 
 	// bucket sizes for same,up,down,side,total respectively
@@ -704,7 +712,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	distall int, distup int, distdown int, distside int,
 	threshpair float32, threshtarg int, nofill bool, distpush int, strict bool) error {
 
-	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush)
+	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush, os.Stderr)
 	if err != nil {
 		return err
 	}

@@ -71,6 +71,11 @@ func TestFlagValidation(t *testing.T) {
 		{toprankingCmd, map[string]string{"dist-push": "-1"}},
 		{toprankingCmd, map[string]string{"threshold-pair": "-0.1"}},
 		{toprankingCmd, map[string]string{"ignore": f, "outfile": f}},
+		{toprankingCmd, map[string]string{"query": "q.csv", "target": "t.csv"}}, // no --size-* or --dist-*
+		{toprankingCmd, map[string]string{"size-up": "2", "query": "q.txt", "target": "t.csv"}},
+		{toprankingCmd, map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
+		{closestCmd, map[string]string{"measure": "bogus"}},
+		{toMultiAlignCmd, map[string]string{"trim": "true", "start": "5"}},
 		{updownListCmd, map[string]string{"query": f, "outfile": f}},
 	}
 	for _, b := range bad {
@@ -95,7 +100,10 @@ func TestFlagValidation(t *testing.T) {
 		{variantsCmd, map[string]string{"reference": f, "outfile": f}}, // --reference is a record ID here
 		{samVariantsCmd, map[string]string{"threads": "4", "reference": f, "outfile": other}},
 		{toMultiAlignCmd, map[string]string{}},
-		{toprankingCmd, map[string]string{"size-up": "2", "threshold-pair": "0.2"}},
+		{toprankingCmd, map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
+		{toprankingCmd, map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
+		{closestCmd, map[string]string{"measure": "TN93"}},
+		{toMultiAlignCmd, map[string]string{"trim": "true", "trimstart": "5"}},
 		{updownListCmd, map[string]string{}},
 	}
 	for _, g := range good {

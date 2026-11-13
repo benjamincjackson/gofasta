@@ -76,6 +76,7 @@ between every pair.
 			intAtLeast(cmd, 0, "threads", "number"),
 			limitAtLeast(cmd, 0, "max-dist"),
 			outputNotInput(cmd, "outfile", "query", "target"),
+			measureErr(),
 		)
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -92,16 +93,9 @@ between every pair.
 		}
 		defer targetIn.Close()
 
-		var measure string
-		switch strings.ToLower(closestMeasure) {
-		case "raw":
-			measure = "raw"
-		case "snp":
-			measure = "snp"
-		case "tn93":
-			measure = "tn93"
-		default:
-			return errors.New("Couldn't tell which distance --measure / -m to use (choose one of \"raw\", \"snp\" or \"tn93\")")
+		measure, err := closestMeasureName()
+		if err != nil {
+			return err
 		}
 
 		dist := -1.0
@@ -126,4 +120,18 @@ between every pair.
 
 		return err
 	},
+}
+
+// closestMeasureName returns the distance measure -m names: raw, snp or tn93, in any case
+func closestMeasureName() (string, error) {
+	switch m := strings.ToLower(closestMeasure); m {
+	case "raw", "snp", "tn93":
+		return m, nil
+	}
+	return "", errors.New("Couldn't tell which distance --measure / -m to use (choose one of \"raw\", \"snp\" or \"tn93\")")
+}
+
+func measureErr() error {
+	_, err := closestMeasureName()
+	return err
 }

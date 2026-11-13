@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"sync"
 
 	"github.com/spf13/cobra"
 )
@@ -29,9 +30,31 @@ func getStrictBoolVarArgs() (*bool, string, bool, string) {
 	return &strict, "strict", false, "Stop with an error at the first record that can't be processed, instead of warning and skipping it"
 }
 
+// silenceUsageOnceRunning makes each command that does the work (one without subcommands) print only the
+// error, not the usage, if it fails once it is running: the flags and arguments were valid (they were
+// parsed, and checked by PreRunE), so the problem is with the input, and the usage would bury the error.
+// Errors in the flags or arguments, and unknown subcommands, still print the usage.
+func silenceUsageOnceRunning(c *cobra.Command) {
+	for _, sub := range c.Commands() {
+		silenceUsageOnceRunning(sub)
+	}
+	if c.HasSubCommands() || c.RunE == nil {
+		return
+	}
+	run := c.RunE
+	c.RunE = func(cmd *cobra.Command, args []string) error {
+		cmd.SilenceUsage = true
+		return run(cmd, args)
+	}
+}
+
+var silenceUsageOnce sync.Once
+
 // Execute executes the root command.
 func Execute() {
-	// cobra prints the error (and usage) to stderr itself; stdout is reserved for data
+	silenceUsageOnce.Do(func() { silenceUsageOnceRunning(rootCmd) })
+	// cobra prints the error (and, for errors in the flags or arguments, the usage) to stderr itself;
+	// stdout is reserved for data
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}

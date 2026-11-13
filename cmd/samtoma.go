@@ -62,23 +62,15 @@ the fasta file to stdout, e.g.:
 		return firstError(
 			intAtLeast(cmd, 1, "threads"),
 			outputNotInput(cmd, "fasta-out", "samfile", "reference"),
+			trimFlagsErr(),
 		)
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
 		/*
 			Start of trimming argument reconciliation to maintain backwards compatibility
+			(trimFlagsErr, from PreRunE, has checked the two sets of flags are not combined)
 		*/
-		if toMultiAlignTrim || toMultiAlignTrimStart != -1 || toMultiAlignTrimEnd != -1 {
-			if toMultiAlignStart != -1 || toMultiAlignEnd != -1 {
-				return errors.New(`As of version 1.0.0 --start and --end replace --trim, --trimstart and --trimend 
-The old flags and their behaviour are retained for backwards compatibility, but you shouldn't combine the two sets of flags.
-Note the change of coordinate system if moving from old to new flags.
-
-`)
-			}
-		}
-
 		if toMultiAlignTrimStart != -1 {
 			toMultiAlignStart = toMultiAlignTrimStart + 1
 		}
@@ -106,4 +98,17 @@ Note the change of coordinate system if moving from old to new flags.
 
 		return
 	},
+}
+
+// trimFlagsErr checks that the old trimming flags (--trim, --trimstart, --trimend) are not combined
+// with --start and --end, which replace them
+func trimFlagsErr() error {
+	if (toMultiAlignTrim || toMultiAlignTrimStart != -1 || toMultiAlignTrimEnd != -1) && (toMultiAlignStart != -1 || toMultiAlignEnd != -1) {
+		return errors.New(`As of version 1.0.0 --start and --end replace --trim, --trimstart and --trimend 
+The old flags and their behaviour are retained for backwards compatibility, but you shouldn't combine the two sets of flags.
+Note the change of coordinate system if moving from old to new flags.
+
+`)
+	}
+	return nil
 }

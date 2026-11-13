@@ -108,37 +108,16 @@ you haven't also invoked --dist-push).
 				"dist-all", "dist-up", "dist-down", "dist-side", "dist-push", "threshold-target"),
 			floatAtLeast(cmd, 0, "threshold-pair"),
 			outputNotInput(cmd, "outfile", "query", "target", "reference", "ignore"),
+			updown.CheckTopRankingArgs(TRsizetotal, TRsizeup, TRsizedown, TRsizeside, TRsizesame,
+				TRdistall, TRdistup, TRdistdown, TRdistside, TRdistpush),
+			toprankingInputTypesErr(),
 		)
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		var qtype string
-		var ttype string
-
-		switch filepath.Ext(TRquery) {
-		case ".csv":
-			qtype = "csv"
-		case ".fasta":
-			qtype = "fasta"
-		case ".fa":
-			qtype = "fasta"
-		default:
-			return errors.New("couldn't tell if --query was a .csv or a .fasta file")
-		}
-
-		switch filepath.Ext(TRtarget) {
-		case ".csv":
-			ttype = "csv"
-		case ".fasta":
-			ttype = "fasta"
-		case ".fa":
-			ttype = "fasta"
-		default:
-			return errors.New("couldn't tell if --target was a .csv or a .fasta file")
-		}
-
-		if (qtype == "fasta" || ttype == "fasta") && len(udReference) == 0 {
-			return errors.New("if your either of your input files are fastas, you must provide a --reference")
+		qtype, ttype, err := toprankingInputTypes()
+		if err != nil {
+			return err
 		}
 
 		// targets to ignore (potentially):
@@ -194,4 +173,35 @@ you haven't also invoked --dist-push).
 
 		return
 	},
+}
+
+// toprankingInputTypes returns the types ("csv" or "fasta") of --query and --target, from their
+// extensions, and checks that --reference is given if either is a fasta file
+func toprankingInputTypes() (string, string, error) {
+	inputType := func(path, flag string) (string, error) {
+		switch filepath.Ext(path) {
+		case ".csv":
+			return "csv", nil
+		case ".fasta", ".fa":
+			return "fasta", nil
+		}
+		return "", errors.New("couldn't tell if --" + flag + " was a .csv or a .fasta file")
+	}
+	qtype, err := inputType(TRquery, "query")
+	if err != nil {
+		return "", "", err
+	}
+	ttype, err := inputType(TRtarget, "target")
+	if err != nil {
+		return "", "", err
+	}
+	if (qtype == "fasta" || ttype == "fasta") && len(udReference) == 0 {
+		return "", "", errors.New("if your either of your input files are fastas, you must provide a --reference")
+	}
+	return qtype, ttype, nil
+}
+
+func toprankingInputTypesErr() error {
+	_, _, err := toprankingInputTypes()
+	return err
 }
