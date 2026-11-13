@@ -707,6 +707,7 @@ func (t targetIn) RecordName() string {
 // TopRanking finds pseudo-tree-aware catchments for query sequences, given a large database of target sequences, the closest
 // of which should be returned in the output. Targets are split into bins depending on whether they are likely direct ancestors of,
 // direct descendants of, polyphyletic with, or exactly the same as, the query
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,

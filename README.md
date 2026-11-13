@@ -28,12 +28,6 @@ go build -o gofasta
 
 For a full list of commands and options, you can run `gofasta` with the `-h` flag at the command line: `gofasta -h`,  `gofasta sam -h`, `gofasta sam variants -h`, etc. 
 
-<p align="center">
-  <img src=".github/help.png" alt="" width="738">
-</p>
-
-
-
 e.g., for `gofasta updown list -h`:
 
 <details><summary><b>Click to see the help message</b></summary>
@@ -46,12 +40,12 @@ Example usage:
 
 	gofasta updown list -r reference.fasta -q alignment.fasta -o mutationlist.csv
 
-Non-ATGC nucleotides are not recommended in the --reference, and --reference and --query must
-be aligned to the same thing.
+Non-ATGC nucleotides are not recommended in the --reference, and --reference and --query must be aligned to
+the same thing.
 
 --outfile is a CSV-format file with the columns: query,SNPs,ambiguities,SNPcount,ambcount. There is one row
-for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to --reference. ambiguities is
-a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (anything that isn't ATGC).
+for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to --reference. ambiguities is a
+"|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (anything that isn't ATGC).
 
 Usage:
   gofasta updown list [flags]
@@ -59,6 +53,8 @@ Usage:
 Flags:
   -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
   -o, --outfile string   Output to write (default "stdout")
+  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
+      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help             help for list
 
 Global Flags:

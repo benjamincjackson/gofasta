@@ -193,6 +193,11 @@ for src, dst in (("ref.gb", "annotation_gb.txt"), ("ref.gff", "annotation_gff.tx
     with open(os.path.join(out, src)) as fh:
         write(dst, fh.read())
 
+# topranking inputs under names that don't say their type (it comes from the content)
+for src, dst in (("query.fasta", "query_fasta.txt"), ("target.csv", "target_csv.txt")):
+    with open(os.path.join(out, src)) as fh:
+        write(dst, fh.read())
+
 # gzipped copies, for the cases that read gzipped input (mtime=0 so they are the same on every run)
 for name in ("msa.fasta", "ref.gb", "aln.sam", "query.fasta", "target.fasta", "query.csv", "target.csv"):
     with open(os.path.join(out, name), "rb") as fh:

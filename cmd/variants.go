@@ -40,26 +40,30 @@ Example usage:
 The reference is a fasta file of its own, the same width as the alignment (--reference), or a record of the
 alignment (--reference-id; if the alignment is read from stdin, it must be the first record). Without either,
 the sequence in the annotation file is used, in which case the alignment must be in the same coordinates.
-Without an annotation, only nucleotide changes, deletions and insertions are reported, and a reference must
-be given.
+Without an annotation, only nucleotide changes, deletions and insertions are reported, and a reference must be
+given.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
 of the format.
 
-If --query and --outfile are not given, the alignment is read from stdin and the variants are written to stdout.
+If --query and --outfile are not given, the alignment is read from stdin and the variants are written to
+stdout.
 
-You can use --aggregate to report the overall proportions of each mutation in the alignment, and --threshold to filter on 
-frequency.
+You can use --aggregate to report the overall proportions of each mutation in the alignment, and --threshold
+to filter on frequency.
 
-Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide change that
-isn't in a codon that is represented by an amino acid change). The formats are:
+Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide
+change that isn't in a codon that is represented by an amino acid change). The formats are:
 
 	ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
 	del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
 	aa:S:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
+	aa:S:H69- - the amino acid at (1-based) residue 69 in the S gene is an H in the reference and is deleted in this sequence
+	aa:S:214EPE - the amino acids EPE are inserted immediately after (1-based) residue 214 in the S gene in this sequence
 	nuc:C3037T - the nucleotide at (1-based) position 3037 in reference coordinates is a C in the reference and a T in this sequence
 
-Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids in the alignment.	
+Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids
+in the alignment.
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(

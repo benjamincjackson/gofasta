@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"math"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -123,14 +122,11 @@ func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) 
 
 // ClosestN finds the closest sequence(s) by genetic distance to a query/queries. It writes the results
 // to stdout or to file. Ties for distance are broken by genome completeness.
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int, strict bool) error {
 
 	if catchmentSize < 0 {
 		return errors.New("the number of neighbours to find must not be negative")
-	}
-
-	if threads == 0 {
-		threads = runtime.NumCPU()
 	}
 
 	if maxdist != -1.0 && catchmentSize == 0 {

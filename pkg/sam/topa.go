@@ -375,6 +375,12 @@ func writePairToFile(p string, AP alignPair, wrapWidth int, omitRef bool) (err e
 // oneFilePerName passes results to sink, but makes a query whose file name (see pairFileName) is that of
 // an earlier query's a failed record, so it is skipped (or stops the run, if strict) rather than
 // overwriting the earlier query's file. Results arrive in input order, so the first query keeps the name.
+//
+// Names are compared exactly, byte for byte. On a file system that ignores case (the default on macOS
+// and Windows) or Unicode normalisation (macOS), two names that differ only in that way are different
+// here but name the same file, so the later query's alignment overwrites the earlier one's. Detecting
+// that would mean asking the file system (e.g. creating a probe file and looking for it under another
+// case), which is not done.
 func oneFilePerName(sink func(pipeline.Result[alignPair]) error) func(pipeline.Result[alignPair]) error {
 	written := make(map[string]string) // file name -> the query written to it
 	return func(r pipeline.Result[alignPair]) error {
@@ -393,7 +399,10 @@ func oneFilePerName(sink func(pipeline.Result[alignPair]) error) func(pipeline.R
 // ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space.
 // The alignments are written to stdout if outpath is "stdout" or "-", otherwise to one file per query in the directory outpath.
+// A query whose file name is the same as an earlier query's is skipped (see oneFilePerName); on a file system that ignores
+// case, names that differ only in case are not caught, and the later query's file replaces the earlier one's.
 // A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int, strict bool) error {
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)

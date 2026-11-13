@@ -21,6 +21,7 @@ import (
 // derived from a annotation file in genbank or gff version 3 format
 //
 // A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSuffix string, out io.Writer, start, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
 
 	var ref fasta.EncodedRecord

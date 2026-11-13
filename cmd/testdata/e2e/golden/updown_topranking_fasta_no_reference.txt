@@ -1,0 +1,4 @@
+args: updown topranking --query query.fasta --target target.csv --size-total 4
+exit: 1
+--- stderr
+Error: --query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)

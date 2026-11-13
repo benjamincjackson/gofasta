@@ -65,6 +65,7 @@ type AnnoStructs struct {
 // reference must be given). A record that can't be processed (an invalid character, or a different
 // width from the reference) is reported on stderr and skipped, unless strict, when it stops the run with
 // an error.
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
 
 	var (

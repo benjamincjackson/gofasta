@@ -26,7 +26,8 @@ func newToMultiAlignCmd(s *samOptions) *cobra.Command {
 		Short:   "Convert a SAM file to a multiple alignment in fasta format",
 		Long: `Convert a SAM file to a multiple alignment in fasta format
 
-Insertions relative to the reference are omitted, so all sequences in the output are the same ( = reference) length.
+Insertions relative to the reference are omitted, so all sequences in the output are the same ( = reference)
+length.
 
 Example usage:
 	gofasta sam toMultiAlign -s aligned.sam -o aligned.fasta
@@ -34,8 +35,8 @@ Example usage:
 If you want, you can trim (and optionally pad) the output alignment to coordinates of your choosing:
 	gofasta sam toMultiAlign -s aligned.sam --start 266 --end 29674 --pad -o aligned.fasta
 
-If input and output files are not specified, the behaviour is to read the sam file from stdin and write
-the fasta file to stdout, e.g.:
+If input and output files are not specified, the behaviour is to read the sam file from stdin and write the
+fasta file to stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {

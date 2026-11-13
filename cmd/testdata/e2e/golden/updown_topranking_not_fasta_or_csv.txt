@@ -1,0 +1,4 @@
+args: updown topranking --query ignore.txt --target target.csv --size-total 4
+exit: 1
+--- stderr
+Error: couldn't read --query: it is neither a fasta file nor the CSV output of gofasta updown list (which starts with the header query,SNPs,ambiguities,SNPcount,ambcount)

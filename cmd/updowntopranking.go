@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -48,29 +47,32 @@ func newToprankingCmd(u *updownOptions) *cobra.Command {
 Example usage:
 	gofasta updown topranking --query smallquery.fasta -r WH04.fasta --target mutationlist.csv --size-total 1000 -o catchment.csv
 
-For each sequence in --query, this routine finds the closest sequences by SNP-distance in --target, binned according to
-whether they are likely children, parents, or siblings of, or on a polytomy with, the query sequence. It does this by comparing
-SNPs relative to a common reference sequence which is imagined to be the root of the tree.
+For each sequence in --query, this routine finds the closest sequences by SNP-distance in --target, binned
+according to whether they are likely children, parents, or siblings of, or on a polytomy with, the query
+sequence. It does this by comparing SNPs relative to a common reference sequence which is imagined to be the
+root of the tree.
 
---query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or one of each. They
-must have file extensions .csv, .fasta, .fa, .fna or .fas (in any case, optionally followed by .gz). If either is an alignment, you must provide --reference, and this should be the
-same sequence that was used by gofasta updown list.
+--query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or
+one of each; which is worked out from their content, so they can be called anything, and either can be stdin.
+If either is an alignment, you must provide --reference, and this should be the same sequence that was used by
+gofasta updown list.
 
-Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size flags,
-the program will return all the targets that are equal or less than the specified SNP-distance(s) away. If --dist-push 
-is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to cover the all sequences
-that are the closest i SNP-distances away, and then it will return all the neighbours at those distances in that bin.
+Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size
+flags, the program will return all the targets that are equal or less than the specified SNP-distance(s) away.
+If --dist-push is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to
+cover the all sequences that are the closest i SNP-distances away, and then it will return all the neighbours
+at those distances in that bin.
 
-If you provide a number to --size-total, the output will try to include this many closest sequences to the query, split evenly
-between the four bins. If one or more bins has a shortfall, the sizes of the other bins will increase until --size-total is met,
-if possible, unless you use --no-fill.
+If you provide a number to --size-total, the output will try to include this many closest sequences to the
+query, split evenly between the four bins. If one or more bins has a shortfall, the sizes of the other bins
+will increase until --size-total is met, if possible, unless you use --no-fill.
 
-You can provide --size-up, -down, -side and -same, instead of --size-total, if you want different proportions for each bin.
-The program will aim to provide the sum of these numbers in total in the output, and will make up for a shortfall in one bin
-by increasing the count of the other bins where possible, unless --no-fill.
+You can provide --size-up, -down, -side and -same, instead of --size-total, if you want different proportions
+for each bin. The program will aim to provide the sum of these numbers in total in the output, and will make
+up for a shortfall in one bin by increasing the count of the other bins where possible, unless --no-fill.
 
-You can combine the two types of flag (size and dist), to return only the closest n sequences under a set distance (as long as
-you haven't also invoked --dist-push).
+You can combine the two types of flag (size and dist), to return only the closest n sequences under a set
+distance (as long as you haven't also invoked --dist-push).
 `,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
@@ -80,15 +82,9 @@ you haven't also invoked --dist-push).
 				outputNotInput(cmd, "outfile", "query", "target", "reference", "ignore"),
 				updown.CheckTopRankingArgs(o.sizeTotal, o.sizeUp, o.sizeDown, o.sizeSide, o.sizeSame,
 					o.distAll, o.distUp, o.distDown, o.distSide, o.distPush),
-				toprankingInputTypesErr(&o, u.reference),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-
-			qtype, ttype, err := toprankingInputTypes(&o, u.reference)
-			if err != nil {
-				return err
-			}
 
 			// targets to ignore (potentially):
 			ignoreArray := make([]string, 0)
@@ -111,17 +107,29 @@ you haven't also invoked --dist-push).
 				}
 			}
 
-			query, err := openIn(cmd, "query")
+			queryFile, err := openIn(cmd, "query")
 			if err != nil {
 				return err
 			}
-			defer query.Close()
+			defer queryFile.Close()
+			query, qtype, err := updown.InputType(queryFile)
+			if err != nil {
+				return errors.New("couldn't read --query: " + err.Error())
+			}
 
-			target, err := openIn(cmd, "target")
+			targetFile, err := openIn(cmd, "target")
 			if err != nil {
 				return err
 			}
-			defer target.Close()
+			defer targetFile.Close()
+			target, ttype, err := updown.InputType(targetFile)
+			if err != nil {
+				return errors.New("couldn't read --target: " + err.Error())
+			}
+
+			if (qtype == "fasta" || ttype == "fasta") && u.reference == "" {
+				return errors.New("--query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)")
+			}
 
 			var ref io.ReadCloser // only read if a fasta file is given
 			if qtype == "fasta" || ttype == "fasta" {
@@ -181,35 +189,4 @@ you haven't also invoked --dist-push).
 	c.MarkFlagRequired("target")
 	c.Flags().SortFlags = false
 	return c
-}
-
-// toprankingInputTypes returns the types ("csv" or "fasta") of --query and --target, from their
-// extensions (in any case), and checks that reference (--reference) is given if either is a fasta file
-func toprankingInputTypes(o *toprankingOptions, reference string) (string, string, error) {
-	inputType := func(path, flag string) (string, error) {
-		switch strings.ToLower(filepath.Ext(strings.TrimSuffix(strings.ToLower(path), ".gz"))) {
-		case ".csv":
-			return "csv", nil
-		case ".fasta", ".fa", ".fna", ".fas":
-			return "fasta", nil
-		}
-		return "", errors.New("couldn't tell if --" + flag + " was a .csv or a fasta (.fasta, .fa, .fna, .fas) file (optionally gzipped, .gz)")
-	}
-	qtype, err := inputType(o.query, "query")
-	if err != nil {
-		return "", "", err
-	}
-	ttype, err := inputType(o.target, "target")
-	if err != nil {
-		return "", "", err
-	}
-	if (qtype == "fasta" || ttype == "fasta") && len(reference) == 0 {
-		return "", "", errors.New("if your either of your input files are fastas, you must provide a --reference")
-	}
-	return qtype, ttype, nil
-}
-
-func toprankingInputTypesErr(o *toprankingOptions, reference string) error {
-	_, _, err := toprankingInputTypes(o, reference)
-	return err
 }
