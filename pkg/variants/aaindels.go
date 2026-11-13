@@ -13,8 +13,8 @@ import (
 type cdsSlot struct {
 	refPos   int    // 1-based reference position
 	refBase  string // the reference base
-	queBase  string // the query base, "" if it is deleted (or missing)
-	missing  bool   // the query has no data here (a gap that runs to the start or end of the alignment)
+	queBase  string // the query base, "" if it is deleted or missing
+	missing  bool   // the query has no data here: N, or a gap that runs to the start or end of the alignment
 	snp      bool   // the query base certainly differs from the reference base
 	inserted string // query bases inserted between this base and the next one of the CDS, in CDS order
 }
@@ -39,6 +39,8 @@ func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, DA [256]st
 		c := col(p)
 		s := cdsSlot{refPos: p, refBase: DA[ref[c]]}
 		switch {
+		case DA[query[c]] == "N":
+			s.missing = true
 		case query[c] != 244:
 			s.queBase = DA[query[c]]
 			s.snp = (query[c] & ref[c]) < 16
@@ -100,9 +102,9 @@ func indelWindows(slots []cdsSlot) []indelWindow {
 // (aa:GENE:H69-), inserted residues (aa:GENE:214EPE, inserted after residue 214) and residues changed
 // next to them (aa:GENE:E156G). It returns those changes, the nucleotide changes in the codons the indels
 // touch that are not part of one of them, and the codons it has dealt with, which getAAsPair must skip.
-// Indels are left alone (no amino acid change is reported for them, and their codons are not dealt with
+// Residues after a stop codon in the query are not reported. Indels are left alone (no amino acid change is reported for them, and their codons are not dealt with
 // here) if they shift the reading frame, come after one that does, run outside the CDS, touch a missing
-// stretch of the query, or touch the start codon (a first residue M) or the stop codon (a last residue *).
+// stretch of the query (N, or uncovered ends), or touch the start codon (a first residue M) or the stop codon (a last residue *).
 func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]Variant, map[int]bool) {
 	DA := encoding.MakeDecodingArray()
 	CD := alphabet.MakeCodonDict()
@@ -120,7 +122,7 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 	clean := func(j int) bool {
 		for k := 3 * j; k < 3*j+3; k++ {
 			s := slots[k]
-			if s.queBase == "" || s.snp || (k < 3*j+2 && s.inserted != "") {
+			if s.queBase == "" || s.missing || s.snp || (k < 3*j+2 && s.inserted != "") {
 				return false
 			}
 		}
@@ -190,6 +192,10 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 			} else {
 				qAA += "X"
 			}
+		}
+		// translation stops at a stop codon, so nothing after one is part of the change
+		if i := strings.IndexByte(qAA, '*'); i >= 0 {
+			qAA = qAA[:i+1]
 		}
 		rAA := refAA[w.first : w.last+1]
 

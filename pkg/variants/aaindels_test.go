@@ -80,6 +80,7 @@ func TestInFrameIndelAAsPlusStrand(t *testing.T) {
 	insRef, insQue := ins(ref, 12, "GCT")
 	repRef, repQue := ins(ref, 12, "CAT")
 	stopRef, stopQue := ins(ref, 11, "CTG")
+	stopCodonRef, stopCodonQue := ins(ref, 12, "TAA")
 	for _, tc := range []struct {
 		name, refRow, queRow, want string
 	}{
@@ -90,6 +91,7 @@ func TestInFrameIndelAAsPlusStrand(t *testing.T) {
 		{"codon insertion", insRef, insQue, "aa:g:4A|ins:12:3"},
 		{"insertion in a repeat is placed 3'", repRef, repQue, "ins:12:3|aa:g:7H"},
 		{"insertion inside a codon with a stop", stopRef, stopQue, "aa:g:R4S|aa:g:4*|ins:11:3"},
+		{"inserted stop codon: nothing after it", stopCodonRef, stopCodonQue, "ins:12:3|aa:g:H5*"},
 		{"frameshift: no amino acid call", ref, del(ref, 7, 7), "del:7:1"},
 		{"after a frameshift: no amino acid call", ref, del(del(ref, 7, 7), 13, 15), "del:7:1|del:13:3"},
 		{"touches the stop codon", ref, del(ref, 22, 27), "del:22:6"},
@@ -98,6 +100,8 @@ func TestInFrameIndelAAsPlusStrand(t *testing.T) {
 		{"synonymous SNP in the window stays a nuc", insRef, snp(insQue, 18, "C"), "aa:g:4A|ins:12:3|nuc:T15C"},
 		{"uncovered start is not a deletion", ref, del(ref, 1, 9), ""},
 		{"deletion next to an uncovered start", ref, del(del(ref, 1, 6), 13, 15), "del:13:3|aa:g:H7-"},
+		{"N in the window: no amino acid call", ref, snp(del(ref, 5, 10), 11, "N"), "del:5:6"},
+		{"deletion is not shifted across an N", ref, snp(del(ref, 13, 15), 20, "N"), "del:13:3|aa:g:H6-"},
 	} {
 		if got := callPair(t, tc.refRow, tc.queRow, r, false); got != tc.want {
 			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
