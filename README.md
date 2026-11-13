@@ -313,7 +313,7 @@ Other software exists for calculating pairwise genetic distances, including [tn9
 
 ## Acknowledgements and third party licences
 
-gofasta incorporates [bíogo](https://github.com/biogo/biogo), which is distributed under licence. Its licence is reproduced under `THIRD_PARTY_LICENCES/biogo` or run `gofasta licences` to print it.
+gofasta incorporates [bíogo hts](https://github.com/biogo/hts), [cobra](https://github.com/spf13/cobra) and [pflag](https://github.com/spf13/pflag), each distributed under its own licence. Their licence notices are reproduced in `NOTICE`; `gofasta licences` prints a summary and `gofasta licences -l` prints them in full.
 
 gofasta uses a slightly modified version of the bit-level coding scheme for nucleotides by Emmanuel Paradis, which is used in [ape](https://doi.org/10.1093/bioinformatics/btg412). For a description of it, see [here](https://emmanuelparadis.github.io/misc/BitLevelCodingScheme.html).
 
