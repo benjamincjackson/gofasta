@@ -42,19 +42,19 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
+		ref, err := openIn(cmd, "reference")
 		if err != nil {
 			return err
 		}
 		defer ref.Close()
 
-		query, err := gfio.OpenIn(*cmd.Flag("query"))
+		query, err := openIn(cmd, "query")
 		if err != nil {
 			return err
 		}
 		defer query.Close()
 
-		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
+		out, err := openOut(cmd, "outfile")
 		if err != nil {
 			return err
 		}

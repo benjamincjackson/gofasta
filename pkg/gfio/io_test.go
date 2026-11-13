@@ -4,28 +4,21 @@ import (
 	"errors"
 	"os"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
 
 func TestOpenIn(t *testing.T) {
-
-	var (
-		Cmd = &cobra.Command{
-			Use:     "test",
-			Short:   "test",
-			Long:    `test`,
-			Version: "1.0",
-		}
-	)
-
-	var reference string
-	Cmd.PersistentFlags().StringVarP(&reference, "reference", "r", "", "Reference fasta file")
-	Cmd.PersistentFlags().Set("reference", "not/a/file.whatever")
-
-	_, err := OpenIn(*Cmd.Flag("reference"))
-	if err.Error() != errors.New("open -r / --reference not/a/file.whatever: no such file or directory").Error() {
+	_, err := OpenIn("not/a/file.whatever", "-r / --reference")
+	if err == nil || err.Error() != "open -r / --reference not/a/file.whatever: no such file or directory" {
 		t.Error(err)
+	}
+	if f, err := OpenIn("stdin", "x"); err != nil || f != os.Stdin {
+		t.Errorf("stdin: got %v, %v", f, err)
+	}
+}
+
+func TestOpenOutStdout(t *testing.T) {
+	if f, err := OpenOut("stdout"); err != nil || f != os.Stdout {
+		t.Errorf("stdout: got %v, %v", f, err)
 	}
 }
 

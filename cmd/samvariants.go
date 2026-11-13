@@ -81,7 +81,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
+		samIn, err := openIn(cmd, "samfile")
 		if err != nil {
 			return err
 		}
@@ -90,7 +90,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 		refFromFile := false
 		var ref *os.File
 		if samReference != "" {
-			ref, err = gfio.OpenIn(*cmd.Flag("reference"))
+			ref, err = openIn(cmd, "reference")
 			if err != nil {
 				return err
 			}
@@ -105,7 +105,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			if samVariantsAnnotation != "" {
 				return errors.New("--annotation replaces --genbank")
 			}
-			anno, err = gfio.OpenIn(*cmd.Flag("genbank"))
+			anno, err = openIn(cmd, "genbank")
 			if err != nil {
 				return err
 			}
@@ -115,14 +115,14 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			if err != nil {
 				return err
 			}
-			anno, err = gfio.OpenIn(*cmd.Flag("annotation"))
+			anno, err = openIn(cmd, "annotation")
 			if err != nil {
 				return err
 			}
 		}
 		defer anno.Close()
 
-		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
+		out, err := openOut(cmd, "outfile")
 		if err != nil {
 			return err
 		}

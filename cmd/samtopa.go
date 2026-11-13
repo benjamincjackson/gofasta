@@ -3,7 +3,6 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"github.com/virus-evolution/gofasta/pkg/sam"
 )
 
@@ -58,13 +57,13 @@ instead, use -o stdout, e.g.:
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
+		samIn, err := openIn(cmd, "samfile")
 		if err != nil {
 			return err
 		}
 		defer samIn.Close()
 
-		ref, err := gfio.OpenIn(*cmd.Flag("reference"))
+		ref, err := openIn(cmd, "reference")
 		if err != nil {
 			return err
 		}

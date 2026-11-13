@@ -1,7 +1,7 @@
 /*
-Package gfio provides io functionality, including to/from stdin/stderr,
-and helpful error messages when used in combination with bad filepaths
-from commandline options
+Package gfio provides io functionality, including to/from stdin/stdout,
+and helpful error messages for bad file paths (naming, for example, the
+command-line option that gave the path)
 */
 package gfio
 
@@ -9,69 +9,38 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-
-	"github.com/spf13/pflag"
 )
 
-// func (e *fs.PathError) Error() string { return e.Op + " " + e.Path + ": " + e.Err.Error() }
-
-// parseInErr returns a modified *fs.PathError-style error, augmented with information about the command-line
-// flag that the error was associated with
-func parseInErr(err error, flagString string) error {
+// parseInErr returns a modified *fs.PathError-style error, augmented with the name of what was being
+// opened (e.g. the command-line flag that gave the path)
+func parseInErr(err error, label string) error {
 	switch x := err.(type) {
 	case *fs.PathError:
-		return errors.New(x.Op + " " + flagString + " " + x.Path + ": " + x.Err.Error())
+		return errors.New(x.Op + " " + label + " " + x.Path + ": " + x.Err.Error())
 	default:
 		return err
 	}
 }
 
-// OpenIn returns a pointer to a file object, which may be stdin, based on the argument provided
-// to a pflag flag on the command line.
-func OpenIn(flag pflag.Flag) (*os.File, error) {
-	var err error
-	var f *os.File
-
-	inFile := flag.Value.String()
-	var flagString string
-
-	switch len(flag.Shorthand) {
-	case 0:
-		flagString = "--" + flag.Name
-	default:
-		flagString = "-" + flag.Shorthand + " / --" + flag.Name
+// OpenIn opens path for reading, or returns stdin if path is "stdin". An error names label (e.g. the
+// command-line flag that gave the path, such as "-q / --query").
+func OpenIn(path, label string) (*os.File, error) {
+	if path == "stdin" {
+		return os.Stdin, nil
 	}
-
-	if inFile != "stdin" {
-		if f, err = os.Open(inFile); err != nil {
-			err = parseInErr(err, flagString)
-			return f, err
-		}
-	} else {
-		f = os.Stdin
+	f, err := os.Open(path)
+	if err != nil {
+		return f, parseInErr(err, label)
 	}
-
 	return f, nil
 }
 
-// OpenOut returns a pointer to a file object, which may be stdout, based on the argument provided
-// to a pflag flag on the command line. If the file is not stdout, it is created.
-func OpenOut(flag pflag.Flag) (*os.File, error) {
-	var err error
-	var f *os.File
-
-	outFile := flag.Value.String()
-
-	if outFile != "stdout" {
-		f, err = os.Create(outFile)
-		if err != nil {
-			return f, err
-		}
-	} else {
-		f = os.Stdout
+// OpenOut creates path for writing, or returns stdout if path is "stdout".
+func OpenOut(path string) (*os.File, error) {
+	if path == "stdout" {
+		return os.Stdout, nil
 	}
-
-	return f, nil
+	return os.Create(path)
 }
 
 // CloseOut closes an output file and, if the close fails (the final flush of buffered data to a full disk,

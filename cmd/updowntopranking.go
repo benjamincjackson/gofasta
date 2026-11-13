@@ -138,13 +138,13 @@ you haven't also invoked --dist-push).
 			}
 		}
 
-		query, err := gfio.OpenIn(*cmd.Flag("query"))
+		query, err := openIn(cmd, "query")
 		if err != nil {
 			return err
 		}
 		defer query.Close()
 
-		target, err := gfio.OpenIn(*cmd.Flag("target"))
+		target, err := openIn(cmd, "target")
 		if err != nil {
 			return err
 		}
@@ -152,14 +152,14 @@ you haven't also invoked --dist-push).
 
 		var ref *os.File
 		if qtype == "fasta" || ttype == "fasta" {
-			ref, err = gfio.OpenIn(*cmd.Flag("reference"))
+			ref, err = openIn(cmd, "reference")
 			if err != nil {
 				return err
 			}
 		}
 		defer ref.Close()
 
-		out, err := gfio.OpenOut(*cmd.Flag("outfile"))
+		out, err := openOut(cmd, "outfile")
 		if err != nil {
 			return err
 		}

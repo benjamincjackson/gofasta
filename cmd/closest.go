@@ -82,13 +82,13 @@ between every pair.
 	},
 	RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		queryIn, err := gfio.OpenIn(*cmd.Flag("query"))
+		queryIn, err := openIn(cmd, "query")
 		if err != nil {
 			return err
 		}
 		defer queryIn.Close()
 
-		targetIn, err := gfio.OpenIn(*cmd.Flag("target"))
+		targetIn, err := openIn(cmd, "target")
 		if err != nil {
 			return err
 		}
@@ -107,7 +107,7 @@ between every pair.
 			}
 		}
 
-		closestOut, err := gfio.OpenOut(*cmd.Flag("outfile"))
+		closestOut, err := openOut(cmd, "outfile")
 		if err != nil {
 			return err
 		}

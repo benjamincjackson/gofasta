@@ -82,13 +82,13 @@ the fasta file to stdout, e.g.:
 			End of trimming argument reconciliation to maintain backwards compatibility
 		*/
 
-		samIn, err := gfio.OpenIn(*cmd.Flag("samfile"))
+		samIn, err := openIn(cmd, "samfile")
 		if err != nil {
 			return err
 		}
 		defer samIn.Close()
 
-		out, err := gfio.OpenOut(*cmd.Flag("fasta-out"))
+		out, err := openOut(cmd, "fasta-out")
 		if err != nil {
 			return err
 		}
