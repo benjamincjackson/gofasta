@@ -125,8 +125,6 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 
 	if threads == 0 {
 		threads = runtime.NumCPU()
-	} else if threads < runtime.NumCPU() {
-		runtime.GOMAXPROCS(threads)
 	}
 
 	if maxdist != -1.0 && catchmentSize == 0 {

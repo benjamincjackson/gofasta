@@ -320,8 +320,6 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 
 	if threads == 0 {
 		threads = runtime.NumCPU()
-	} else if threads < runtime.NumCPU() {
-		runtime.GOMAXPROCS(threads)
 	}
 
 	queries, err := loadQueries(query, strict)

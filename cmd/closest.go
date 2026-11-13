@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -111,6 +112,11 @@ between every pair.
 			return err
 		}
 		defer gfio.CloseOut(closestOut, &err)
+
+		// -t limits the CPUs gofasta uses, not just the number of workers
+		if closestThreads > 0 && closestThreads < runtime.NumCPU() {
+			runtime.GOMAXPROCS(closestThreads)
+		}
 
 		if closestN > 0 || dist != -1.0 {
 			err = closest.ClosestN(closestN, dist, queryIn, targetIn, measure, closestOut, closestTable, closestThreads, strict)
