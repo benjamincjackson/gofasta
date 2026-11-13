@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
@@ -105,10 +104,9 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 	if err != nil {
 		return err
 	}
-	header := src.header
 	refSeq := ref.Decode().Seq
-	if header.Refs()[0].Len() != len(refSeq) {
-		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
+	if err := src.checkRefLength(len(refSeq)); err != nil {
+		return err
 	}
 
 	EA := encoding.MakeEncodingArray()
