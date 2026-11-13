@@ -61,21 +61,16 @@ instead, use -o stdout, e.g.:
 			}
 			defer ref.Close()
 
-			err = sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(s.threads), o.strict)
-
-			return err
+			return sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(s.threads), o.strict)
 		},
 	}
 
 	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout (required)")
-	c.Flags().BoolVarP(&o.omitReference, "omit-reference", "", false, "Omit the reference sequences from the output alignments")
-	c.Flags().BoolVarP(&o.skipInsertions, "skip-insertions", "", false, "Skip insertions relative to the reference from the output alignments")
-	c.Flags().IntVarP(&o.start, "start", "", -1, "1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted")
-	c.Flags().IntVarP(&o.end, "end", "", -1, "1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted")
+	c.Flags().BoolVar(&o.omitReference, "omit-reference", false, "Omit the reference sequences from the output alignments")
+	c.Flags().BoolVar(&o.skipInsertions, "skip-insertions", false, "Skip insertions relative to the reference from the output alignments")
+	c.Flags().IntVar(&o.start, "start", -1, "1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted")
+	c.Flags().IntVar(&o.end, "end", -1, "1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted")
 	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
-
-	c.Flags().Lookup("omit-reference").NoOptDefVal = "true"
-	c.Flags().Lookup("skip-insertions").NoOptDefVal = "true"
 
 	addStrictFlag(c, &o.strict)
 	c.MarkFlagRequired("outpath")

@@ -9,12 +9,11 @@ import (
 
 // toMultiAlignOptions holds the values of the flags of the command newToMultiAlignCmd returns
 type toMultiAlignOptions struct {
-	outfile string
-	start   int
-	end     int
-	pad     bool
-	wrap    int
-	strict  bool
+	start  int
+	end    int
+	pad    bool
+	wrap   int
+	strict bool
 }
 
 // newToMultiAlignCmd builds the sam toMultiAlign command; s holds the sam command's flags, which its subcommands share
@@ -59,16 +58,14 @@ fasta file to stdout, e.g.:
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(s.threads), o.strict)
-
-			return
+			return sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(s.threads), o.strict)
 		},
 	}
 
-	c.Flags().IntVarP(&o.start, "start", "", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
-	c.Flags().IntVarP(&o.end, "end", "", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
-	c.Flags().BoolVarP(&o.pad, "pad", "", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
-	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Where to write the alignment")
+	c.Flags().IntVar(&o.start, "start", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
+	c.Flags().IntVar(&o.end, "end", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
+	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
+	c.Flags().StringP("outfile", "o", "stdout", "Where to write the alignment")
 	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
 
 	addStrictFlag(c, &o.strict)

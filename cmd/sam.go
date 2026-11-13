@@ -9,7 +9,6 @@ import (
 // samOptions holds the values of the flags of the command newSamCmd returns, which its subcommands share
 type samOptions struct {
 	threads   int
-	file      string
 	reference string
 }
 
@@ -28,7 +27,7 @@ func newSamCmd() *cobra.Command {
 	}
 
 	addThreadsFlag(c.PersistentFlags(), &o.threads)
-	c.PersistentFlags().StringVarP(&o.file, "samfile", "s", "stdin", "SAM file to read")
+	c.PersistentFlags().StringP("samfile", "s", "stdin", "SAM file to read")
 	c.PersistentFlags().StringVarP(&o.reference, "reference", "r", "", "Reference fasta file used to generate the sam file")
 	c.AddCommand(newToMultiAlignCmd(&o), newToPairAlignCmd(&o), newSamVariantsCmd(&o))
 	return c

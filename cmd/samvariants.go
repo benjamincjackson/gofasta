@@ -11,7 +11,6 @@ import (
 
 // samVariantsOptions holds the values of the flags of the command newSamVariantsCmd returns
 type samVariantsOptions struct {
-	outfile   string
 	aggregate bool
 	threshold float64
 	appendSNP bool
@@ -97,22 +96,17 @@ in the alignment.
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(s.threads), o.strict)
-
-			return err
+			return sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(s.threads), o.strict)
 		},
 	}
 
 	addAnnotationFlags(c, &o.annotationOptions)
-	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Where to write the variants")
-	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")
-	c.Flags().IntVarP(&o.end, "end", "", -1, "Only report variants with a reference base at or before this position")
-	c.Flags().BoolVarP(&o.aggregate, "aggregate", "", false, "Report the proportions of each change")
-	c.Flags().Float64VarP(&o.threshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
-	c.Flags().BoolVarP(&o.appendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
-
-	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
-	c.Flags().Lookup("append-snps").NoOptDefVal = "true"
+	c.Flags().StringP("outfile", "o", "stdout", "Where to write the variants")
+	c.Flags().IntVar(&o.start, "start", -1, "Only report variants with a reference base at or after this position")
+	c.Flags().IntVar(&o.end, "end", -1, "Only report variants with a reference base at or before this position")
+	c.Flags().BoolVar(&o.aggregate, "aggregate", false, "Report the proportions of each change")
+	c.Flags().Float64Var(&o.threshold, "threshold", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
+	c.Flags().BoolVar(&o.appendSNP, "append-snps", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
 
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false

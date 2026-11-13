@@ -15,10 +15,7 @@ import (
 // toprankingOptions holds the values of the flags of the command newToprankingCmd returns
 type toprankingOptions struct {
 	threads         int
-	query           string
-	target          string
 	ignore          string
-	outfile         string
 	table           bool
 	sizeTotal       int
 	sizeUp          int
@@ -127,12 +124,11 @@ distance (as long as you haven't also invoked --dist-push).
 				return errors.New("couldn't read --target: " + err.Error())
 			}
 
-			if (qtype == "fasta" || ttype == "fasta") && u.reference == "" {
-				return errors.New("--query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)")
-			}
-
 			var ref io.ReadCloser // only read if a fasta file is given
 			if qtype == "fasta" || ttype == "fasta" {
+				if u.reference == "" {
+					return errors.New("--query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)")
+				}
 				ref, err = openIn(cmd, "reference")
 				if err != nil {
 					return err
@@ -146,42 +142,37 @@ distance (as long as you haven't also invoked --dist-push).
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = updown.TopRanking(query, target, ref, out, o.table,
+			return updown.TopRanking(query, target, ref, out, o.table,
 				qtype, ttype, ignoreArray,
 				o.sizeTotal, o.sizeUp, o.sizeDown, o.sizeSide, o.sizeSame,
 				o.distAll, o.distUp, o.distDown, o.distSide,
 				o.thresholdPair, o.thresholdTarget, o.noFill, o.distPush, resolveThreads(o.threads), o.strict)
-
-			return
 		},
 	}
 
-	c.Flags().StringVarP(&o.query, "query", "", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
-	c.Flags().StringVarP(&o.target, "target", "", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
-	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
-	c.Flags().BoolVarP(&o.table, "table", "", false, "Write a long-form table of the output")
+	c.Flags().String("query", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
+	c.Flags().String("target", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
+	c.Flags().StringP("outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
+	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
 	c.Flags().StringVarP(&u.reference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
-	c.Flags().StringVarP(&o.ignore, "ignore", "", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
+	c.Flags().StringVar(&o.ignore, "ignore", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
 
-	c.Flags().IntVarP(&o.distAll, "dist-all", "", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
-	c.Flags().IntVarP(&o.distUp, "dist-up", "", 0, "Maximum allowed SNP-distance from query for sequences in the parent bin")
-	c.Flags().IntVarP(&o.distDown, "dist-down", "", 0, "Maximum allowed SNP-distance from query for sequences in the child bin")
-	c.Flags().IntVarP(&o.distSide, "dist-side", "", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
+	c.Flags().IntVar(&o.distAll, "dist-all", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
+	c.Flags().IntVar(&o.distUp, "dist-up", 0, "Maximum allowed SNP-distance from query for sequences in the parent bin")
+	c.Flags().IntVar(&o.distDown, "dist-down", 0, "Maximum allowed SNP-distance from query for sequences in the child bin")
+	c.Flags().IntVar(&o.distSide, "dist-side", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
 
-	c.Flags().IntVarP(&o.sizeTotal, "size-total", "", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
-	c.Flags().IntVarP(&o.sizeUp, "size-up", "", 0, "Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	c.Flags().IntVarP(&o.sizeDown, "size-down", "", 0, "Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	c.Flags().IntVarP(&o.sizeSide, "size-side", "", 0, "Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	c.Flags().IntVarP(&o.sizeSame, "size-same", "", 0, "Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeTotal, "size-total", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
+	c.Flags().IntVar(&o.sizeUp, "size-up", 0, "Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeDown, "size-down", 0, "Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeSide, "size-side", 0, "Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeSame, "size-same", 0, "Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill")
 
-	c.Flags().Float32VarP(&o.thresholdPair, "threshold-pair", "", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
-	c.Flags().IntVarP(&o.thresholdTarget, "threshold-target", "", 10000, "Target can have at most this number of ambiguities to be considered")
+	c.Flags().Float32Var(&o.thresholdPair, "threshold-pair", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
+	c.Flags().IntVar(&o.thresholdTarget, "threshold-target", 10000, "Target can have at most this number of ambiguities to be considered")
 
-	c.Flags().IntVarP(&o.distPush, "dist-push", "", 0, "Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible")
-	c.Flags().BoolVarP(&o.noFill, "no-fill", "", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
-
-	c.Flags().Lookup("table").NoOptDefVal = "true"
-	c.Flags().Lookup("no-fill").NoOptDefVal = "true"
+	c.Flags().IntVar(&o.distPush, "dist-push", 0, "Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible")
+	c.Flags().BoolVar(&o.noFill, "no-fill", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
 
 	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)
