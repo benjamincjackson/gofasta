@@ -24,6 +24,7 @@ type updownLine struct {
 	snpsPos    []int
 	ambs       []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
 	ambCount   int   // total number of sites that are not ATGC
+	ordered    bool  // snpsPos strictly ascending, ambs ascending non-overlapping tracts (see inOrder)
 }
 
 // writeLine writes one record's SNPs and ambiguities as a line of csv
