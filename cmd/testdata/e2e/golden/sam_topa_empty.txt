@@ -1,4 +1,4 @@
 args: sam toPairAlign -s empty.sam -r ref.fasta -o stdout
 exit: 1
 --- stderr
-Error: EOF
+Error: the sam file is empty

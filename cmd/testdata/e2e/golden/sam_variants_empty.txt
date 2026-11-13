@@ -1,4 +1,4 @@
 args: sam variants -s empty.sam -r ref.fasta -a ref.gb
 exit: 1
 --- stderr
-Error: EOF
+Error: the sam file is empty

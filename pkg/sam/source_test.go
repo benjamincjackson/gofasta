@@ -179,3 +179,10 @@ func TestSamSourceNotesOrdering(t *testing.T) {
 		t.Errorf("tail: got %q, want %q", src.tail, want)
 	}
 }
+
+// An empty sam file is an error that says so
+func TestSamSourceEmptyFile(t *testing.T) {
+	if _, err := newSamSource(strings.NewReader("")); !errors.Is(err, errEmptySam) {
+		t.Errorf("want errEmptySam, got %v", err)
+	}
+}

@@ -416,6 +416,9 @@ func (s *samSource) writeTail() {
 	s.tail = nil
 }
 
+// errEmptySam is the error for a sam file with nothing in it
+var errEmptySam = errors.New("the sam file is empty")
+
 // newSamSource reads the header of a sam file and returns a samSource whose next function returns the
 // records for the next query each time it is called, and io.EOF after the last query. The records for a query are
 // consecutive lines with the same QNAME; unmapped and secondary records, and records mapped to any
@@ -441,7 +444,9 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 		return line, nil
 	}
 
-	if _, err := br.Peek(1); err != nil {
+	if _, err := br.Peek(1); err == io.EOF {
+		return nil, errEmptySam
+	} else if err != nil {
 		return nil, err
 	}
 	var headerText []byte
