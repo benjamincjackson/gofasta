@@ -13,7 +13,6 @@ import (
 	"math"
 	"math/bits"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -322,11 +321,8 @@ func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
 
 // Closest finds the single closest sequence by genetic distance to a query/queries. It writes the results
 // to stdout or to file. Ties for distance are broken by genome completeness
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func Closest(query, target io.Reader, measure string, out io.Writer, threads int, strict bool) error {
-
-	if threads == 0 {
-		threads = runtime.NumCPU()
-	}
 
 	queries, err := loadQueries(query, strict)
 	if err != nil {

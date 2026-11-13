@@ -13,6 +13,7 @@ import (
 // ToMultiAlign converts a SAM file containing pairwise alignments between assembled genomes to a fasta-format alignment.
 // Insertions relative to the reference are discarded, so all the sequences are the same (=reference) length
 // A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trimend int, pad bool, threads int, strict bool) error {
 
 	src, err := newSamSource(samIn)

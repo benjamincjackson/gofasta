@@ -394,6 +394,7 @@ func oneFilePerName(sink func(pipeline.Result[alignPair]) error) func(pipeline.R
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space.
 // The alignments are written to stdout if outpath is "stdout" or "-", otherwise to one file per query in the directory outpath.
 // A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
+// threads is the number of goroutines that process records (fewer than 1 means 1).
 func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int, strict bool) error {
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
