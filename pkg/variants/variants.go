@@ -72,19 +72,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 	// Find the reference
 	// (Have to move the reader back to the beginning of the alignment, because we are scanning through it twice)
 	if refID != "" {
-		switch x := msaIn.(type) {
-		case *os.File:
-			if !stdin {
-				ref, err = findReference(msaIn, refID)
-				if err != nil {
-					return err
-				}
-				_, err = x.Seek(0, io.SeekStart)
-				if err != nil {
-					return err
-				}
-			}
-		case *bytes.Reader:
+		if x, ok := msaIn.(io.Seeker); ok && !stdin {
 			ref, err = findReference(msaIn, refID)
 			if err != nil {
 				return err

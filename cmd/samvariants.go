@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"errors"
-	"os"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -72,18 +72,18 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			defer samIn.Close()
 
 			refFromFile := false
-			var ref *os.File
+			var ref io.ReadCloser // without --reference, the annotation's sequence is the reference
 			if s.reference != "" {
 				ref, err = openIn(cmd, "reference")
 				if err != nil {
 					return err
 				}
+				defer ref.Close()
 				refFromFile = true
 			}
-			defer ref.Close()
 
 			// some backwards compatibility wrangling of --genbank vs --annotation
-			var anno *os.File
+			var anno io.ReadCloser
 			var annoSuffix string
 			if o.genbank != "" {
 				if o.annotation != "" {

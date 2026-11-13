@@ -3,7 +3,7 @@ package cmd
 import (
 	"bufio"
 	"errors"
-	"os"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -52,7 +52,7 @@ whether they are likely children, parents, or siblings of, or on a polytomy with
 SNPs relative to a common reference sequence which is imagined to be the root of the tree.
 
 --query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or one of each. They
-must have file extensions .csv, .fasta, .fa, .fna or .fas (in any case). If either is an alignment, you must provide --reference, and this should be the
+must have file extensions .csv, .fasta, .fa, .fna or .fas (in any case, optionally followed by .gz). If either is an alignment, you must provide --reference, and this should be the
 same sequence that was used by gofasta updown list.
 
 Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size flags,
@@ -92,7 +92,7 @@ you haven't also invoked --dist-push).
 			// targets to ignore (potentially):
 			ignoreArray := make([]string, 0)
 			if len(o.ignore) != 0 {
-				f, err := os.Open(o.ignore)
+				f, err := openIn(cmd, "ignore")
 				if err != nil {
 					return err
 				}
@@ -122,14 +122,14 @@ you haven't also invoked --dist-push).
 			}
 			defer target.Close()
 
-			var ref *os.File
+			var ref io.ReadCloser // only read if a fasta file is given
 			if qtype == "fasta" || ttype == "fasta" {
 				ref, err = openIn(cmd, "reference")
 				if err != nil {
 					return err
 				}
+				defer ref.Close()
 			}
-			defer ref.Close()
 
 			out, err := openOut(cmd, "outfile")
 			if err != nil {
@@ -185,13 +185,13 @@ you haven't also invoked --dist-push).
 // extensions (in any case), and checks that reference (--reference) is given if either is a fasta file
 func toprankingInputTypes(o *toprankingOptions, reference string) (string, string, error) {
 	inputType := func(path, flag string) (string, error) {
-		switch strings.ToLower(filepath.Ext(path)) {
+		switch strings.ToLower(filepath.Ext(strings.TrimSuffix(strings.ToLower(path), ".gz"))) {
 		case ".csv":
 			return "csv", nil
 		case ".fasta", ".fa", ".fna", ".fas":
 			return "fasta", nil
 		}
-		return "", errors.New("couldn't tell if --" + flag + " was a .csv or a fasta (.fasta, .fa, .fna, .fas) file")
+		return "", errors.New("couldn't tell if --" + flag + " was a .csv or a fasta (.fasta, .fa, .fna, .fas) file (optionally gzipped, .gz)")
 	}
 	qtype, err := inputType(o.query, "query")
 	if err != nil {

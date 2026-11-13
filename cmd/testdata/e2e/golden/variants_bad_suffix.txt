@@ -1,4 +1,4 @@
 args: variants --msa msa.fasta -r ref -a ignore.txt
 exit: 1
 --- stderr
-Error: couldn't tell if --annotation was a GenBank (.gb, .gbk, .gbff) or a GFF3 (.gff, .gff3) file
+Error: couldn't tell if --annotation was a GenBank (.gb, .gbk, .gbff) or a GFF3 (.gff, .gff3) file (optionally gzipped, .gz)

@@ -150,11 +150,11 @@ func sameFile(a, b string) bool {
 
 // annotationFormat tells a GenBank file ("gb") from a GFF3 file ("gff") by its suffix, ignoring case.
 func annotationFormat(path string) (string, error) {
-	switch strings.ToLower(filepath.Ext(path)) {
+	switch strings.ToLower(filepath.Ext(strings.TrimSuffix(strings.ToLower(path), ".gz"))) {
 	case ".gb", ".gbk", ".gbff":
 		return "gb", nil
 	case ".gff", ".gff3":
 		return "gff", nil
 	}
-	return "", errors.New("couldn't tell if --annotation was a GenBank (.gb, .gbk, .gbff) or a GFF3 (.gff, .gff3) file")
+	return "", errors.New("couldn't tell if --annotation was a GenBank (.gb, .gbk, .gbff) or a GFF3 (.gff, .gff3) file (optionally gzipped, .gz)")
 }

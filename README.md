@@ -68,6 +68,8 @@ Global Flags:
 
 ## Usage
 
+Any input file (or stdin) can be gzipped: gofasta recognises gzip by its content, so the file can be called anything, and decompresses it as it reads it. Output is not compressed.
+
 ### Sam to fasta format conversion
 
 [minimap2](https://github.com/lh3/minimap2) provides fast and reliable pairwise alignments between SARS-CoV-2 consensus genomes. gofasta provides utility functions to convert the sam format alignments it outputs into fasta format.

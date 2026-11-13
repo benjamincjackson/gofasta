@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"errors"
-	"os"
+	"io"
 
 	"github.com/spf13/cobra"
 
@@ -84,7 +84,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			}
 
 			// some backwards compatibility wrangling of --genbank vs --annotation
-			var anno *os.File
+			var anno io.ReadCloser
 			var annoSuffix string
 			if o.genbank != "" {
 				if o.annotation != "" {

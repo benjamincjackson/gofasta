@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -17,8 +18,9 @@ func flagLabel(cmd *cobra.Command, name string) string {
 	return "-" + f.Shorthand + " / --" + f.Name
 }
 
-// openIn opens the file given by the named flag for reading ("stdin" for stdin)
-func openIn(cmd *cobra.Command, name string) (*os.File, error) {
+// openIn opens the file given by the named flag for reading ("stdin" for stdin), decompressing it if it
+// is gzipped
+func openIn(cmd *cobra.Command, name string) (io.ReadCloser, error) {
 	return gfio.OpenIn(cmd.Flag(name).Value.String(), flagLabel(cmd, name))
 }
 

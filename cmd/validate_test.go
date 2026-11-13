@@ -125,12 +125,13 @@ func TestFlagValidation(t *testing.T) {
 func TestAnnotationFormat(t *testing.T) {
 	for path, want := range map[string]string{
 		"a.gb": "gb", "a.gbk": "gb", "a.GBFF": "gb", "dir.x/a.gff": "gff", "a.gff3": "gff", "A.GFF3": "gff",
+		"a.gff.gz": "gff", "a.gb.GZ": "gb",
 	} {
 		if got, err := annotationFormat(path); err != nil || got != want {
 			t.Errorf("annotationFormat(%q) = %q, %v; want %q", path, got, err, want)
 		}
 	}
-	for _, path := range []string{"a.gtf", "a", "a.gff.gz", ""} {
+	for _, path := range []string{"a.gtf", "a", "a.gtf.gz", "a.gz", ""} {
 		if _, err := annotationFormat(path); err == nil {
 			t.Errorf("annotationFormat(%q): want an error", path)
 		}

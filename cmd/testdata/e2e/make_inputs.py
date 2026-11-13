@@ -7,6 +7,7 @@ and target_bad.csv is target.csv with two malformed lines added by hand.
 
 Reference: 120 bp; geneA on the forward strand (11..61), geneB on the reverse strand (complement(70..108)).
 """
+import gzip
 import os
 import random
 import sys
@@ -181,4 +182,11 @@ write("aln_badquery.sam", header + "\n".join(records[:3] + [past_end] + records[
 # a blank line between records, and no newline at the end of the last record
 write("aln_untidy.sam", header + "\n".join(records[:2]) + "\n\n" + "\n".join(records[2:]))
 write("empty.sam", "")
+
+# gzipped copies, for the cases that read gzipped input (mtime=0 so they are the same on every run)
+for name in ("msa.fasta", "ref.gb", "aln.sam", "query.fasta", "target.fasta", "query.csv", "target.csv"):
+    with open(os.path.join(out, name), "rb") as fh:
+        data = fh.read()
+    with open(os.path.join(out, name + ".gz"), "wb") as fh:
+        fh.write(gzip.compress(data, mtime=0))
 print("wrote fixtures to", out)
