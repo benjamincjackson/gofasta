@@ -278,29 +278,30 @@ func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, er
 
 func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error) {
 
-	IDed := make(map[string][]gff.Feature)
-	other := make([]gff.Feature, 0)
+	// rows sharing an ID are one CDS, a row without an ID is a CDS by itself; CDSs are kept in order of
+	// their first row, so that CDSs with the same start are reported in file order
+	groups := make([][]gff.Feature, 0)
+	groupOfID := make(map[string]int)
 	for _, f := range anno.Features {
 		if !(f.Type == "CDS" || f.Type == "mature_protein_region_of_CDS") {
 			continue
 		}
-		if id := f.Attributes["ID"]; len(id) > 0 {
-			IDed[id[0]] = append(IDed[id[0]], f)
-		} else {
-			other = append(other, f)
+		id := f.Attributes["ID"]
+		if len(id) == 0 {
+			groups = append(groups, []gff.Feature{f})
+			continue
 		}
+		if g, ok := groupOfID[id[0]]; ok {
+			groups[g] = append(groups[g], f)
+			continue
+		}
+		groupOfID[id[0]] = len(groups)
+		groups = append(groups, []gff.Feature{f})
 	}
 
 	tempcds := make([]Region, 0)
-	for _, f := range IDed {
-		r, err := CDSRegionfromGFF(f, refSeqDegapped)
-		if err != nil {
-			return []Region{}, []int{}, err
-		}
-		tempcds = append(tempcds, r)
-	}
-	for _, f := range other {
-		r, err := CDSRegionfromGFF([]gff.Feature{f}, refSeqDegapped)
+	for _, fs := range groups {
+		r, err := CDSRegionfromGFF(fs, refSeqDegapped)
 		if err != nil {
 			return []Region{}, []int{}, err
 		}
