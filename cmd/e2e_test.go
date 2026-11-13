@@ -75,6 +75,7 @@ var e2eCases = []e2eCase{
 	{name: "variants_reference_fasta_badrow", args: []string{"variants", "-q", "msa_badrow.fasta", "-r", "ref.fasta"}},
 	{name: "variants_reference_fasta_gb", args: []string{"variants", "-q", "msa.fasta", "-r", "ref.fasta", "-a", "ref.gb"}},
 	{name: "variants_reference_fasta_short_gb", args: []string{"variants", "-q", "msa.fasta", "-r", "ref_short.fasta", "-a", "ref.gb"}},
+	{name: "sam_variants_reference_fasta_short_gb", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref_short.fasta", "-a", "ref.gb"}},
 	{name: "variants_reference_fasta_all_bad", args: []string{"variants", "-q", "msa.fasta", "-r", "ref_short.fasta"}},
 	{name: "variants_reference_fasta_msa_stdin", args: []string{"variants", "-r", "ref.fasta"}, stdin: "msa.fasta"},
 	{name: "snps_removed", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "--hard-gaps"}},
