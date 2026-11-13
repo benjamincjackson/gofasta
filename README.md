@@ -28,12 +28,6 @@ go build -o gofasta
 
 For a full list of commands and options, you can run `gofasta` with the `-h` flag at the command line: `gofasta -h`,  `gofasta sam -h`, `gofasta sam variants -h`, etc. 
 
-<p align="center">
-  <img src=".github/help.png" alt="" width="738">
-</p>
-
-
-
 e.g., for `gofasta updown list -h`:
 
 <details><summary><b>Click to see the help message</b></summary>
@@ -59,6 +53,8 @@ Usage:
 Flags:
   -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
   -o, --outfile string   Output to write (default "stdout")
+  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
+      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help             help for list
 
 Global Flags:
