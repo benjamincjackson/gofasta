@@ -7,23 +7,19 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/updown"
 )
 
-var UDListQuery string
-var UDListOutfile string
-
-func init() {
-	updownCmd.AddCommand(updownListCmd)
-
-	updownListCmd.Flags().StringVarP(&UDListQuery, "query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
-	updownListCmd.Flags().StringVarP(&UDListOutfile, "outfile", "o", "stdout", "Output to write")
-
-	updownListCmd.Flags().BoolVar(getStrictBoolVarArgs())
-	updownListCmd.Flags().SortFlags = false
+// updownListOptions holds the values of the flags of the command newUpdownListCmd returns
+type updownListOptions struct {
+	query   string
+	outfile string
+	strict  bool
 }
 
-var updownListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "Generate input CSV files for gofasta updown topranking",
-	Long: `Generate input CSV files for gofasta updown topranking
+func newUpdownListCmd() *cobra.Command {
+	var o updownListOptions
+	c := &cobra.Command{
+		Use:   "list",
+		Short: "Generate input CSV files for gofasta updown topranking",
+		Long: `Generate input CSV files for gofasta updown topranking
 
 Example usage:
 
@@ -37,31 +33,39 @@ for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to -
 a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (anything that isn't ATGC).
 `,
 
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return outputNotInput(cmd, "outfile", "query", "reference")
-	},
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return outputNotInput(cmd, "outfile", "query", "reference")
+		},
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		ref, err := openIn(cmd, "reference")
-		if err != nil {
-			return err
-		}
-		defer ref.Close()
+			ref, err := openIn(cmd, "reference")
+			if err != nil {
+				return err
+			}
+			defer ref.Close()
 
-		query, err := openIn(cmd, "query")
-		if err != nil {
-			return err
-		}
-		defer query.Close()
+			query, err := openIn(cmd, "query")
+			if err != nil {
+				return err
+			}
+			defer query.Close()
 
-		out, err := openOut(cmd, "outfile")
-		if err != nil {
-			return err
-		}
-		defer gfio.CloseOut(out, &err)
+			out, err := openOut(cmd, "outfile")
+			if err != nil {
+				return err
+			}
+			defer gfio.CloseOut(out, &err)
 
-		err = updown.List(ref, query, out, strict)
+			err = updown.List(ref, query, out, o.strict)
 
-		return
-	},
+			return
+		},
+	}
+
+	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
+	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Output to write")
+
+	addStrictFlag(c, &o.strict)
+	c.Flags().SortFlags = false
+	return c
 }

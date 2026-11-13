@@ -21,15 +21,6 @@ https://doi.org/10.1093/bioinformatics/btac424`,
 	}
 )
 
-// strict makes a record that cannot be processed stop the run with an error, instead of a warning
-var strict bool
-
-// getStrictBoolVarArgs returns the arguments to BoolVar for the --strict flag, which each command that skips
-// records it can't process adds to its own flags
-func getStrictBoolVarArgs() (*bool, string, bool, string) {
-	return &strict, "strict", false, "Stop with an error at the first record that can't be processed, instead of warning and skipping it"
-}
-
 // silenceUsageOnceRunning makes each command that does the work (one without subcommands) print only the
 // error, not the usage, if it fails once it is running: the flags and arguments were valid (they were
 // parsed, and checked by PreRunE), so the problem is with the input, and the usage would bury the error.
