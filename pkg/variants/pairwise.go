@@ -3,6 +3,8 @@ package variants
 import (
 	"strconv"
 	"strings"
+
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
 )
 
 // getIndelsPair finds the insertions and deletions in query relative to ref (an aligned pair, encoded). An
@@ -97,18 +99,15 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, skip map
 					codon[i] = compArray[codon[i]]
 				}
 			}
-			aa, ok := codonDict[string(codon[:])]
-			if !ok {
-				aa = "X"
-			}
+			aa := alphabet.TranslateCodon(codon[0], codon[1], codon[2]) // (0 if it has none)
 			refaa := region.Translation[aaCounter : aaCounter+1]
 
-			if aa != refaa && aa != "X" {
+			if aa != 0 && aa != refaa[0] {
 				temp := make([]string, 0, len(codonSNPs))
 				for _, v := range codonSNPs {
 					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position)+v.QueAl)
 				}
-				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: region.Positions[3*aaCounter], Codon: codonPositions(region, aaCounter), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
+				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: string(rune(aa)), Position: region.Positions[3*aaCounter], Codon: codonPositions(region, aaCounter), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
 			} else {
 				variants = append(variants, codonSNPs...)
 			}
