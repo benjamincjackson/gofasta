@@ -6,10 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(newUpdownCmd())
-}
-
 // updownOptions holds the values of the flags of the command newUpdownCmd returns, which its subcommands share
 type updownOptions struct {
 	reference string

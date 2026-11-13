@@ -7,37 +7,24 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
-// resetFlags sets every flag of c back to its default
-func resetFlags(t *testing.T, c *cobra.Command) {
-	c.InheritedFlags() // merges the parent's persistent flags into c.Flags()
-	c.Flags().VisitAll(func(f *pflag.Flag) {
-		if err := f.Value.Set(f.DefValue); err != nil {
-			t.Fatalf("resetting --%s: %v", f.Name, err)
-		}
-		f.Changed = false
-	})
-}
-
-// findCmd returns the command at path (e.g. "sam variants")
+// findCmd returns the command at path (e.g. "sam variants") in a newly built gofasta command, so its
+// flags are at their defaults
 func findCmd(t *testing.T, path string) *cobra.Command {
 	t.Helper()
-	c, _, err := rootCmd.Find(strings.Fields(path))
+	c, _, err := newRootCmd().Find(strings.Fields(path))
 	if err != nil || c.CommandPath() != "gofasta "+path {
 		t.Fatalf("no command %q", path)
 	}
 	return c
 }
 
-// preRun resets every flag of the command at path to its default, sets the given ones, and runs its
-// PreRunE. The flags are reset again when the test ends, so later tests see the defaults.
+// preRun sets the given flags of a new command at path and runs its PreRunE
 func preRun(t *testing.T, path string, set map[string]string) error {
 	t.Helper()
 	c := findCmd(t, path)
-	resetFlags(t, c)
-	t.Cleanup(func() { resetFlags(t, c) })
+	c.InheritedFlags() // merges the parent's persistent flags into c.Flags(), so they can be set
 	for k, v := range set {
 		if err := c.Flags().Set(k, v); err != nil {
 			t.Fatalf("setting --%s: %v", k, err)

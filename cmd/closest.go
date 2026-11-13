@@ -12,10 +12,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 )
 
-func init() {
-	rootCmd.AddCommand(newClosestCmd())
-}
-
 // closestOptions holds the values of the flags of the command newClosestCmd returns
 type closestOptions struct {
 	threads int

@@ -6,10 +6,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func init() {
-	rootCmd.AddCommand(newSamCmd())
-}
-
 // samOptions holds the values of the flags of the command newSamCmd returns, which its subcommands share
 type samOptions struct {
 	threads   int

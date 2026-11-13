@@ -10,10 +10,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
 
-func init() {
-	rootCmd.AddCommand(newVariantsCmd())
-}
-
 // variantsOptions holds the values of the flags of the command newVariantsCmd returns
 type variantsOptions struct {
 	msa        string

@@ -25,18 +25,15 @@ func TestLicences(t *testing.T) {
 		{[]string{"licences", "-l"}, testNotice},
 		{[]string{"licences", "--long"}, testNotice},
 	} {
-		licencesLong = false
+		root := newRootCmd()
 		out := new(bytes.Buffer)
-		rootCmd.SetOut(out)
-		rootCmd.SetArgs(tc.args)
-		if err := rootCmd.Execute(); err != nil {
+		root.SetOut(out)
+		root.SetArgs(tc.args)
+		if err := root.Execute(); err != nil {
 			t.Fatalf("%v: %v", tc.args, err)
 		}
 		if out.String() != tc.want {
 			t.Errorf("%v: got\n%q\nwant\n%q", tc.args, out.String(), tc.want)
 		}
 	}
-	rootCmd.SetOut(nil)
-	rootCmd.SetArgs(nil)
-	licencesLong = false
 }

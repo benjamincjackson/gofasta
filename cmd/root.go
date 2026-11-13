@@ -2,13 +2,13 @@ package cmd
 
 import (
 	"os"
-	"sync"
 
 	"github.com/spf13/cobra"
 )
 
-var (
-	rootCmd = &cobra.Command{
+// newRootCmd builds the gofasta command and all its subcommands, each with its flags at their defaults
+func newRootCmd() *cobra.Command {
+	root := &cobra.Command{
 		Use:   "gofasta",
 		Short: "Command-line utilities for genomic epidemiology research",
 		Long: `Command-line utilities for genomic epidemiology research
@@ -19,7 +19,10 @@ Jackson B (2022). gofasta: command-line utilities for genomic epidemiology resea
 https://doi.org/10.1093/bioinformatics/btac424`,
 		Version: "1.2.3",
 	}
-)
+	root.AddCommand(newClosestCmd(), newSNPsCmd(), newVariantsCmd(), newSamCmd(), newUpdownCmd(), newLicencesCmd())
+	silenceUsageOnceRunning(root)
+	return root
+}
 
 // silenceUsageOnceRunning makes each command that does the work (one without subcommands) print only the
 // error, not the usage, if it fails once it is running: the flags and arguments were valid (they were
@@ -39,20 +42,17 @@ func silenceUsageOnceRunning(c *cobra.Command) {
 	}
 }
 
-var silenceUsageOnce sync.Once
-
 // addStrictFlag adds the --strict flag, which each command that skips records it can't process has, to c,
 // setting *strict
 func addStrictFlag(c *cobra.Command, strict *bool) {
 	c.Flags().BoolVar(strict, "strict", false, "Stop with an error at the first record that can't be processed, instead of warning and skipping it")
 }
 
-// Execute executes the root command.
+// Execute builds the gofasta command and runs it with the program's arguments.
 func Execute() {
-	silenceUsageOnce.Do(func() { silenceUsageOnceRunning(rootCmd) })
 	// cobra prints the error (and, for errors in the flags or arguments, the usage) to stderr itself;
 	// stdout is reserved for data
-	if err := rootCmd.Execute(); err != nil {
+	if err := newRootCmd().Execute(); err != nil {
 		os.Exit(1)
 	}
 }

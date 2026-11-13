@@ -7,10 +7,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/snps"
 )
 
-func init() {
-	rootCmd.AddCommand(newSNPsCmd())
-}
-
 // snpsOptions holds the values of the flags of the command newSNPsCmd returns
 type snpsOptions struct {
 	reference string
