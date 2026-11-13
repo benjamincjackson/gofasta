@@ -543,7 +543,9 @@ func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct) error {
 
 // writeUpdownTable writes the output in table format, including SNP-distances
 func writeUpdownTable(w io.Writer, results []updownCatchmentStruct) error {
-	w.Write([]byte("query,direction,distance,target\n"))
+	if _, err := w.Write([]byte("query,direction,distance,target\n")); err != nil {
+		return err
+	}
 	for _, result := range results {
 		for _, neighbour := range result.same.catchment {
 			_, err := w.Write([]byte(strings.Join([]string{result.qname, "same", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))

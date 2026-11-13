@@ -303,11 +303,17 @@ func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
 	for _, result := range results {
 		switch measure {
 		case "raw":
-			w.Write([]byte(result.qname + "," + result.tname + "," + strconv.FormatFloat(result.distance, 'f', 9, 64) + "," + strings.Join(result.snps, ";") + "\n"))
+			if _, err := w.Write([]byte(result.qname + "," + result.tname + "," + strconv.FormatFloat(result.distance, 'f', 9, 64) + "," + strings.Join(result.snps, ";") + "\n")); err != nil {
+				return err
+			}
 		case "snp":
-			w.Write([]byte(result.qname + "," + result.tname + "," + strconv.Itoa(int(result.distance)) + "," + strings.Join(result.snps, ";") + "\n"))
+			if _, err := w.Write([]byte(result.qname + "," + result.tname + "," + strconv.Itoa(int(result.distance)) + "," + strings.Join(result.snps, ";") + "\n")); err != nil {
+				return err
+			}
 		case "tn93":
-			w.Write([]byte(result.qname + "," + result.tname + "," + strconv.FormatFloat(result.distance, 'f', 9, 64) + "," + strings.Join(result.snps, ";") + "\n"))
+			if _, err := w.Write([]byte(result.qname + "," + result.tname + "," + strconv.FormatFloat(result.distance, 'f', 9, 64) + "," + strings.Join(result.snps, ";") + "\n")); err != nil {
+				return err
+			}
 		}
 	}
 

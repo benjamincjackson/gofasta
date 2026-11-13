@@ -82,7 +82,9 @@ func writeClosestN(results []catchmentStruct, w io.Writer) error {
 		for _, hit := range result.catchment {
 			temp = append(temp, hit.tname)
 		}
-		w.Write([]byte(result.qname + "," + strings.Join(temp, ";") + "\n"))
+		if _, err := w.Write([]byte(result.qname + "," + strings.Join(temp, ";") + "\n")); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -101,13 +103,17 @@ func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) 
 	case "snp":
 		for _, result := range results {
 			for _, hit := range result.catchment {
-				w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.Itoa(int(hit.distance)) + "\n"))
+				if _, err := w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.Itoa(int(hit.distance)) + "\n")); err != nil {
+					return err
+				}
 			}
 		}
 	default:
 		for _, result := range results {
 			for _, hit := range result.catchment {
-				w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.FormatFloat(hit.distance, 'f', 9, 64) + "\n"))
+				if _, err := w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.FormatFloat(hit.distance, 'f', 9, 64) + "\n")); err != nil {
+					return err
+				}
 			}
 		}
 	}
