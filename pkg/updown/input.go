@@ -121,7 +121,7 @@ func parseCSVRow(row csvRow) (updownLine, error) {
 	snpsSorted := slices.Clone(snps)
 	slices.Sort(snpsSorted)
 
-	return updownLine{id: record[0], idx: row.idx, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}, nil
+	return updownLine{id: record[0], idx: row.idx, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count, ordered: inOrder(snpPos, a)}, nil
 }
 
 // collectQueries runs the query records through a pipeline, reporting the ones that fail on stderr and
@@ -242,6 +242,7 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 		ambs:       ambs,
 		ambCount:   ambCount,
 		snpsSorted: snpsSorted,
+		ordered:    inOrder(snpPos, ambs),
 	}, nil
 }
 

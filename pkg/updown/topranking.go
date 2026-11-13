@@ -70,43 +70,32 @@ func isSiteAmb(pos int, a []int) bool {
 	return false
 }
 
+// inOrder reports whether SNP positions are strictly ascending and ambiguity tracts are ascending and
+// do not overlap, as updown list writes them (so countMerge can be used)
+func inOrder(pos, ambs []int) bool {
+	for i := 1; i < len(pos); i++ {
+		if pos[i] <= pos[i-1] {
+			return false
+		}
+	}
+	for i := 0; i+1 < len(ambs); i += 2 {
+		if ambs[i] > ambs[i+1] || (i > 0 && ambs[i] <= ambs[i-1]) {
+			return false
+		}
+	}
+	return len(ambs)%2 == 0
+}
+
 // whichWay returns direction values of 0,1,2,3 = same,up,down,side respectively + SNP distance.
 // distance is -1 if the pair fails the ambiguity threshold test.
 func whichWay(q, t updownLine, thresh float32) (int, int) {
-
 	// table has 4 items: number of Q SNPs; no. QT SNPs; no. T SNPs; no of consequential ambiguous sites for this pair
 	var table [4]int
-
-	// d is an array of unique SNP positions to get distance from
-	d := make([]int, 0)
-
-	for i, qsnp := range q.snps {
-		// is the site ambiguous in the target
-		if isSiteAmb(q.snpsPos[i], t.ambs) {
-			table[3]++
-			// if this exact snp (allele and position) is present in the target
-		} else if _, found := slices.BinarySearch(t.snpsSorted, qsnp); found {
-			table[1]++
-		} else {
-			// otherwise we +1 the Q snps bin and append the snp to d
-			table[0]++
-			d = append(d, q.snpsPos[i])
-		}
-	}
-	d_plus := 0
-	for i, tsnp := range t.snps {
-		// is the site ambiguous in the query
-		if isSiteAmb(t.snpsPos[i], q.ambs) {
-			table[3]++
-			// if there is no overlap between the exact snp (allele and position) and the query's snps
-		} else if _, found := slices.BinarySearch(q.snpsSorted, tsnp); !found {
-			// we +1 the T snps bin
-			table[2]++
-			// if this position has not already been added to the list of differences we use to calculate d, then add it here too (otherwise two mutations historically at the same position, but only counts 1 for distance)
-			if _, found := slices.BinarySearch(d, t.snpsPos[i]); !found {
-				d_plus++
-			}
-		}
+	var distance int
+	if q.ordered && t.ordered {
+		table, distance = countMerge(q, t)
+	} else {
+		table, distance = countSearch(q, t)
 	}
 
 	sum := 0
@@ -144,9 +133,104 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 	// this is wrong (when there are multiple hits):
 	// distance := table[0] + table[2]
 
-	distance := len(d) + d_plus
-
 	return direction, distance
+}
+
+// countMerge is countSearch for two lines that are inOrder: it walks the two SNP lists (and the
+// ambiguity tracts) together once, by position. Each list has at most one SNP per position, and SNPs at
+// the same position are the same SNP if their strings are equal.
+func countMerge(q, t updownLine) (table [4]int, distance int) {
+	// inAmb reports whether p is in one of the tracts a; k is where the last call left off (positions
+	// are visited in ascending order)
+	inAmb := func(a []int, k *int, p int) bool {
+		for *k < len(a) && a[*k+1] < p {
+			*k += 2
+		}
+		return *k < len(a) && a[*k] <= p
+	}
+	i, j, ki, kj := 0, 0, 0, 0
+	for i < len(q.snps) || j < len(t.snps) {
+		switch {
+		case j == len(t.snps) || (i < len(q.snps) && q.snpsPos[i] < t.snpsPos[j]): // only in the query
+			if inAmb(t.ambs, &ki, q.snpsPos[i]) {
+				table[3]++
+			} else {
+				table[0]++
+				distance++
+			}
+			i++
+		case i == len(q.snps) || t.snpsPos[j] < q.snpsPos[i]: // only in the target
+			if inAmb(q.ambs, &kj, t.snpsPos[j]) {
+				table[3]++
+			} else {
+				table[2]++
+				distance++
+			}
+			j++
+		default: // both have a SNP at this position
+			p, same := q.snpsPos[i], q.snps[i] == t.snps[j]
+			counted := false // the position already counts towards the distance
+			if inAmb(t.ambs, &ki, p) {
+				table[3]++
+			} else if same {
+				table[1]++
+			} else {
+				table[0]++
+				distance++
+				counted = true
+			}
+			if inAmb(q.ambs, &kj, p) {
+				table[3]++
+			} else if !same {
+				table[2]++
+				if !counted {
+					distance++
+				}
+			}
+			i++
+			j++
+		}
+	}
+	return table, distance
+}
+
+// countSearch counts, for whichWay, the query's SNPs not in the target (table[0]), those in both
+// (table[1]), the target's SNPs not in the query (table[2]) and SNPs at sites ambiguous in the other
+// sequence (table[3]), and the number of positions at which they differ (distance)
+func countSearch(q, t updownLine) (table [4]int, distance int) {
+
+	// d is an array of unique SNP positions to get distance from
+	d := make([]int, 0)
+
+	for i, qsnp := range q.snps {
+		// is the site ambiguous in the target
+		if isSiteAmb(q.snpsPos[i], t.ambs) {
+			table[3]++
+			// if this exact snp (allele and position) is present in the target
+		} else if _, found := slices.BinarySearch(t.snpsSorted, qsnp); found {
+			table[1]++
+		} else {
+			// otherwise we +1 the Q snps bin and append the snp to d
+			table[0]++
+			d = append(d, q.snpsPos[i])
+		}
+	}
+	d_plus := 0
+	for i, tsnp := range t.snps {
+		// is the site ambiguous in the query
+		if isSiteAmb(t.snpsPos[i], q.ambs) {
+			table[3]++
+			// if there is no overlap between the exact snp (allele and position) and the query's snps
+		} else if _, found := slices.BinarySearch(q.snpsSorted, tsnp); !found {
+			// we +1 the T snps bin
+			table[2]++
+			// if this position has not already been added to the list of differences we use to calculate d, then add it here too (otherwise two mutations historically at the same position, but only counts 1 for distance)
+			if _, found := slices.BinarySearch(d, t.snpsPos[i]); !found {
+				d_plus++
+			}
+		}
+	}
+	return table, len(d) + d_plus
 }
 
 // a resultsStruct contains information about the relationship between one query and one target.
