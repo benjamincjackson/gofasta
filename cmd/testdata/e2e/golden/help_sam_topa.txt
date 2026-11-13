@@ -1,0 +1,41 @@
+args: sam toPairAlign --help
+exit: 0
+--- stdout
+Convert a SAM file to pairwise alignments in fasta format
+
+Each query is written as a pairwise alignment with the reference: the reference sequence first, then the
+query. Unlike toMultiAlign, insertions relative to the reference are kept (unless you use --skip-insertions),
+so the output alignment can be longer than the reference. External alignment gaps are always written as N.
+
+--reference must be the fasta file that was used to generate the sam file, and its sequence must be the same
+length as the @SQ line in the sam header.
+
+Example usage:
+	gofasta sam toPairAlign -s aligned.sam -r reference.fasta -o alignments
+
+writes one file per query to the directory alignments (which is created if it doesn't exist). Each file is
+named after its query, with any "/" replaced by "_", plus ".fasta". To write all the alignments to stdout
+instead, use -o stdout, e.g.:
+	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toPairAlign -r reference.fasta -o stdout
+
+Usage:
+  gofasta sam toPairAlign [flags]
+
+Aliases:
+  toPairAlign, topairalign, topa
+
+Flags:
+  -o, --outpath string    Directory to write one fasta file per query to, or stdout to write all the alignments to stdout (required)
+      --omit-reference    Omit the reference sequences from the output alignments
+      --skip-insertions   Skip insertions relative to the reference from the output alignments
+      --start int         1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted (default -1)
+      --end int           1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted (default -1)
+  -w, --wrap int          Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output. (default -1)
+      --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -h, --help              help for toPairAlign
+
+Global Flags:
+  -r, --reference string   Reference fasta file used to generate the sam file
+  -s, --samfile string     SAM file to read (default "stdin")
+  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
+--- stderr

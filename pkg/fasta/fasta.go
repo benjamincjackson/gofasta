@@ -2,6 +2,7 @@ package fasta
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
@@ -33,13 +34,10 @@ type EncodedRecord struct {
 }
 
 func (FR Record) encode(hardGaps bool) (EncodedRecord, error) {
-	var EA [256]byte
+	EA := encoding.MakeEncodingArray()
 	if hardGaps {
 		EA = encoding.MakeEncodingArrayHardGaps()
-	} else {
-		EA = encoding.MakeEncodingArray()
 	}
-	EFR := EncodedRecord{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
 	seq := make([]byte, len(FR.Seq))
 	for i, nuc := range FR.Seq {
 		if nuc > 127 || EA[nuc] == 0 {
@@ -47,8 +45,7 @@ func (FR Record) encode(hardGaps bool) (EncodedRecord, error) {
 		}
 		seq[i] = EA[nuc]
 	}
-	EFR.Seq = seq
-	return EFR, nil
+	return EncodedRecord{ID: FR.ID, Description: FR.Description, Seq: seq, Idx: FR.Idx}, nil
 }
 
 // Convert a Record to an EncodedRecord
@@ -63,45 +60,25 @@ func (FR Record) EncodeHardGaps() (EncodedRecord, error) {
 
 // Strip the gaps from a Record's sequence, returning a new Record
 func (FR Record) Degap() Record {
-	NFR := Record{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
-	NFR.Seq = strings.ReplaceAll(FR.Seq, "-", "")
-	return NFR
+	FR.Seq = strings.ReplaceAll(FR.Seq, "-", "")
+	return FR
 }
 
 // Complement a Record's sequence, returning a new Record
 func (FR Record) Complement() Record {
-	NFR := Record{ID: FR.ID, Description: FR.Description, Idx: FR.Idx}
-	CA := alphabet.MakeCompArray()
-	ba := make([]byte, len(FR.Seq))
-	for i := 0; i < len(FR.Seq); i++ {
-		ba[i] = CA[FR.Seq[i]]
-	}
-	NFR.Seq = string(ba)
-	return NFR
+	FR.Seq = alphabet.Complement(FR.Seq)
+	return FR
 }
 
 // Reverse complement a Record's sequence, returning a new Record
 func (FR Record) ReverseComplement() Record {
-	NFR := FR.Complement()
-	temp := []byte(NFR.Seq)
-	for i, j := 0, len(temp)-1; i < j; i, j = i+1, j-1 {
-		temp[i], temp[j] = temp[j], temp[i]
-	}
-	NFR.Seq = string(temp)
-	return NFR
+	FR.Seq = alphabet.ReverseComplement(FR.Seq)
+	return FR
 }
 
 // Convert an EncodedRecord to a Record, returning a new Record
 func (EFR EncodedRecord) Decode() Record {
-	FR := Record{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
-	DA := encoding.MakeDecodingArray()
-	var seq strings.Builder
-	seq.Grow(len(EFR.Seq))
-	for _, nuc := range EFR.Seq {
-		seq.WriteString(DA[nuc])
-	}
-	FR.Seq = seq.String()
-	return FR
+	return Record{ID: EFR.ID, Description: EFR.Description, Seq: encoding.DecodeToString(EFR.Seq), Idx: EFR.Idx}
 }
 
 // Calculate the ATGC content of an EncodedRecord in place
@@ -126,22 +103,19 @@ func (EFR *EncodedRecord) CalculateCompleteness() {
 	EFR.Score = score
 }
 
-// Complement an EncodedRecord's sequence, returning a new EncodedRecord
+// Complement an EncodedRecord's sequence, returning a new EncodedRecord (without base content or score)
 func (EFR EncodedRecord) Complement() EncodedRecord {
-	NFR := EncodedRecord{ID: EFR.ID, Description: EFR.Description, Idx: EFR.Idx}
 	CA := alphabet.MakeEncodedCompArray()
-	NFR.Seq = make([]byte, len(EFR.Seq))
-	for i := 0; i < len(EFR.Seq); i++ {
-		NFR.Seq[i] = CA[EFR.Seq[i]]
+	seq := make([]byte, len(EFR.Seq))
+	for i, nuc := range EFR.Seq {
+		seq[i] = CA[nuc]
 	}
-	return NFR
+	return EncodedRecord{ID: EFR.ID, Description: EFR.Description, Seq: seq, Idx: EFR.Idx}
 }
 
-// Reverse complement an EncodedRecord's sequence, returning a new EncodedRecord
+// Reverse complement an EncodedRecord's sequence, returning a new EncodedRecord (see Complement)
 func (EFR EncodedRecord) ReverseComplement() EncodedRecord {
 	NEFR := EFR.Complement()
-	for i, j := 0, len(NEFR.Seq)-1; i < j; i, j = i+1, j-1 {
-		NEFR.Seq[i], NEFR.Seq[j] = NEFR.Seq[j], NEFR.Seq[i]
-	}
+	slices.Reverse(NEFR.Seq)
 	return NEFR
 }

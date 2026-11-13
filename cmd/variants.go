@@ -13,7 +13,6 @@ type variantsOptions struct {
 	query       string
 	referenceID string // a record of the query alignment
 	reference   string // a fasta file
-	outfile     string
 	threads     int
 	aggregate   bool
 	threshold   float64
@@ -110,13 +109,7 @@ in the alignment.
 			}
 			defer gfio.CloseOut(out, &err)
 
-			var refIn io.Reader // (an untyped nil if there is no --reference)
-			if ref != nil {
-				refIn = ref
-			}
-			err = variants.Variants(msa, stdin, o.referenceID, refIn, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(o.threads), o.strict)
-
-			return
+			return variants.Variants(msa, stdin, o.referenceID, ref, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(o.threads), o.strict)
 		},
 	}
 
@@ -124,16 +117,13 @@ in the alignment.
 	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the alignment")
 	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the alignment (instead of --reference)")
 	addAnnotationFlags(c, &o.annotationOptions)
-	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Name of the file of variants to write")
-	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")
-	c.Flags().IntVarP(&o.end, "end", "", -1, "Only report variants with a reference base at or before this position")
-	c.Flags().BoolVarP(&o.aggregate, "aggregate", "", false, "Report the proportions of each change")
-	c.Flags().Float64VarP(&o.threshold, "threshold", "", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
-	c.Flags().BoolVarP(&o.appendSNP, "append-snps", "", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
+	c.Flags().StringP("outfile", "o", "stdout", "Name of the file of variants to write")
+	c.Flags().IntVar(&o.start, "start", -1, "Only report variants with a reference base at or after this position")
+	c.Flags().IntVar(&o.end, "end", -1, "Only report variants with a reference base at or before this position")
+	c.Flags().BoolVar(&o.aggregate, "aggregate", false, "Report the proportions of each change")
+	c.Flags().Float64Var(&o.threshold, "threshold", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
+	c.Flags().BoolVar(&o.appendSNP, "append-snps", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
 	addThreadsFlag(c.Flags(), &o.threads)
-
-	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
-	c.Flags().Lookup("append-snps").NoOptDefVal = "true"
 
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false

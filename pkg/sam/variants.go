@@ -5,12 +5,9 @@ import (
 	"errors"
 	"io"
 	"os"
-	"strconv"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
-	"github.com/virus-evolution/gofasta/pkg/genbank"
-	"github.com/virus-evolution/gofasta/pkg/gff"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
 	"github.com/virus-evolution/gofasta/pkg/variants"
 )
@@ -36,62 +33,14 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 		ref = refs[0]
 	}
 
-	var cdsregions []variants.Region
-	var intregions []int
-	switch annoSuffix {
-	case "gb":
-		gb, err := genbank.ReadGenBank(annoIn)
-		if err != nil {
-			return err
-		}
-		if !refFromFile {
-			temp := fasta.Record{Seq: string(gb.ORIGIN), ID: "annotation_fasta"}
-			ref, err = temp.Encode()
-			if err != nil {
-				return err
-			}
-			os.Stderr.WriteString("using --annotation fasta as reference\n")
-		}
-		refLenDegapped := len(ref.Decode().Degap().Seq)
-		cdsregions, intregions, err = variants.RegionsFromGenbank(gb, refLenDegapped)
-		if err != nil {
-			return err
-		}
-	case "gff":
-		gff, err := gff.ReadGFF(annoIn)
-		if err != nil {
-			return err
-		}
-		if !refFromFile {
-			switch len(gff.FASTA) {
-			case 0:
-				return errors.New("couldn't find a reference sequence in the gff and none was provided to --reference")
-			case 1:
-				var encodedrefseq []byte
-				for _, v := range gff.FASTA {
-					encodedrefseq = make([]byte, len(v.Seq))
-					EA := encoding.MakeEncodingArray()
-					for i := range v.Seq {
-						encodedrefseq[i] = EA[v.Seq[i]]
-					}
-					ref = fasta.EncodedRecord{ID: "annotation_fasta", Seq: encodedrefseq}
-				}
-				os.Stderr.WriteString("using --annotation fasta as reference\n")
-			default:
-				return errors.New("more that one sequence in gff ##FASTA section")
-			}
-		}
-		refSeqDegapped := ref.Decode().Degap().Seq
-		cdsregions, intregions, err = variants.RegionsFromGFF(gff, refSeqDegapped)
-		if err != nil {
-			return err
-		}
+	ref, cdsregions, intregions, err := variants.LoadAnnotation(annoIn, annoSuffix, ref)
+	if err != nil {
+		return err
 	}
 
 	// the output header is written before the sam file is read
 	var lw *variants.LineWriter
 	var agg *variants.Aggregator
-	var err error
 	if aggregate {
 		agg, err = variants.NewAggregator(out, start, end, appendSNP, ref.ID)
 	} else {
@@ -105,10 +54,9 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 	if err != nil {
 		return err
 	}
-	header := src.header
 	refSeq := ref.Decode().Seq
-	if header.Refs()[0].Len() != len(refSeq) {
-		return errors.New("the length of the reference sequence (" + strconv.Itoa(len(refSeq)) + ") does not match the length in the sam header (" + strconv.Itoa(header.Refs()[0].Len()) + ")")
+	if err := src.checkRefLength(len(refSeq)); err != nil {
+		return err
 	}
 
 	EA := encoding.MakeEncodingArray()

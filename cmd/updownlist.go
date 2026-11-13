@@ -10,8 +10,6 @@ import (
 // updownListOptions holds the values of the flags of the command newUpdownListCmd returns
 type updownListOptions struct {
 	threads int
-	query   string
-	outfile string
 	strict  bool
 }
 
@@ -61,14 +59,12 @@ for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to -
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = updown.List(ref, query, out, resolveThreads(o.threads), o.strict)
-
-			return
+			return updown.List(ref, query, out, resolveThreads(o.threads), o.strict)
 		},
 	}
 
-	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
-	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Output to write")
+	c.Flags().StringP("query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
+	c.Flags().StringP("outfile", "o", "stdout", "Output to write")
 
 	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)

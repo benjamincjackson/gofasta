@@ -18,8 +18,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"unicode"
-	"unicode/utf8"
 
 	biogosam "github.com/biogo/hts/sam"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
@@ -38,6 +36,9 @@ type samRecords struct {
 // RecordName returns the query's name (see pipeline.Namer)
 func (g samRecords) RecordName() string { return g.name }
 
+// isLetter reports whether b is an ASCII letter (a base or an ambiguity code, as opposed to '-' or '*')
+func isLetter(b byte) bool { return 'A' <= b && b <= 'Z' || 'a' <= b && b <= 'z' }
+
 // getNucFromSite flattens a site to a single nucleotide when a query sequence
 // has secondary mappings (multiple records/lines) in the SAM file.
 // * If there is more than one distinct alphabetic character at this site, an N is returned (with a
@@ -53,7 +54,7 @@ func getNucFromSite(s []byte, qname string, pos int) byte {
 		}
 		if !seen[e] {
 			seen[e] = true
-			if unicode.IsLetter(rune(e)) && e < utf8.RuneSelf {
+			if isLetter(e) {
 				letters++
 			}
 		}
@@ -94,35 +95,18 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 	return seq
 }
 
-// getSeqFromBlock wraps the other functions in this file to get a sequence from one query's
-// SAM records - if there is only one line (only a primary mapping) it
-// returns that aligned sequence without needing to do any flattening
+// getSeqFromBlock gets the aligned sequence of one query from its SAM records, flattening them into one
+// sequence if there is more than one
 func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
-
-	qname := records[0].Name
-
 	block := make([][]byte, len(records))
-	for i, _ := range block {
-		block[i] = make([]byte, refLen)
-	}
-
 	for i, line := range records {
-		temp, _, err := alignRecord(line, nil, refLen, includeInsertions)
+		row, _, err := alignRecord(line, nil, refLen, includeInsertions)
 		if err != nil {
-			return []byte{}, err
+			return nil, err
 		}
-		block[i] = temp
+		block[i] = row
 	}
-
-	var seq []byte
-
-	if len(block) > 1 {
-		seq = checkAndGetFlattenedSeq(block, qname)
-	} else {
-		seq = block[0]
-	}
-
-	return seq, nil
+	return checkAndGetFlattenedSeq(block, records[0].Name), nil
 }
 
 // swapInNs replaces unmapped positions with Ns
@@ -143,8 +127,7 @@ func swapInGapsNs(seq []byte) []byte {
 	lastLetterIndx := -1
 
 	for i, L := range seq {
-		r, _ := utf8.DecodeRune([]byte{L})
-		if unicode.IsLetter(r) {
+		if isLetter(L) {
 			if firstLetterIndx == len(seq) {
 				firstLetterIndx = i
 			}
@@ -153,20 +136,13 @@ func swapInGapsNs(seq []byte) []byte {
 	}
 
 	for i, L := range seq {
-		if i < firstLetterIndx {
-			if L == '*' {
-				seq[i] = '-'
-			}
+		if L != '*' {
+			continue
 		}
 		if i > firstLetterIndx && i < lastLetterIndx {
-			if L == '*' {
-				seq[i] = 'N'
-			}
-		}
-		if i > lastLetterIndx {
-			if L == '*' {
-				seq[i] = '-'
-			}
+			seq[i] = 'N'
+		} else {
+			seq[i] = '-'
 		}
 	}
 
@@ -442,6 +418,14 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 
 	src.next = next
 	return src, nil
+}
+
+// checkRefLength checks that a reference sequence of length n is as long as the sam header's (first) @SQ
+func (s *samSource) checkRefLength(n int) error {
+	if l := s.header.Refs()[0].Len(); l != n {
+		return errors.New("the length of the reference sequence (" + strconv.Itoa(n) + ") does not match the length in the sam header (" + strconv.Itoa(l) + ")")
+	}
+	return nil
 }
 
 // prepareQuery checks the records for one query against a reference of length refLen and resolves the

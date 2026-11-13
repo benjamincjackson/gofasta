@@ -1,0 +1,22 @@
+args: sam --help
+exit: 0
+--- stdout
+Do things with sam files
+
+Usage:
+  gofasta sam [flags]
+  gofasta sam [command]
+
+Available Commands:
+  toMultiAlign Convert a SAM file to a multiple alignment in fasta format
+  toPairAlign  Convert a SAM file to pairwise alignments in fasta format
+  variants     Annotate mutations relative to a reference from an alignment in sam format
+
+Flags:
+  -h, --help               help for sam
+  -r, --reference string   Reference fasta file used to generate the sam file
+  -s, --samfile string     SAM file to read (default "stdin")
+  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
+
+Use "gofasta sam [command] --help" for more information about a command.
+--- stderr

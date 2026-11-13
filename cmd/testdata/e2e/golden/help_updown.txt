@@ -1,0 +1,19 @@
+args: updown --help
+exit: 0
+--- stdout
+Get pseudo-tree-aware catchments for query sequences from alignments
+
+Usage:
+  gofasta updown [flags]
+  gofasta updown [command]
+
+Available Commands:
+  list        Generate input CSV files for gofasta updown topranking
+  topranking  Get pseudo-tree-aware catchments for query sequences from alignments
+
+Flags:
+  -h, --help               help for updown
+  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+
+Use "gofasta updown [command] --help" for more information about a command.
+--- stderr

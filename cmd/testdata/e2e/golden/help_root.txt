@@ -1,0 +1,31 @@
+args: --help
+exit: 0
+--- stdout
+Command-line utilities for genomic epidemiology research
+
+Files are named by their paths; "stdin" or "-" reads an input from stdin, and "stdout" or "-" writes an output
+to stdout. Any input can be gzipped.
+
+If you use gofasta in your work, please cite:
+
+Jackson B (2022). gofasta: command-line utilities for genomic epidemiology research. Bioinformatics 38 (16), 4033-4035
+https://doi.org/10.1093/bioinformatics/btac424
+
+Usage:
+  gofasta [command]
+
+Available Commands:
+  closest     Find the closest sequence(s) to a query by genetic distance
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  licences    Print licence information
+  sam         Do things with sam files
+  updown      Get pseudo-tree-aware catchments for query sequences from alignments
+  variants    Annotate mutations relative to a reference from a multiple sequence alignment in fasta format
+
+Flags:
+  -h, --help      help for gofasta
+  -v, --version   version for gofasta
+
+Use "gofasta [command] --help" for more information about a command.
+--- stderr

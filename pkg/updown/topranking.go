@@ -13,6 +13,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,32 +70,6 @@ func isSiteAmb(pos int, a []int) bool {
 	return false
 }
 
-// is pos present in list, true/false
-// sort.Search* is the go standard library's implementation of binary search.
-// Should scale O(log(N))
-func posOverlapBinarySearch(list []int, pos int) bool {
-
-	idx := sort.SearchInts(list, pos)
-
-	if idx < len(list) && list[idx] == pos {
-		return true
-	}
-
-	return false
-}
-
-// is snp present in list, true/false
-func snpOverlapBinarySearch(list []string, snp string) bool {
-
-	idx := sort.SearchStrings(list, snp)
-
-	if idx < len(list) && list[idx] == snp {
-		return true
-	}
-
-	return false
-}
-
 // whichWay returns direction values of 0,1,2,3 = same,up,down,side respectively + SNP distance.
 // distance is -1 if the pair fails the ambiguity threshold test.
 func whichWay(q, t updownLine, thresh float32) (int, int) {
@@ -110,7 +85,7 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 		if isSiteAmb(q.snpsPos[i], t.ambs) {
 			table[3]++
 			// if this exact snp (allele and position) is present in the target
-		} else if snpOverlapBinarySearch(t.snpsSorted, qsnp) {
+		} else if _, found := slices.BinarySearch(t.snpsSorted, qsnp); found {
 			table[1]++
 		} else {
 			// otherwise we +1 the Q snps bin and append the snp to d
@@ -124,11 +99,11 @@ func whichWay(q, t updownLine, thresh float32) (int, int) {
 		if isSiteAmb(t.snpsPos[i], q.ambs) {
 			table[3]++
 			// if there is no overlap between the exact snp (allele and position) and the query's snps
-		} else if !snpOverlapBinarySearch(q.snpsSorted, tsnp) {
+		} else if _, found := slices.BinarySearch(q.snpsSorted, tsnp); !found {
 			// we +1 the T snps bin
 			table[2]++
 			// if this position has not already been added to the list of differences we use to calculate d, then add it here too (otherwise two mutations historically at the same position, but only counts 1 for distance)
-			if !posOverlapBinarySearch(d, t.snpsPos[i]) {
+			if _, found := slices.BinarySearch(d, t.snpsPos[i]); !found {
 				d_plus++
 			}
 		}
@@ -208,9 +183,7 @@ type updownCatchmentStruct struct {
 // the distance and ambiguity fields in preparation for deciding what to do with the next target. It should only be
 // called when the updownCatchmentSubStruct is over its capacity (catchmentSize)
 func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
-	sort.SliceStable(nS.catchment, func(i, j int) bool {
-		return nS.catchment[i].distance < nS.catchment[j].distance || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].ambCount < nS.catchment[j].ambCount)
-	})
+	byDistance(nS.catchment)
 	nS.catchment = nS.catchment[0:catchmentSize]
 	nS.maxDist = nS.catchment[catchmentSize-1].distance
 	nS.minAmbig = nS.catchment[catchmentSize-1].ambCount
@@ -222,7 +195,6 @@ func rearrangeCatchment(nS *updownCatchmentSubStruct, catchmentSize int) {
 // resultsStructs as values
 type pushCatchmentSubStruct struct {
 	catchmentMap map[int][]resultsStruct
-	size         int // how many sequences in total
 	nDists       int // how many snp distances in total
 	maxDist      int // the furthest snp distance
 }
@@ -245,45 +217,25 @@ func refactorPushCatchment(pC *pushCatchmentSubStruct, rS resultsStruct, nodeDis
 	if _, ok := pC.catchmentMap[rS.distance]; ok {
 		// if this sequence's distance is already present, then add to it
 		pC.catchmentMap[rS.distance] = append(pC.catchmentMap[rS.distance], rS)
-	} else if len(pC.catchmentMap) == nodeDistance {
-		// if it isn't, and the map is at capacity, delete the farthest sequences
-		// and add this one  elsewhere
-		maxKey := getMaxKey(pC.catchmentMap)
-		delete(pC.catchmentMap, maxKey)
-		pC.catchmentMap[rS.distance] = []resultsStruct{rS}
-		pC.maxDist = getMaxKey(pC.catchmentMap)
-		pC.nDists = len(pC.catchmentMap)
-	} else {
-		// otherwise the map isn't at capacity and we can add this sequence with impunity
-		pC.catchmentMap[rS.distance] = []resultsStruct{rS}
-		pC.maxDist = getMaxKey(pC.catchmentMap)
-		pC.nDists = len(pC.catchmentMap)
+		return
 	}
+	// otherwise add a new distance, first deleting the farthest one if the map is at capacity
+	if len(pC.catchmentMap) == nodeDistance {
+		delete(pC.catchmentMap, getMaxKey(pC.catchmentMap))
+	}
+	pC.catchmentMap[rS.distance] = []resultsStruct{rS}
+	pC.maxDist = getMaxKey(pC.catchmentMap)
+	pC.nDists = len(pC.catchmentMap)
 }
 
-// pushCatchment2Catchment converts a pushCatchmentSubStruct to an updownCatchmentSubStruct
-// TO DO - sort each snp distances results structs as they come out of the map here?
+// pushCatchment2Catchment converts a pushCatchmentSubStruct to an updownCatchmentSubStruct (in no particular
+// order: see byDistance)
 func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct {
-	uC := updownCatchmentSubStruct{}
-	uC.catchment = make([]resultsStruct, 0)
+	var uC updownCatchmentSubStruct
 	for _, v := range pC.catchmentMap {
-		for _, r := range v {
-			uC.catchment = append(uC.catchment, r)
-		}
+		uC.catchment = append(uC.catchment, v...)
 	}
 	return uC
-}
-
-// stringInArray returns true/false s is present in the slice sa
-// NB - could use binary search here but this function is only ever called to check whether a sequence ID is
-// present in a list of IDs to ignore, which is likely always going to be small (?!), so slice iteration seems reasonable?
-func stringInArray(s string, sa []string) bool {
-	for i := range sa {
-		if s == sa[i] {
-			return true
-		}
-	}
-	return false
 }
 
 // byDistance sorts a catchment by snp distance, then by number of ambiguities, keeping ties in their order
@@ -331,10 +283,6 @@ type catchmentSearch struct {
 func newCatchmentSearch(q updownLine, sizeArray [4]int, nofill bool, distArray [4]int) *catchmentSearch {
 	s := &catchmentSearch{sizeArray: sizeArray, distArray: distArray, nofill: nofill}
 	s.neighbours = updownCatchmentStruct{qname: q.id, qidx: q.idx}
-	s.neighbours.same = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
-	s.neighbours.up = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
-	s.neighbours.down = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
-	s.neighbours.side = updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)}
 	s.sizetotal = sum4(sizeArray)
 	for _, n := range sizeArray {
 		if n == math.MaxInt32 {
@@ -389,7 +337,6 @@ func newPushSearch(q updownLine, pushDist int) *pushSearch {
 	return &pushSearch{
 		q:        q,
 		pushDist: pushDist,
-		same:     updownCatchmentSubStruct{catchment: make([]resultsStruct, 0)},
 		up:       pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct)},
 		down:     pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct)},
 		side:     pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct)},
@@ -421,122 +368,65 @@ func (s *pushSearch) finish() updownCatchmentStruct {
 	return neighbours
 }
 
-// allGreaterThanEqualTo4 returns true/false; a[i] is greater that or equal to b[i]; for every item in a
-// it is used to check whether any balancing is required given the --size options when some bins fall
-// short of their desired sizes
-func allGreaterThanEqualTo4(a, b [4]int) bool {
-	for i, _ := range a {
-		if a[i] < b[i] {
-			return false
+// balance returns the size each bin's output should have, given the ideal sizes from the options and the
+// observed sizes of the bins: a bin short of its ideal size keeps what it has, and (unless nofill) the
+// others make up the shortfall from their surplus, one target at a time in bin order, up to sizetotal
+func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) [4]int {
+	var size, surplus [4]int
+	short := false
+	for i := range sizeObserved {
+		size[i] = min(sizeObserved[i], sizeIdeal[i])
+		surplus[i] = max(sizeObserved[i]-sizeIdeal[i], 0)
+		short = short || sizeObserved[i] < sizeIdeal[i]
+	}
+	if !short {
+		return sizeIdeal
+	}
+	if nofill {
+		return size
+	}
+	for {
+		for i := range size {
+			if sum4(surplus) == 0 {
+				return size
+			}
+			if surplus[i] > 0 {
+				size[i]++
+				surplus[i]--
+			}
+			if sum4(size) == sizetotal {
+				return size
+			}
 		}
 	}
-	return true
 }
 
-// given the input options, and the final size of the neighbourhoods,
-// balance returns the size that the output data should be
-func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) [4]int {
-	var size [4]int
+// binNames are the names of the bins, in direction order (0,1,2,3)
+var binNames = [4]string{"same", "up", "down", "side"}
 
-	allGreaterThan := allGreaterThanEqualTo4(sizeObserved, sizeIdeal)
-
-	if allGreaterThan {
-		return sizeIdeal
-	} else {
-		for i := range sizeObserved {
-			if sizeObserved[i] >= sizeIdeal[i] {
-				size[i] = sizeIdeal[i]
-			} else {
-				size[i] = sizeObserved[i]
-			}
-		}
-		if nofill {
-			return size
-		}
-		var sizeAvail [4]int
-		for i := range sizeObserved {
-			if sizeObserved[i] > sizeIdeal[i] {
-				sizeAvail[i] = sizeObserved[i] - sizeIdeal[i]
-			} else {
-				sizeAvail[i] = 0
-			}
-		}
-		for n := 1; n > 0; {
-			for i := range sizeObserved {
-				if sum4(sizeAvail) == 0 {
-					n--
-					break
-				}
-				if sizeObserved[i] > sizeIdeal[i] && sizeAvail[i] > 0 {
-					size[i]++
-					sizeAvail[i]--
-				}
-				if sum4(size) == sizetotal {
-					n--
-					break
-				}
-			}
-		}
-	}
-
-	return size
+// bins returns a query's bins in direction order
+func (r updownCatchmentStruct) bins() [4]updownCatchmentSubStruct {
+	return [4]updownCatchmentSubStruct{r.same, r.up, r.down, r.side}
 }
 
 // writeUpDownCatchment writes the catchments for each query to a file/stdout
 func writeUpDownCatchment(w io.Writer, results []updownCatchmentStruct) error {
-
-	var err error
-	temp := make([]string, 0)
-
-	_, err = w.Write([]byte("query,closestsame,closestup,closestdown,closestside\n"))
-	if err != nil {
+	if _, err := w.Write([]byte("query,closestsame,closestup,closestdown,closestside\n")); err != nil {
 		return err
 	}
-
 	for _, result := range results {
-
-		_, err = w.Write([]byte(result.qname + ","))
-		if err != nil {
-			return err
+		fields := []string{result.qname}
+		for _, bin := range result.bins() {
+			names := make([]string, len(bin.catchment))
+			for i, hit := range bin.catchment {
+				names[i] = hit.tname
+			}
+			fields = append(fields, strings.Join(names, ";"))
 		}
-
-		temp = make([]string, 0)
-		for _, hit := range result.same.catchment {
-			temp = append(temp, hit.tname)
-		}
-		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
-		if err != nil {
-			return err
-		}
-
-		temp = make([]string, 0)
-		for _, hit := range result.up.catchment {
-			temp = append(temp, hit.tname)
-		}
-		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
-		if err != nil {
-			return err
-		}
-
-		temp = make([]string, 0)
-		for _, hit := range result.down.catchment {
-			temp = append(temp, hit.tname)
-		}
-		_, err = w.Write([]byte(strings.Join(temp, ";") + ","))
-		if err != nil {
-			return err
-		}
-
-		temp = make([]string, 0)
-		for _, hit := range result.side.catchment {
-			temp = append(temp, hit.tname)
-		}
-		_, err = w.Write([]byte(strings.Join(temp, ";") + "\n"))
-		if err != nil {
+		if _, err := w.Write([]byte(strings.Join(fields, ",") + "\n")); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -546,32 +436,14 @@ func writeUpdownTable(w io.Writer, results []updownCatchmentStruct) error {
 		return err
 	}
 	for _, result := range results {
-		for _, neighbour := range result.same.catchment {
-			_, err := w.Write([]byte(strings.Join([]string{result.qname, "same", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
-			if err != nil {
-				return err
-			}
-		}
-		for _, neighbour := range result.up.catchment {
-			_, err := w.Write([]byte(strings.Join([]string{result.qname, "up", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
-			if err != nil {
-				return err
-			}
-		}
-		for _, neighbour := range result.down.catchment {
-			_, err := w.Write([]byte(strings.Join([]string{result.qname, "down", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
-			if err != nil {
-				return err
-			}
-		}
-		for _, neighbour := range result.side.catchment {
-			_, err := w.Write([]byte(strings.Join([]string{result.qname, "side", strconv.Itoa(neighbour.distance), neighbour.tname}, ",") + "\n"))
-			if err != nil {
-				return err
+		for direction, bin := range result.bins() {
+			for _, neighbour := range bin.catchment {
+				if _, err := w.Write([]byte(result.qname + "," + binNames[direction] + "," + strconv.Itoa(neighbour.distance) + "," + neighbour.tname + "\n")); err != nil {
+					return err
+				}
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -627,55 +499,24 @@ or to --dist-push`)
 		io.WriteString(warn, "warning: setting --dist-all overrides --dist-up, --dist-down and --dist-side\n")
 	}
 
-	// bucket sizes for same,up,down,side,total respectively
-	var sizeArray [4]int
+	// bin sizes and maximum distances, for same,up,down,side respectively
+	all := [4]int{math.MaxInt32, math.MaxInt32, math.MaxInt32, math.MaxInt32}
 
+	sizeArray := all // get everything (sorted by distance, or filtered on distance, later)
 	switch {
-	case sizetotal > 0: // size total is set - try to split evenly
-		sizeArray[1] = int(math.Floor(float64(sizetotal) / float64(4)))
-		sizeArray[2] = int(math.Floor(float64(sizetotal) / float64(4)))
-		sizeArray[3] = int(math.Floor(float64(sizetotal) / float64(4)))
-		sizeArray[0] = sizetotal - (sizeArray[1] + sizeArray[2] + sizeArray[3])
-
-	case !allZero([]int{sizeup, sizedown, sizeside, sizesame}): // bucket sizes are set, use these:
-		sizeArray[0] = sizesame
-		sizeArray[1] = sizeup
-		sizeArray[2] = sizedown
-		sizeArray[3] = sizeside
-
-		// an easter egg - set any of these to -1 on the command line and you will get all of the seqs in that bucket
-		for i, n := range []int{sizesame, sizeup, sizedown, sizeside} {
-			if n == -1 {
-				sizeArray[i] = math.MaxInt32
-			}
-		}
-
-	default:
-		// get everything (but in order, eventually, because it will be sorted, or a filter on distance measure will be applied).
-		sizeArray[0] = math.MaxInt32
-		sizeArray[1] = math.MaxInt32
-		sizeArray[2] = math.MaxInt32
-		sizeArray[3] = math.MaxInt32
+	case sizetotal > 0: // split evenly, any remainder going to same
+		q := sizetotal / 4
+		sizeArray = [4]int{sizetotal - 3*q, q, q, q}
+	case !allZero([]int{sizeup, sizedown, sizeside, sizesame}):
+		sizeArray = [4]int{sizesame, sizeup, sizedown, sizeside}
 	}
 
-	var distArray [4]int
-
+	distArray := all
 	switch {
 	case distall > 0:
-		distArray[0] = 0
-		distArray[1] = distall
-		distArray[2] = distall
-		distArray[3] = distall
+		distArray = [4]int{0, distall, distall, distall}
 	case !allZero([]int{distup, distdown, distside}):
-		distArray[0] = 0
-		distArray[1] = distup
-		distArray[2] = distdown
-		distArray[3] = distside
-	default:
-		distArray[0] = math.MaxInt32
-		distArray[1] = math.MaxInt32
-		distArray[2] = math.MaxInt32
-		distArray[3] = math.MaxInt32
+		distArray = [4]int{0, distup, distdown, distside}
 	}
 
 	return sizeArray, distArray, nil
@@ -792,7 +633,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		if err != nil {
 			return rankedTarget{}, err
 		}
-		if t.ambCount > threshtarg || (len(ignoreArray) > 0 && stringInArray(t.id, ignoreArray)) {
+		if t.ambCount > threshtarg || slices.Contains(ignoreArray, t.id) {
 			return rankedTarget{skip: true}, nil
 		}
 		rt := rankedTarget{line: t, directions: make([]int, len(queries)), distance: make([]int, len(queries))}
@@ -827,13 +668,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	}
 
 	if table {
-		err = writeUpdownTable(out, QResultsArray)
-	} else {
-		err = writeUpDownCatchment(out, QResultsArray)
+		return writeUpdownTable(out, QResultsArray)
 	}
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeUpDownCatchment(out, QResultsArray)
 }

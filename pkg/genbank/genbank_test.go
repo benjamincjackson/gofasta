@@ -25,26 +25,23 @@ func TestHasAttribute(t *testing.T) {
 }
 
 func TestParseGenbankFEATURES(t *testing.T) {
-	gf := genbankField{
-		header: "FEATURES             Location/Qualifiers",
-		lines: []string{"      source          1..8959",
-			"                     /organism=\"Homo sapiens\"",
-			"                     /db_xref=\"taxon:9606\"",
-			"                     /mol_type=\"genomic DNA\"",
-			"      gene            212..8668",
-			"                      /gene=\"NF1\"",
-			"      CDS             212..8668",
-			"                      /gene=\"NF1\"",
-			"                      /note=\"putative\"",
-			"                      /codon_start=1",
-			"                      /product=\"GAP-related protein\"",
-			"                      /protein_id=\"AAA59924.1\"",
-			"                      /translation=\"MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE",
-			"                      MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE\"",
-		},
+	lines := []string{"      source          1..8959",
+		"                     /organism=\"Homo sapiens\"",
+		"                     /db_xref=\"taxon:9606\"",
+		"                     /mol_type=\"genomic DNA\"",
+		"      gene            212..8668",
+		"                      /gene=\"NF1\"",
+		"      CDS             212..8668",
+		"                      /gene=\"NF1\"",
+		"                      /note=\"putative\"",
+		"                      /codon_start=1",
+		"                      /product=\"GAP-related protein\"",
+		"                      /protein_id=\"AAA59924.1\"",
+		"                      /translation=\"MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE",
+		"                      MAAHRPVEWVQAVVSRFDEQLPIKTGQQNTHTKVSTE\"",
 	}
 
-	feats, _ := parseGenbankFEATURES(gf)
+	feats, _ := parseGenbankFEATURES(lines)
 	if !reflect.DeepEqual(feats, []GenbankFeature{
 		GenbankFeature{
 			Feature:  "source",
@@ -80,15 +77,12 @@ func TestParseGenbankFEATURES(t *testing.T) {
 }
 
 func TestParseGenbankORIGIN(t *testing.T) {
-	gf := genbankField{
-		header: "ORIGIN                                ",
-		lines: []string{
-			"        1 cgttatttaa ggtgttacat agttctatgg aaatagggtc tatacctttc gccttacaat",
-			"       61 gtaatttctt",
-		},
+	lines := []string{
+		"        1 cgttatttaa ggtgttacat agttctatgg aaatagggtc tatacctttc gccttacaat",
+		"       61 gtaatttctt",
 	}
 
-	origin := parseGenbankORIGIN(gf)
+	origin := parseGenbankORIGIN(lines)
 
 	if !reflect.DeepEqual(origin, []byte("cgttatttaaggtgttacatagttctatggaaatagggtctatacctttcgccttacaatgtaatttctt")) {
 		t.Errorf("Problem in TestParseGenbankORIGIN()")

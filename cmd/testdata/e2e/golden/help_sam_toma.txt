@@ -1,0 +1,38 @@
+args: sam toMultiAlign --help
+exit: 0
+--- stdout
+Convert a SAM file to a multiple alignment in fasta format
+
+Insertions relative to the reference are omitted, so all sequences in the output are the same ( = reference)
+length.
+
+Example usage:
+	gofasta sam toMultiAlign -s aligned.sam -o aligned.fasta
+
+If you want, you can trim (and optionally pad) the output alignment to coordinates of your choosing:
+	gofasta sam toMultiAlign -s aligned.sam --start 266 --end 29674 --pad -o aligned.fasta
+
+If input and output files are not specified, the behaviour is to read the sam file from stdin and write the
+fasta file to stdout, e.g.:
+	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta
+
+Usage:
+  gofasta sam toMultiAlign [flags]
+
+Aliases:
+  toMultiAlign, tomultialign, toma
+
+Flags:
+      --start int        1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad (default -1)
+      --end int          1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad (default -1)
+      --pad              If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns
+  -o, --outfile string   Where to write the alignment (default "stdout")
+  -w, --wrap int         Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output. (default -1)
+      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -h, --help             help for toMultiAlign
+
+Global Flags:
+  -r, --reference string   Reference fasta file used to generate the sam file
+  -s, --samfile string     SAM file to read (default "stdin")
+  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
+--- stderr

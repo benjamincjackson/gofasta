@@ -26,7 +26,6 @@ import (
 // the total snp-distance between them.
 type resultsStruct struct {
 	qname        string
-	qidx         int
 	tname        string
 	completeness int64
 	distance     float64
@@ -179,11 +178,9 @@ func tn93FromCounts(query, target fasta.EncodedRecord, count_L, count_d, count_P
 
 	// tn93 distance:
 	d := -k1*math.Log(w1) - k2*math.Log(w2) - k3*math.Log(w3)
-
 	if d == 0.0 {
-		d = 0.0
+		d = 0.0 // (-0 becomes 0, so that it is not written as "-0.000000000")
 	}
-
 	return d
 }
 
@@ -285,37 +282,29 @@ func snpsBetween(query, target fasta.EncodedRecord, decoding [256]string) []stri
 // more complete. The first target considered always becomes the closest.
 func (closest *resultsStruct) consider(query, target fasta.EncodedRecord, distance float64, first bool, decoding [256]string) {
 	if first || lessDistance(distance, closest.distance) || (distance == closest.distance && target.Score > closest.completeness) {
-		*closest = resultsStruct{qname: query.ID, qidx: query.Idx, tname: target.ID, completeness: target.Score, distance: distance, snps: snpsBetween(query, target, decoding)}
+		*closest = resultsStruct{qname: query.ID, tname: target.ID, completeness: target.Score, distance: distance, snps: snpsBetween(query, target, decoding)}
 	}
 }
 
-// writeClosest parses an array of resultsStructs in order to write them, usually to stdout or file
+// formatDistance writes a distance for output: a whole number for the snp measure, otherwise with nine
+// decimal places
+func formatDistance(d float64, measure string) string {
+	if measure == "snp" {
+		return strconv.Itoa(int(d))
+	}
+	return strconv.FormatFloat(d, 'f', 9, 64)
+}
+
+// writeClosest writes each query's closest target, the distance between them and the SNPs that distinguish them
 func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
-
-	var err error
-
-	_, err = w.Write([]byte("query,closest,distance,SNPs\n"))
-	if err != nil {
+	if _, err := io.WriteString(w, "query,closest,distance,SNPs\n"); err != nil {
 		return err
 	}
-
 	for _, result := range results {
-		switch measure {
-		case "raw":
-			if _, err := w.Write([]byte(result.qname + "," + result.tname + "," + strconv.FormatFloat(result.distance, 'f', 9, 64) + "," + strings.Join(result.snps, ";") + "\n")); err != nil {
-				return err
-			}
-		case "snp":
-			if _, err := w.Write([]byte(result.qname + "," + result.tname + "," + strconv.Itoa(int(result.distance)) + "," + strings.Join(result.snps, ";") + "\n")); err != nil {
-				return err
-			}
-		case "tn93":
-			if _, err := w.Write([]byte(result.qname + "," + result.tname + "," + strconv.FormatFloat(result.distance, 'f', 9, 64) + "," + strings.Join(result.snps, ";") + "\n")); err != nil {
-				return err
-			}
+		if _, err := io.WriteString(w, result.qname+","+result.tname+","+formatDistance(result.distance, measure)+","+strings.Join(result.snps, ";")+"\n"); err != nil {
+			return err
 		}
 	}
-
 	return nil
 }
 
@@ -323,17 +312,14 @@ func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
 // to stdout or to file. Ties for distance are broken by genome completeness
 // threads is the number of goroutines that process records (fewer than 1 means 1).
 func Closest(query, target io.Reader, measure string, out io.Writer, threads int, strict bool) error {
-
 	queries, err := loadQueries(query, strict)
 	if err != nil {
 		return err
 	}
 
-	nQ := len(queries)
-
-	QResultsArray := make([]resultsStruct, nQ)
+	QResultsArray := make([]resultsStruct, len(queries))
 	for i, q := range queries {
-		QResultsArray[i] = resultsStruct{qname: q.ID, qidx: q.Idx}
+		QResultsArray[i] = resultsStruct{qname: q.ID}
 	}
 
 	decoding := encoding.MakeDecodingArray()
@@ -347,11 +333,5 @@ func Closest(query, target io.Reader, measure string, out io.Writer, threads int
 	if err != nil {
 		return err
 	}
-
-	err = writeClosest(QResultsArray, measure, out)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeClosest(QResultsArray, measure, out)
 }

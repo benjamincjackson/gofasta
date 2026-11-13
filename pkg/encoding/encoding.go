@@ -7,7 +7,11 @@ http://ape-package.ird.fr/misc/BitLevelCodingScheme.html
 */
 package encoding
 
-import "strings"
+import (
+	"math/bits"
+	"strings"
+	"unicode"
+)
 
 func DecodeToString(bs []byte) string {
 	da := MakeDecodingArray()
@@ -19,45 +23,31 @@ func DecodeToString(bs []byte) string {
 	return s.String()
 }
 
+// codes gives each IUPAC nucleotide code (and '-', '?') with its Emmanuel Paradis encoding: bits 7-4
+// are A, G, C and T, set for each base the code can stand for; bit 3 marks a code known to be one base;
+// a gap ('-') is 244 (unknown, rather than EP's original 4, which buildEncodingArrayHardGaps uses)
+var codes = []struct {
+	char byte
+	code byte
+}{
+	{'A', 136}, {'G', 72}, {'C', 40}, {'T', 24},
+	{'R', 192}, {'M', 160}, {'W', 144}, {'S', 96}, {'K', 80}, {'Y', 48},
+	{'V', 224}, {'H', 176}, {'D', 208}, {'B', 112}, {'N', 240},
+	{'-', 244}, {'?', 242},
+}
+
+// hardGap is EP's original code for a gap: known, and none of A, C, G or T
+const hardGap = 4
+
 // buildEncodingArray returns an array whose indices are the byte representations
 // of IUPAC codes and whose contents are Emmanual Paradis encodings.
 // Lower case nucleotides are mapped to their upper case nucleotides's encoding
 func buildEncodingArray() [256]byte {
 	var byteArray [256]byte
-
-	byteArray['A'] = 136
-	byteArray['a'] = 136
-	byteArray['G'] = 72
-	byteArray['g'] = 72
-	byteArray['C'] = 40
-	byteArray['c'] = 40
-	byteArray['T'] = 24
-	byteArray['t'] = 24
-	byteArray['R'] = 192
-	byteArray['r'] = 192
-	byteArray['M'] = 160
-	byteArray['m'] = 160
-	byteArray['W'] = 144
-	byteArray['w'] = 144
-	byteArray['S'] = 96
-	byteArray['s'] = 96
-	byteArray['K'] = 80
-	byteArray['k'] = 80
-	byteArray['Y'] = 48
-	byteArray['y'] = 48
-	byteArray['V'] = 224
-	byteArray['v'] = 224
-	byteArray['H'] = 176
-	byteArray['h'] = 176
-	byteArray['D'] = 208
-	byteArray['d'] = 208
-	byteArray['B'] = 112
-	byteArray['b'] = 112
-	byteArray['N'] = 240
-	byteArray['n'] = 240
-	byteArray['-'] = 244
-	byteArray['?'] = 242
-
+	for _, c := range codes {
+		byteArray[c.char] = c.code
+		byteArray[unicode.ToLower(rune(c.char))] = c.code
+	}
 	return byteArray
 }
 
@@ -70,41 +60,8 @@ func MakeEncodingArray() [256]byte { return encodingArrayTable }
 // set to EP's original code (4; character is not completely unknown,
 // character represents NONE of ACTG)
 func buildEncodingArrayHardGaps() [256]byte {
-	var byteArray [256]byte
-
-	byteArray['A'] = 136
-	byteArray['a'] = 136
-	byteArray['G'] = 72
-	byteArray['g'] = 72
-	byteArray['C'] = 40
-	byteArray['c'] = 40
-	byteArray['T'] = 24
-	byteArray['t'] = 24
-	byteArray['R'] = 192
-	byteArray['r'] = 192
-	byteArray['M'] = 160
-	byteArray['m'] = 160
-	byteArray['W'] = 144
-	byteArray['w'] = 144
-	byteArray['S'] = 96
-	byteArray['s'] = 96
-	byteArray['K'] = 80
-	byteArray['k'] = 80
-	byteArray['Y'] = 48
-	byteArray['y'] = 48
-	byteArray['V'] = 224
-	byteArray['v'] = 224
-	byteArray['H'] = 176
-	byteArray['h'] = 176
-	byteArray['D'] = 208
-	byteArray['d'] = 208
-	byteArray['B'] = 112
-	byteArray['b'] = 112
-	byteArray['N'] = 240
-	byteArray['n'] = 240
-	byteArray['-'] = 4
-	byteArray['?'] = 242
-
+	byteArray := buildEncodingArray()
+	byteArray['-'] = hardGap
 	return byteArray
 }
 
@@ -120,40 +77,9 @@ func MakeEncodingArrayHardGaps() [256]byte { return encodingArrayHardGapsTable }
 // E.g. an 'A' scores 12, but an 'N' (A, C, G or T) scores 3
 func buildScoreArray() [256]int64 {
 	var byteArray [256]int64
-
-	byteArray['A'] = 12
-	byteArray['a'] = 12
-	byteArray['G'] = 12
-	byteArray['g'] = 12
-	byteArray['C'] = 12
-	byteArray['c'] = 12
-	byteArray['T'] = 12
-	byteArray['t'] = 12
-	byteArray['R'] = 6
-	byteArray['r'] = 6
-	byteArray['M'] = 6
-	byteArray['m'] = 6
-	byteArray['W'] = 6
-	byteArray['w'] = 6
-	byteArray['S'] = 6
-	byteArray['s'] = 6
-	byteArray['K'] = 6
-	byteArray['k'] = 6
-	byteArray['Y'] = 6
-	byteArray['y'] = 6
-	byteArray['V'] = 4
-	byteArray['v'] = 4
-	byteArray['H'] = 4
-	byteArray['h'] = 4
-	byteArray['D'] = 4
-	byteArray['d'] = 4
-	byteArray['B'] = 4
-	byteArray['b'] = 4
-	byteArray['N'] = 3
-	byteArray['n'] = 3
-	byteArray['-'] = 3
-	byteArray['?'] = 3
-
+	for c, code := range encodingArrayTable {
+		byteArray[c] = encodedScoreArrayTable[code]
+	}
 	return byteArray
 }
 
@@ -163,29 +89,12 @@ var scoreArrayTable = buildScoreArray()
 func MakeScoreArray() [256]int64 { return scoreArrayTable }
 
 // buildEncodedScoreArray is like MakeScoreArray() but the indices are EP bitwise representations of
-// nucleotides
+// nucleotides (a gap and '?' count as N; a hard gap has no score)
 func buildEncodedScoreArray() [256]int64 {
-
 	var byteArray [256]int64
-
-	byteArray[136] = 12
-	byteArray[72] = 12
-	byteArray[40] = 12
-	byteArray[24] = 12
-	byteArray[192] = 6
-	byteArray[160] = 6
-	byteArray[144] = 6
-	byteArray[96] = 6
-	byteArray[80] = 6
-	byteArray[48] = 6
-	byteArray[224] = 4
-	byteArray[176] = 4
-	byteArray[208] = 4
-	byteArray[112] = 4
-	byteArray[240] = 3
-	byteArray[244] = 3
-	byteArray[242] = 3
-
+	for _, c := range codes {
+		byteArray[c.code] = 12 / int64(bits.OnesCount8(c.code>>4))
+	}
 	return byteArray
 }
 
@@ -195,29 +104,13 @@ var encodedScoreArrayTable = buildEncodedScoreArray()
 func MakeEncodedScoreArray() [256]int64 { return encodedScoreArrayTable }
 
 // buildDecodingArray returns an array whose indices are Emmanual Paradis encodings
-// of IUPAC codes and whose contents are IUPAC codes as strings
+// of IUPAC codes and whose contents are IUPAC codes as strings (both gap codes decode to '-')
 func buildDecodingArray() [256]string {
 	var byteArray [256]string
-
-	byteArray[136] = "A"
-	byteArray[72] = "G"
-	byteArray[40] = "C"
-	byteArray[24] = "T"
-	byteArray[192] = "R"
-	byteArray[160] = "M"
-	byteArray[144] = "W"
-	byteArray[96] = "S"
-	byteArray[80] = "K"
-	byteArray[48] = "Y"
-	byteArray[224] = "V"
-	byteArray[176] = "H"
-	byteArray[208] = "D"
-	byteArray[112] = "B"
-	byteArray[240] = "N"
-	byteArray[4] = "-"
-	byteArray[244] = "-"
-	byteArray[242] = "?"
-
+	for _, c := range codes {
+		byteArray[c.code] = string(c.char)
+	}
+	byteArray[hardGap] = "-"
 	return byteArray
 }
 

@@ -20,8 +20,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 	if err != nil {
 		return err
 	}
-	header := src.header
-	refLen := header.Refs()[0].Len()
+	refLen := src.header.Refs()[0].Len()
 
 	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
 	if err != nil {
@@ -95,7 +94,7 @@ func getRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trimstart
 
 	if trim {
 		if pad {
-			for i, _ := range seq {
+			for i := range seq {
 				if i < trimstart-1 || i >= trimend {
 					seq[i] = 'N'
 				}
@@ -105,7 +104,5 @@ func getRecord(rawseq []byte, id string, idx int, trim bool, pad bool, trimstart
 		}
 	}
 
-	FR := fasta.Record{ID: id, Description: id, Seq: string(seq), Idx: idx}
-
-	return FR
+	return fasta.Record{ID: id, Description: id, Seq: string(seq), Idx: idx}
 }

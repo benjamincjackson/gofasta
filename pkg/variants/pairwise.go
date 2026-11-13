@@ -5,69 +5,52 @@ import (
 	"strings"
 )
 
+// getIndelsPair finds the insertions and deletions in query relative to ref (an aligned pair, encoded). An
+// insertion is reported at the reference base before it, a deletion at its first missing base; deletions
+// at the start or end of the alignment are not reported.
 func getIndelsPair(ref, query []byte) []Variant {
-
 	var (
-		insOpen   bool
-		insLength int
-		delOpen   bool
-		delRefPos int
-		delLength int
-
-		// refPos is the number of (non-gap) reference bases seen so far, i.e. the
-		// 1-based reference coordinate of the last reference base before this alignment column.
-		// An insertion is reported at the reference base before it, a deletion at its first missing base.
-		refPos    int
-		insRefPos int
+		// the number of reference bases seen so far: the 1-based reference coordinate of the last
+		// reference base before the current alignment column
+		refPos               int
+		insOpen, delOpen     bool
+		insRefPos, insLength int
+		delRefPos, delLength int
 	)
-
 	variants := make([]Variant, 0)
 
 	for pos := range ref {
-		if ref[pos] == 244 { // insertion relative to reference (somewhere in the alignment)
-			if query[pos] == 244 { // insertion is not in this seq
-				continue
-			} else { // insertion is in this seq
-				if insOpen { // not the first position of an insertion
-					insLength++ // we increment the length counter
-				} else { // the first position of an insertion
-					insRefPos = refPos // and the number of reference bases that precede it (its reference coordinate)
-					insLength = 1
-					insOpen = true
+		if ref[pos] == 244 { // a gap in the reference: an insertion, if the query has a base here
+			if query[pos] != 244 {
+				if !insOpen {
+					insRefPos, insLength, insOpen = refPos, 0, true
 				}
+				insLength++
 			}
-		} else { // not an insertion relative to the reference at this position
-			if insOpen { // first base after an insertion, so we need to log the insertion
-				variants = append(variants, Variant{Changetype: "ins", Position: insRefPos, Length: insLength})
-				insOpen = false
-			}
-			if query[pos] == 244 { // deletion in this seq
-				if delOpen { // not the first position of a deletion
-					delLength++ // we increment the length (there is not a deletion in the reference)
-				} else { // the first position of a deletion
-					delRefPos = refPos
-					delLength = 1
-					delOpen = true
-				}
-			} else { // no deletion in this seq
-				if delOpen { // first base after a deletion, so we need to log the deletion
-					if delRefPos != 0 { // (a deletion at the start of the alignment is not reported)
-						variants = append(variants, Variant{Changetype: "del", Position: delRefPos + 1, Length: delLength})
-					}
-					delOpen = false // and reset things
-				}
-			}
-			refPos++ // this alignment column is a reference base
+			continue
 		}
+		if insOpen {
+			variants = append(variants, Variant{Changetype: "ins", Position: insRefPos, Length: insLength})
+			insOpen = false
+		}
+		if query[pos] == 244 { // a deletion
+			if !delOpen {
+				delRefPos, delLength, delOpen = refPos, 0, true
+			}
+			delLength++
+		} else if delOpen {
+			if delRefPos != 0 {
+				variants = append(variants, Variant{Changetype: "del", Position: delRefPos + 1, Length: delLength})
+			}
+			delOpen = false
+		}
+		refPos++
 	}
 
-	// (deletions that abut the end of the alignment are deliberately not reported)
-
-	// catch insertions that abut the end of the alignment
+	// an insertion at the end of the alignment is reported (a deletion is not)
 	if insOpen {
 		variants = append(variants, Variant{Changetype: "ins", Position: insRefPos, Length: insLength})
 	}
-
 	return variants
 }
 

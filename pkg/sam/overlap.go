@@ -1,6 +1,7 @@
 package sam
 
 import (
+	"bytes"
 	"os"
 	"strconv"
 
@@ -24,9 +25,7 @@ func referenceView(r biogosam.Record) []byte {
 		case biogosam.CigarInsertion, biogosam.CigarSoftClipped:
 			q += n
 		case biogosam.CigarDeletion:
-			for i := 0; i < n; i++ {
-				view = append(view, '-')
-			}
+			view = append(view, bytes.Repeat([]byte{'-'}, n)...)
 		case biogosam.CigarSkipped:
 			view = append(view, make([]byte, n)...)
 		}

@@ -14,9 +14,6 @@ import (
 // closestOptions holds the values of the flags of the command newClosestCmd returns
 type closestOptions struct {
 	threads int
-	query   string
-	target  string
-	outfile string
 	n       int
 	dist    string
 	measure string
@@ -104,23 +101,20 @@ between every pair.
 			threads := resolveThreads(o.threads)
 
 			if o.n > 0 || dist != -1.0 {
-				err = closest.ClosestN(o.n, dist, queryIn, targetIn, measure, closestOut, o.table, threads, o.strict)
-			} else {
-				err = closest.Closest(queryIn, targetIn, measure, closestOut, threads, o.strict)
+				return closest.ClosestN(o.n, dist, queryIn, targetIn, measure, closestOut, o.table, threads, o.strict)
 			}
-
-			return err
+			return closest.Closest(queryIn, targetIn, measure, closestOut, threads, o.strict)
 		},
 	}
 
 	addThreadsFlag(c.Flags(), &o.threads)
-	c.Flags().StringVarP(&o.query, "query", "", "", "Alignment of sequences to find neighbours for, in fasta format")
-	c.Flags().StringVarP(&o.target, "target", "", "", "Alignment of sequences to search for neighbours in, in fasta format")
+	c.Flags().String("query", "", "Alignment of sequences to find neighbours for, in fasta format")
+	c.Flags().String("target", "", "Alignment of sequences to search for neighbours in, in fasta format")
 	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
 	c.Flags().IntVarP(&o.n, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
 	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
-	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "The output file to write")
-	c.Flags().BoolVarP(&o.table, "table", "", false, "Write a long-form table of the output")
+	c.Flags().StringP("outfile", "o", "stdout", "The output file to write")
+	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
 
 	addStrictFlag(c, &o.strict)
 	c.MarkFlagRequired("query")

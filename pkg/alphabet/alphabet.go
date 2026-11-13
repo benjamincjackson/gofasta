@@ -4,7 +4,9 @@ package alphabet
 
 import (
 	"errors"
+	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
@@ -38,59 +40,33 @@ func Translate(nuc string, strict bool) (string, error) {
 	return translation.String(), nil
 }
 
+// Complement returns the complement of a nucleotide sequence (IUPAC codes, gaps and '?', in upper or
+// lower case; any other character becomes 0)
 func Complement(nuc string) string {
-	CA := MakeCompArray()
 	ba := make([]byte, len(nuc))
 	for i := 0; i < len(nuc); i++ {
-		ba[i] = CA[nuc[i]]
+		ba[i] = compArrayTable[nuc[i]]
 	}
 	return string(ba)
 }
 
+// ReverseComplement returns the reverse complement of a nucleotide sequence (see Complement)
 func ReverseComplement(nuc string) string {
-	temp := []byte(Complement(nuc))
-	for i, j := 0, len(temp)-1; i < j; i, j = i+1, j-1 {
-		temp[i], temp[j] = temp[j], temp[i]
-	}
-	return string(temp)
+	ba := []byte(Complement(nuc))
+	slices.Reverse(ba)
+	return string(ba)
 }
+
+// complementPairs lists each IUPAC code (and '?' and '-') followed by its complement
+const complementPairs = "ATTAGCCGRYYRSSWWKMMKBVVBDHHDNN??--"
 
 func buildCompArray() [256]byte {
 	var compArray [256]byte
-
-	compArray['A'] = 'T'
-	compArray['a'] = 't'
-	compArray['G'] = 'C'
-	compArray['g'] = 'c'
-	compArray['C'] = 'G'
-	compArray['c'] = 'g'
-	compArray['T'] = 'A'
-	compArray['t'] = 'a'
-	compArray['R'] = 'Y'
-	compArray['r'] = 'y'
-	compArray['Y'] = 'R'
-	compArray['y'] = 'r'
-	compArray['S'] = 'S'
-	compArray['s'] = 's'
-	compArray['W'] = 'W'
-	compArray['w'] = 'w'
-	compArray['K'] = 'M'
-	compArray['k'] = 'm'
-	compArray['M'] = 'K'
-	compArray['m'] = 'k'
-	compArray['B'] = 'V'
-	compArray['b'] = 'v'
-	compArray['V'] = 'B'
-	compArray['v'] = 'b'
-	compArray['D'] = 'H'
-	compArray['d'] = 'h'
-	compArray['H'] = 'D'
-	compArray['h'] = 'd'
-	compArray['N'] = 'N'
-	compArray['n'] = 'n'
-	compArray['?'] = '?'
-	compArray['-'] = '-'
-
+	for i := 0; i < len(complementPairs); i += 2 {
+		c, comp := complementPairs[i], complementPairs[i+1]
+		compArray[c] = comp
+		compArray[unicode.ToLower(rune(c))] = byte(unicode.ToLower(rune(comp)))
+	}
 	return compArray
 }
 
@@ -99,44 +75,15 @@ var compArrayTable = buildCompArray()
 // MakeCompArray returns a copy of the table buildCompArray builds, which is built only once
 func MakeCompArray() [256]byte { return compArrayTable }
 
+// buildEncodedCompArray is buildCompArray's table for nucleotides encoded by encoding.MakeEncodingArray
 func buildEncodedCompArray() [256]byte {
 	var compArray [256]byte
-
 	EA := encoding.MakeEncodingArray()
-
-	compArray[EA['A']] = EA['T']
-	compArray[EA['a']] = EA['t']
-	compArray[EA['G']] = EA['C']
-	compArray[EA['g']] = EA['c']
-	compArray[EA['C']] = EA['G']
-	compArray[EA['c']] = EA['g']
-	compArray[EA['T']] = EA['A']
-	compArray[EA['t']] = EA['a']
-	compArray[EA['R']] = EA['Y']
-	compArray[EA['r']] = EA['y']
-	compArray[EA['Y']] = EA['R']
-	compArray[EA['y']] = EA['r']
-	compArray[EA['S']] = EA['S']
-	compArray[EA['s']] = EA['s']
-	compArray[EA['W']] = EA['W']
-	compArray[EA['w']] = EA['w']
-	compArray[EA['K']] = EA['M']
-	compArray[EA['k']] = EA['m']
-	compArray[EA['M']] = EA['K']
-	compArray[EA['m']] = EA['k']
-	compArray[EA['B']] = EA['V']
-	compArray[EA['b']] = EA['v']
-	compArray[EA['V']] = EA['B']
-	compArray[EA['v']] = EA['b']
-	compArray[EA['D']] = EA['H']
-	compArray[EA['d']] = EA['h']
-	compArray[EA['H']] = EA['D']
-	compArray[EA['h']] = EA['d']
-	compArray[EA['N']] = EA['N']
-	compArray[EA['n']] = EA['n']
-	compArray[EA['?']] = EA['?']
-	compArray[EA['-']] = EA['-']
-
+	for c, comp := range compArrayTable {
+		if comp != 0 {
+			compArray[EA[c]] = EA[comp]
+		}
+	}
 	return compArray
 }
 
@@ -145,193 +92,48 @@ var encodedCompArrayTable = buildEncodedCompArray()
 // MakeEncodedCompArray returns a copy of the table buildEncodedCompArray builds, which is built only once
 func MakeEncodedCompArray() [256]byte { return encodedCompArrayTable }
 
-// MakeCodonDict returns a map from codon (string) to amino acid code (string)
+// standardCode gives the amino acid of each codon of the standard genetic code: codon i has the bases
+// codeBases[i/16], codeBases[i/4%4] and codeBases[i%4]
+const (
+	codeBases    = "TCAG"
+	standardCode = "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG"
+)
+
+// iupacBases gives the bases each IUPAC nucleotide code stands for
+var iupacBases = map[byte]string{
+	'A': "A", 'C': "C", 'G': "G", 'T': "T",
+	'R': "AG", 'Y': "CT", 'S': "CG", 'W': "AT", 'K': "GT", 'M': "AC",
+	'B': "CGT", 'D': "AGT", 'H': "ACT", 'V': "ACG", 'N': "ACGT",
+}
+
+// MakeCodonDict returns a map from codon (string, upper case) to amino acid code (string) for the
+// standard genetic code. A codon with ambiguity codes is in it if every codon it can stand for gives
+// the same amino acid.
 func MakeCodonDict() map[string]string {
-
+	plain := make(map[string]byte, 64)
+	for i := range standardCode {
+		plain[string([]byte{codeBases[i/16], codeBases[i/4%4], codeBases[i%4]})] = standardCode[i]
+	}
 	codonAA := make(map[string]string)
-
-	codonAA["TTT"] = "F"
-	codonAA["TTC"] = "F"
-	codonAA["TTA"] = "L"
-	codonAA["TTG"] = "L"
-	codonAA["TCT"] = "S"
-	codonAA["TCC"] = "S"
-	codonAA["TCA"] = "S"
-	codonAA["TCG"] = "S"
-	codonAA["TAT"] = "Y"
-	codonAA["TAC"] = "Y"
-	codonAA["TAA"] = "*"
-	codonAA["TAG"] = "*"
-	codonAA["TGT"] = "C"
-	codonAA["TGC"] = "C"
-	codonAA["TGA"] = "*"
-	codonAA["TGG"] = "W"
-
-	codonAA["CTT"] = "L"
-	codonAA["CTC"] = "L"
-	codonAA["CTA"] = "L"
-	codonAA["CTG"] = "L"
-	codonAA["CCT"] = "P"
-	codonAA["CCC"] = "P"
-	codonAA["CCA"] = "P"
-	codonAA["CCG"] = "P"
-	codonAA["CAT"] = "H"
-	codonAA["CAC"] = "H"
-	codonAA["CAA"] = "Q"
-	codonAA["CAG"] = "Q"
-	codonAA["CGT"] = "R"
-	codonAA["CGC"] = "R"
-	codonAA["CGA"] = "R"
-	codonAA["CGG"] = "R"
-
-	codonAA["ATT"] = "I"
-	codonAA["ATC"] = "I"
-	codonAA["ATA"] = "I"
-	codonAA["ATG"] = "M"
-	codonAA["ACT"] = "T"
-	codonAA["ACC"] = "T"
-	codonAA["ACA"] = "T"
-	codonAA["ACG"] = "T"
-	codonAA["AAT"] = "N"
-	codonAA["AAC"] = "N"
-	codonAA["AAA"] = "K"
-	codonAA["AAG"] = "K"
-	codonAA["AGT"] = "S"
-	codonAA["AGC"] = "S"
-	codonAA["AGA"] = "R"
-	codonAA["AGG"] = "R"
-
-	codonAA["GTT"] = "V"
-	codonAA["GTC"] = "V"
-	codonAA["GTA"] = "V"
-	codonAA["GTG"] = "V"
-	codonAA["GCT"] = "A"
-	codonAA["GCC"] = "A"
-	codonAA["GCA"] = "A"
-	codonAA["GCG"] = "A"
-	codonAA["GAT"] = "D"
-	codonAA["GAC"] = "D"
-	codonAA["GAA"] = "E"
-	codonAA["GAG"] = "E"
-	codonAA["GGT"] = "G"
-	codonAA["GGC"] = "G"
-	codonAA["GGA"] = "G"
-	codonAA["GGG"] = "G"
-
-	// ambiguities:
-
-	codonAA["AAR"] = "K"
-	codonAA["AAY"] = "N"
-	codonAA["ACR"] = "T"
-	codonAA["ACY"] = "T"
-	codonAA["ACS"] = "T"
-	codonAA["ACW"] = "T"
-	codonAA["ACK"] = "T"
-	codonAA["ACM"] = "T"
-	codonAA["ACB"] = "T"
-	codonAA["ACD"] = "T"
-	codonAA["ACH"] = "T"
-	codonAA["ACV"] = "T"
-	codonAA["ACN"] = "T"
-	codonAA["AGR"] = "R"
-	codonAA["AGY"] = "S"
-	codonAA["ATY"] = "I"
-	codonAA["ATW"] = "I"
-	codonAA["ATM"] = "I"
-	codonAA["ATH"] = "I"
-	codonAA["CAR"] = "Q"
-	codonAA["CAY"] = "H"
-	codonAA["CCR"] = "P"
-	codonAA["CCY"] = "P"
-	codonAA["CCS"] = "P"
-	codonAA["CCW"] = "P"
-	codonAA["CCK"] = "P"
-	codonAA["CCM"] = "P"
-	codonAA["CCB"] = "P"
-	codonAA["CCD"] = "P"
-	codonAA["CCH"] = "P"
-	codonAA["CCV"] = "P"
-	codonAA["CCN"] = "P"
-	codonAA["CGR"] = "R"
-	codonAA["CGY"] = "R"
-	codonAA["CGS"] = "R"
-	codonAA["CGW"] = "R"
-	codonAA["CGK"] = "R"
-	codonAA["CGM"] = "R"
-	codonAA["CGB"] = "R"
-	codonAA["CGD"] = "R"
-	codonAA["CGH"] = "R"
-	codonAA["CGV"] = "R"
-	codonAA["CGN"] = "R"
-	codonAA["CTR"] = "L"
-	codonAA["CTY"] = "L"
-	codonAA["CTS"] = "L"
-	codonAA["CTW"] = "L"
-	codonAA["CTK"] = "L"
-	codonAA["CTM"] = "L"
-	codonAA["CTB"] = "L"
-	codonAA["CTD"] = "L"
-	codonAA["CTH"] = "L"
-	codonAA["CTV"] = "L"
-	codonAA["CTN"] = "L"
-	codonAA["GAR"] = "E"
-	codonAA["GAY"] = "D"
-	codonAA["GCR"] = "A"
-	codonAA["GCY"] = "A"
-	codonAA["GCS"] = "A"
-	codonAA["GCW"] = "A"
-	codonAA["GCK"] = "A"
-	codonAA["GCM"] = "A"
-	codonAA["GCB"] = "A"
-	codonAA["GCD"] = "A"
-	codonAA["GCH"] = "A"
-	codonAA["GCV"] = "A"
-	codonAA["GCN"] = "A"
-	codonAA["GGR"] = "G"
-	codonAA["GGY"] = "G"
-	codonAA["GGS"] = "G"
-	codonAA["GGW"] = "G"
-	codonAA["GGK"] = "G"
-	codonAA["GGM"] = "G"
-	codonAA["GGB"] = "G"
-	codonAA["GGD"] = "G"
-	codonAA["GGH"] = "G"
-	codonAA["GGV"] = "G"
-	codonAA["GGN"] = "G"
-	codonAA["GTR"] = "V"
-	codonAA["GTY"] = "V"
-	codonAA["GTS"] = "V"
-	codonAA["GTW"] = "V"
-	codonAA["GTK"] = "V"
-	codonAA["GTM"] = "V"
-	codonAA["GTB"] = "V"
-	codonAA["GTD"] = "V"
-	codonAA["GTH"] = "V"
-	codonAA["GTV"] = "V"
-	codonAA["GTN"] = "V"
-	codonAA["TAR"] = "*"
-	codonAA["TAY"] = "Y"
-	codonAA["TCR"] = "S"
-	codonAA["TCY"] = "S"
-	codonAA["TCS"] = "S"
-	codonAA["TCW"] = "S"
-	codonAA["TCK"] = "S"
-	codonAA["TCM"] = "S"
-	codonAA["TCB"] = "S"
-	codonAA["TCD"] = "S"
-	codonAA["TCH"] = "S"
-	codonAA["TCV"] = "S"
-	codonAA["TCN"] = "S"
-	codonAA["TGY"] = "C"
-	codonAA["TTR"] = "L"
-	codonAA["TTY"] = "F"
-	codonAA["TRA"] = "*"
-	codonAA["YTA"] = "L"
-	codonAA["YTG"] = "L"
-	codonAA["YTR"] = "L"
-	codonAA["MGA"] = "R"
-	codonAA["MGG"] = "R"
-	codonAA["MGR"] = "R"
-
+	for c1, b1 := range iupacBases {
+		for c2, b2 := range iupacBases {
+			for c3, b3 := range iupacBases {
+				aa := byte(0)
+				unique := true
+				for _, x := range []byte(b1) {
+					for _, y := range []byte(b2) {
+						for _, z := range []byte(b3) {
+							a := plain[string([]byte{x, y, z})]
+							unique = unique && (aa == 0 || a == aa)
+							aa = a
+						}
+					}
+				}
+				if unique {
+					codonAA[string([]byte{c1, c2, c3})] = string(aa)
+				}
+			}
+		}
+	}
 	return codonAA
 }

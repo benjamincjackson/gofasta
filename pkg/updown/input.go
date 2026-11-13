@@ -8,7 +8,7 @@ import (
 	"errors"
 	"io"
 	"os"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -19,58 +19,25 @@ import (
 
 // getAmbArr parses the ambiguities field from one line of the output of gofasta
 // updown list to an array of 1-based inclusive start-stop pairs of integers,
-// which represent tracts of ambiguities
+// which represent tracts of ambiguities. A tract is "start-stop", or "pos" for one site.
 func getAmbArr(s string) ([]int, error) {
-	// if there are no ambiguities:
-	if len(s) == 0 {
-		return make([]int, 0), nil
-	}
-	ambs := strings.Split(s, "|")
 	A := make([]int, 0)
-	for _, a := range ambs {
-		asplit := strings.Split(a, "-")
-		if len(asplit) == 1 {
-			a1, err := strconv.Atoi(asplit[0])
-			if err != nil {
-				return make([]int, 0), errors.New("error parsing ambiguity range from file")
-			}
-			a2, err := strconv.Atoi(asplit[0])
-			if err != nil {
-				return make([]int, 0), errors.New("error parsing ambiguity range from file")
-			}
-			A = append(A, a1)
-			A = append(A, a2)
-		} else if len(asplit) == 2 {
-			a1, err := strconv.Atoi(asplit[0])
-			if err != nil {
-				return make([]int, 0), errors.New("error parsing ambiguity range from file")
-			}
-			a2, err := strconv.Atoi(asplit[1])
-			if err != nil {
-				return make([]int, 0), errors.New("error parsing ambiguity range from file")
-			}
-			A = append(A, a1)
-			A = append(A, a2)
-		} else {
-			return make([]int, 0), errors.New("error parsing ambiguity range from file")
-		}
+	if len(s) == 0 {
+		return A, nil
 	}
-
+	for _, a := range strings.Split(s, "|") {
+		bounds := strings.Split(a, "-")
+		if len(bounds) > 2 {
+			return nil, errors.New("error parsing ambiguity range from file")
+		}
+		start, err1 := strconv.Atoi(bounds[0])
+		stop, err2 := strconv.Atoi(bounds[len(bounds)-1])
+		if err1 != nil || err2 != nil {
+			return nil, errors.New("error parsing ambiguity range from file")
+		}
+		A = append(A, start, stop)
+	}
 	return A, nil
-}
-
-// headerEqual is a utility function to check that two slices of strings are equal. It is used
-// to check the format of the csv-file input to the updown routines
-func headerEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, _ := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // csvRow is one data line of a csv file in the format written by gofasta updown list, and its
@@ -101,7 +68,7 @@ func newCSVSource(in io.Reader, badHeader error) func() (csvRow, error) {
 			return csvRow{}, err
 		}
 		if header {
-			if !headerEqual(record, []string{"query", "SNPs", "ambiguities", "SNPcount", "ambcount"}) {
+			if !slices.Equal(record, strings.Split(listHeader, ",")) {
 				return csvRow{}, badHeader
 			}
 			header = false
@@ -150,11 +117,8 @@ func parseCSVRow(row csvRow) (updownLine, error) {
 		return fail(err)
 	}
 
-	snpsSorted := make([]string, len(snps))
-	copy(snpsSorted, snps)
-	sort.Slice(snpsSorted, func(i, j int) bool {
-		return snpsSorted[i] < snpsSorted[j]
-	})
+	snpsSorted := slices.Clone(snps)
+	slices.Sort(snpsSorted)
 
 	return updownLine{id: record[0], idx: row.idx, snps: snps, snpsSorted: snpsSorted, snpsPos: snpPos, ambs: a, ambCount: amb_count}, nil
 }
@@ -214,7 +178,6 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 		snps      = make([]string, 0)
 		snpPos    = make([]int, 0)
 		ambs      = make([]int, 0) // [1,265,11083,11083,...]: each pair is the 1-based inclusive start/end of a tract of ambiguities
-		snpCount  int
 		ambCount  int
 		amb_start int
 		amb_stop  int
@@ -229,7 +192,6 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 			if (refSeq[i] & que_nuc) < 16 {
 				snps = append(snps, DA[refSeq[i]]+strconv.Itoa(i+1)+DA[que_nuc])
 				snpPos = append(snpPos, i+1)
-				snpCount++
 			}
 			// also need to finalise any previous ambiguity tract
 			if cont {
@@ -254,17 +216,13 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 		ambs = append(ambs, amb_start+1, amb_stop+1)
 	}
 
-	snpsSorted := make([]string, len(snps))
-	copy(snpsSorted, snps)
-	sort.Slice(snpsSorted, func(i, j int) bool {
-		return snpsSorted[i] < snpsSorted[j]
-	})
+	snpsSorted := slices.Clone(snps)
+	slices.Sort(snpsSorted)
 
 	return updownLine{
 		id:         FR.ID,
 		idx:        FR.Idx,
 		snps:       snps,
-		snpCount:   snpCount,
 		snpsPos:    snpPos,
 		ambs:       ambs,
 		ambCount:   ambCount,

@@ -22,7 +22,6 @@ type updownLine struct {
 	snps       []string
 	snpsSorted []string
 	snpsPos    []int
-	snpCount   int
 	ambs       []int //  [1,265,11083,11083,...,...] each pair constitutes the 1-based inclusive start/end positions of a tract of ambiguities
 	ambCount   int   // total number of sites that are not ATGC
 }
@@ -37,7 +36,7 @@ func writeLine(w io.Writer, udLine updownLine) error {
 			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
 		}
 	}
-	_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(udLine.snpCount) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
+	_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(len(udLine.snps)) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
 	return err
 }
 
@@ -60,7 +59,7 @@ func List(reference, alignment io.Reader, out io.Writer, threads int, strict boo
 	// every site in the reference would ideally be ∈ {A,T,G,C}
 	DA := encoding.MakeDecodingArray()
 	for _, nuc := range refSeq {
-		if !(nuc&8 == 8) {
+		if nuc&8 == 0 {
 			fmt.Fprintf(os.Stderr, "Warning: there is at least one ambiguous nucleotide in the --reference sequence: %s. This isn't recommended\n", DA[nuc])
 			break
 		}

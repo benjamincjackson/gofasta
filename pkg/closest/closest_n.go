@@ -5,29 +5,15 @@ import (
 	"io"
 	"math"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 )
 
-// this is defined elsewhere, but for reference:
-// type resultsStruct struct {
-// 	qname string
-// 	qidx int
-// 	tname string
-// 	completeness int64
-// 	distance float64
-// 	snps []string
-// }
-
 // catchmentStruct contains information about the closest sequences to a particular query
 type catchmentStruct struct {
-	qname                string
-	qidx                 int
-	catchment            []resultsStruct
-	furthestDistance     float64 // this is distance for the least close of the current set of neighbours in catchment
-	furthestCompleteness int64   // this is completeness for the least close of the current set of neighbours in catchment
+	qname     string
+	catchment []resultsStruct // once full, sorted (see rearrangeCatchment), so the last is the least close
 }
 
 // rearrangeCatchment sorts a catchmentStruct so that the sequences in its catchment field are in order of
@@ -38,8 +24,6 @@ func rearrangeCatchment(nS *catchmentStruct, catchmentSize int) {
 		return lessDistance(nS.catchment[i].distance, nS.catchment[j].distance) || (nS.catchment[i].distance == nS.catchment[j].distance && nS.catchment[i].completeness > nS.catchment[j].completeness)
 	})
 	nS.catchment = nS.catchment[0:catchmentSize]
-	nS.furthestDistance = nS.catchment[catchmentSize-1].distance
-	nS.furthestCompleteness = nS.catchment[catchmentSize-1].completeness
 }
 
 // consider adds target to the catchment if there is room, or if it is closer than the furthest member
@@ -53,70 +37,49 @@ func (neighbours *catchmentStruct) consider(target fasta.EncodedRecord, distance
 		}
 	}
 	rs := resultsStruct{tname: target.ID, completeness: target.Score, distance: distance}
-	switch {
-	case len(neighbours.catchment) < catchmentSize:
+	if len(neighbours.catchment) < catchmentSize {
 		neighbours.catchment = append(neighbours.catchment, rs)
 		if len(neighbours.catchment) == catchmentSize {
 			rearrangeCatchment(neighbours, catchmentSize)
 		}
-	case lessDistance(distance, neighbours.furthestDistance),
-		distance == neighbours.furthestDistance && target.Score > neighbours.furthestCompleteness:
+		return
+	}
+	furthest := neighbours.catchment[catchmentSize-1]
+	if lessDistance(distance, furthest.distance) || (distance == furthest.distance && target.Score > furthest.completeness) {
 		neighbours.catchment = append(neighbours.catchment, rs)
 		rearrangeCatchment(neighbours, catchmentSize)
 	}
 }
 
-// writeClosestN parses an array of catchmentStructs in order to write them, usually to stdout or file
+// writeClosestN writes each query's neighbours, closest first, on one line
 func writeClosestN(results []catchmentStruct, w io.Writer) error {
-
-	var err error
-
-	_, err = w.Write([]byte("query,closest\n"))
-	if err != nil {
+	if _, err := io.WriteString(w, "query,closest\n"); err != nil {
 		return err
 	}
-
 	for _, result := range results {
-		temp := make([]string, 0)
-		for _, hit := range result.catchment {
-			temp = append(temp, hit.tname)
+		names := make([]string, len(result.catchment))
+		for i, hit := range result.catchment {
+			names[i] = hit.tname
 		}
-		if _, err := w.Write([]byte(result.qname + "," + strings.Join(temp, ";") + "\n")); err != nil {
+		if _, err := io.WriteString(w, result.qname+","+strings.Join(names, ";")+"\n"); err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
+// writeClosestNTable writes one line per query and neighbour, with the distance between them
 func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) error {
-
-	var err error
-
-	_, err = w.Write([]byte("query,target,distance\n"))
-	if err != nil {
+	if _, err := io.WriteString(w, "query,target,distance\n"); err != nil {
 		return err
 	}
-
-	switch measure {
-	case "snp":
-		for _, result := range results {
-			for _, hit := range result.catchment {
-				if _, err := w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.Itoa(int(hit.distance)) + "\n")); err != nil {
-					return err
-				}
-			}
-		}
-	default:
-		for _, result := range results {
-			for _, hit := range result.catchment {
-				if _, err := w.Write([]byte(result.qname + "," + hit.tname + "," + strconv.FormatFloat(hit.distance, 'f', 9, 64) + "\n")); err != nil {
-					return err
-				}
+	for _, result := range results {
+		for _, hit := range result.catchment {
+			if _, err := io.WriteString(w, result.qname+","+hit.tname+","+formatDistance(hit.distance, measure)+"\n"); err != nil {
+				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -124,7 +87,6 @@ func writeClosestNTable(results []catchmentStruct, w io.Writer, measure string) 
 // to stdout or to file. Ties for distance are broken by genome completeness.
 // threads is the number of goroutines that process records (fewer than 1 means 1).
 func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measure string, out io.Writer, table bool, threads int, strict bool) error {
-
 	if catchmentSize < 0 {
 		return errors.New("the number of neighbours to find must not be negative")
 	}
@@ -138,11 +100,9 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 		return err
 	}
 
-	nQ := len(queries)
-
-	QResultsArray := make([]catchmentStruct, nQ)
+	QResultsArray := make([]catchmentStruct, len(queries))
 	for i, q := range queries {
-		QResultsArray[i] = catchmentStruct{qname: q.ID, qidx: q.Idx, catchment: make([]resultsStruct, 0)}
+		QResultsArray[i] = catchmentStruct{qname: q.ID, catchment: make([]resultsStruct, 0)}
 	}
 
 	err = scanTargets(queries, target, measure, threads, strict, func(st scoredTarget) {
@@ -161,15 +121,8 @@ func ClosestN(catchmentSize int, maxdist float64, query, target io.Reader, measu
 		}
 	}
 
-	switch table {
-	case true:
-		err = writeClosestNTable(QResultsArray, out, measure)
-	case false:
-		err = writeClosestN(QResultsArray, out)
+	if table {
+		return writeClosestNTable(QResultsArray, out, measure)
 	}
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return writeClosestN(QResultsArray, out)
 }

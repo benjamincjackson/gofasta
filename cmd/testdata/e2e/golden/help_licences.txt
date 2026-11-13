@@ -1,0 +1,15 @@
+args: licences --help
+exit: 0
+--- stdout
+Print a summary of licence information, or with -l, the full text, including all third-party notices
+
+Usage:
+  gofasta licences [flags]
+
+Aliases:
+  licences, licenses
+
+Flags:
+  -h, --help   help for licences
+  -l, --long   Print the full licence information, including all third-party notices
+--- stderr
