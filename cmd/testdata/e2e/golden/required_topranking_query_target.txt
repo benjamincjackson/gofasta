@@ -6,8 +6,8 @@ Usage:
   gofasta updown topranking [flags]
 
 Flags:
-  -q, --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -t, --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
+      --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
+      --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
   -o, --outfile string           CSV-format file of closest neighbours to write (default "stdout")
       --table                    Write a long-form table of the output
   -r, --reference string         Reference sequence, in fasta format - only required if --query and --target are fasta files

@@ -1,4 +1,4 @@
-args: updown topranking -q target_bad.csv -t target.csv --size-total 4
+args: updown topranking --query target_bad.csv --target target.csv --size-total 4
 exit: 0
 --- stdout
 query,closestsame,closestup,closestdown,closestside

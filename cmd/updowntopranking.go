@@ -45,7 +45,7 @@ func newToprankingCmd(u *updownOptions) *cobra.Command {
 		Long: `Get pseudo-tree-aware catchments for query sequences from alignments
 
 Example usage:
-	gofasta updown topranking -q smallquery.fasta -r WH04.fasta -t mutationlist.csv --size-total 1000 -o catchment.csv
+	gofasta updown topranking --query smallquery.fasta -r WH04.fasta --target mutationlist.csv --size-total 1000 -o catchment.csv
 
 For each sequence in --query, this routine finds the closest sequences by SNP-distance in --target, binned according to
 whether they are likely children, parents, or siblings of, or on a polytomy with, the query sequence. It does this by comparing
@@ -147,8 +147,8 @@ you haven't also invoked --dist-push).
 		},
 	}
 
-	c.Flags().StringVarP(&o.query, "query", "q", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
-	c.Flags().StringVarP(&o.target, "target", "t", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
+	c.Flags().StringVarP(&o.query, "query", "", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
+	c.Flags().StringVarP(&o.target, "target", "", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
 	c.Flags().BoolVarP(&o.table, "table", "", false, "Write a long-form table of the output")
 	c.Flags().StringVarP(&u.reference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")

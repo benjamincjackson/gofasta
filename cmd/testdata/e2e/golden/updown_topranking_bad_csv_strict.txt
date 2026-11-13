@@ -1,4 +1,4 @@
-args: updown topranking -q query.csv -t target_bad.csv --size-total 4 --strict
+args: updown topranking --query query.csv --target target_bad.csv --size-total 4 --strict
 exit: 1
 --- stderr
 Error: bad1 (target 3): error parsing SNP "" from file
