@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
@@ -39,11 +40,12 @@ func (FR Record) encode(hardGaps bool) (EncodedRecord, error) {
 		EA = encoding.MakeEncodingArrayHardGaps()
 	}
 	seq := make([]byte, len(FR.Seq))
-	for i, nuc := range FR.Seq {
-		if nuc > 127 || EA[nuc] == 0 {
-			return EncodedRecord{}, fmt.Errorf("invalid nucleotide in fasta record (\"%c\")", nuc)
+	for i := 0; i < len(FR.Seq); i++ {
+		if seq[i] = EA[FR.Seq[i]]; seq[i] == 0 {
+			// (every byte of a character that is not ASCII is 0 in the table)
+			r, _ := utf8.DecodeRuneInString(FR.Seq[i:])
+			return EncodedRecord{}, fmt.Errorf("invalid nucleotide in fasta record (\"%c\")", r)
 		}
-		seq[i] = EA[nuc]
 	}
 	return EncodedRecord{ID: FR.ID, Description: FR.Description, Seq: seq, Idx: FR.Idx}, nil
 }

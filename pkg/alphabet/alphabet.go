@@ -16,6 +16,33 @@ var ErrorCDSNotModThree error = errors.New("Translation error: Nucleotide sequen
 // codonDict is MakeCodonDict's table, built once and only read
 var codonDict = MakeCodonDict()
 
+// iupacIndex gives each upper-case IUPAC nucleotide code an index from 1 to 15; any other byte is 0
+var iupacIndex = func() (idx [256]uint8) {
+	for i, c := range []byte("ACGTRYSWKMBDHVN") {
+		idx[c] = uint8(i + 1)
+	}
+	return idx
+}()
+
+// codonTable is codonDict indexed by codonKey (4 KiB): the amino acid of each codon, or 0 if it has none
+var codonTable = func() (t [4096]byte) {
+	for codon, aa := range codonDict {
+		t[codonKey(codon[0], codon[1], codon[2])] = aa[0]
+	}
+	return t
+}()
+
+func codonKey(a, b, c byte) int {
+	return int(iupacIndex[a])<<8 | int(iupacIndex[b])<<4 | int(iupacIndex[c])
+}
+
+// TranslateCodon returns the amino acid of a codon of upper-case IUPAC nucleotide codes, as in
+// MakeCodonDict, or 0 if it has none (a codon with any other character, or with ambiguity codes that
+// stand for more than one amino acid). It is a lookup in a small table, without the map's hashing.
+func TranslateCodon(a, b, c byte) byte {
+	return codonTable[codonKey(a, b, c)]
+}
+
 // Translate a nucleotide sequence (in upper or lower case) to a protein sequence
 // Codons with ambiguous nucleotides are resolved if it can only possibly
 // represent one amino acid
@@ -27,11 +54,10 @@ func Translate(nuc string, strict bool) (string, error) {
 	var translation strings.Builder
 	translation.Grow(len(nuc) / 3)
 	for i := 0; i+3 <= len(nuc); i += 3 {
-		codon := nuc[i : i+3]
-		if t, ok := codonDict[codon]; ok {
-			translation.WriteString(t)
+		if aa := TranslateCodon(nuc[i], nuc[i+1], nuc[i+2]); aa != 0 {
+			translation.WriteByte(aa)
 		} else if strict {
-			return "", errors.New("Translation error: Untranslatable codon: " + codon)
+			return "", errors.New("Translation error: Untranslatable codon: " + nuc[i:i+3])
 		} else {
 			translation.WriteByte('X')
 		}

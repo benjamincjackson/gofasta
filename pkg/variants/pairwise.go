@@ -1,8 +1,11 @@
 package variants
 
 import (
+	"encoding/binary"
 	"strconv"
 	"strings"
+
+	"github.com/virus-evolution/gofasta/pkg/alphabet"
 )
 
 // getIndelsPair finds the insertions and deletions in query relative to ref (an aligned pair, encoded). An
@@ -19,7 +22,17 @@ func getIndelsPair(ref, query []byte) []Variant {
 	)
 	variants := make([]Variant, 0)
 
-	for pos := range ref {
+	const gaps = 0xf4f4f4f4f4f4f4f4 // a gap (244) in every byte
+	for pos := 0; pos < len(ref); pos++ {
+		// skip eight columns at a time where neither sequence has a gap and no indel is open
+		for !insOpen && !delOpen && pos+8 <= len(ref) &&
+			zeroBytes(binary.LittleEndian.Uint64(ref[pos:])^gaps) == 0 && zeroBytes(binary.LittleEndian.Uint64(query[pos:])^gaps) == 0 {
+			refPos += 8
+			pos += 8
+		}
+		if pos == len(ref) {
+			break
+		}
 		if ref[pos] == 244 { // a gap in the reference: an insertion, if the query has a base here
 			if query[pos] != 244 {
 				if !insOpen {
@@ -97,18 +110,15 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, skip map
 					codon[i] = compArray[codon[i]]
 				}
 			}
-			aa, ok := codonDict[string(codon[:])]
-			if !ok {
-				aa = "X"
-			}
+			aa := alphabet.TranslateCodon(codon[0], codon[1], codon[2]) // (0 if it has none)
 			refaa := region.Translation[aaCounter : aaCounter+1]
 
-			if aa != refaa && aa != "X" {
+			if aa != 0 && aa != refaa[0] {
 				temp := make([]string, 0, len(codonSNPs))
 				for _, v := range codonSNPs {
 					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position)+v.QueAl)
 				}
-				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: aa, Position: region.Positions[3*aaCounter], Codon: codonPositions(region, aaCounter), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
+				variants = append(variants, Variant{Changetype: "aa", Feature: region.Name, RefAl: refaa, QueAl: string(rune(aa)), Position: region.Positions[3*aaCounter], Codon: codonPositions(region, aaCounter), Residue: aaCounter + 1, SNPs: strings.Join(temp, ";")})
 			} else {
 				variants = append(variants, codonSNPs...)
 			}

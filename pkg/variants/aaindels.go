@@ -26,11 +26,13 @@ type cdsSlot struct {
 func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, buf []cdsSlot) []cdsSlot {
 	// the query's first and last bases: gaps outside them are missing data, not deletions
 	first, last := -1, -1
-	for i, q := range query {
-		if q != 244 {
-			if first < 0 {
-				first = i
-			}
+	for i := 0; i < len(query) && first < 0; i++ {
+		if query[i] != 244 {
+			first = i
+		}
+	}
+	for i := len(query) - 1; i >= 0 && last < 0; i-- {
+		if query[i] != 244 {
 			last = i
 		}
 	}

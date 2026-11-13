@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/csv"
 	"errors"
 	"io"
@@ -184,7 +185,21 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 		cont      bool // in a tract of ambiguities
 	)
 
-	for i, que_nuc := range FR.Seq {
+	const known = 0x0808080808080808 // bit 3 (a known base) in every byte
+	for i := 0; i < len(FR.Seq); i++ {
+		// skip eight sites at a time where the query is the reference, every base known, outside a
+		// tract of ambiguities
+		for !cont && i+8 <= len(FR.Seq) {
+			q := binary.LittleEndian.Uint64(FR.Seq[i:])
+			if q != binary.LittleEndian.Uint64(refSeq[i:]) || q&known != known {
+				break
+			}
+			i += 8
+		}
+		if i == len(FR.Seq) {
+			break
+		}
+		que_nuc := FR.Seq[i]
 
 		// if query nucleotide is a known base
 		if que_nuc&8 == 8 {

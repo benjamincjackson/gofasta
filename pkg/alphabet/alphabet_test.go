@@ -295,3 +295,25 @@ func TestTranslateIgnoresCase(t *testing.T) {
 		t.Errorf("got %q, want MK*", got)
 	}
 }
+
+func TestTranslateCodonMatchesCodonDict(t *testing.T) {
+	dict := MakeCodonDict()
+	chars := make([]byte, 0, 132)
+	for c := 0; c < 128; c++ {
+		chars = append(chars, byte(c))
+	}
+	chars = append(chars, 128, 200, 244, 255)
+	for _, a := range chars {
+		for _, b := range chars {
+			for _, c := range chars {
+				want := byte(0)
+				if aa, ok := dict[string([]byte{a, b, c})]; ok {
+					want = aa[0]
+				}
+				if got := TranslateCodon(a, b, c); got != want {
+					t.Fatalf("TranslateCodon(%q) = %q, want %q", []byte{a, b, c}, got, want)
+				}
+			}
+		}
+	}
+}
