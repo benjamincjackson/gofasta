@@ -3,6 +3,7 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -20,10 +21,21 @@ func resetFlags(t *testing.T, c *cobra.Command) {
 	})
 }
 
-// preRun resets every flag of c to its default, sets the given ones, and runs c's PreRunE. The flags are
-// reset again when the test ends, so later tests see the defaults.
-func preRun(t *testing.T, c *cobra.Command, set map[string]string) error {
+// findCmd returns the command at path (e.g. "sam variants")
+func findCmd(t *testing.T, path string) *cobra.Command {
 	t.Helper()
+	c, _, err := rootCmd.Find(strings.Fields(path))
+	if err != nil || c.CommandPath() != "gofasta "+path {
+		t.Fatalf("no command %q", path)
+	}
+	return c
+}
+
+// preRun resets every flag of the command at path to its default, sets the given ones, and runs its
+// PreRunE. The flags are reset again when the test ends, so later tests see the defaults.
+func preRun(t *testing.T, path string, set map[string]string) error {
+	t.Helper()
+	c := findCmd(t, path)
 	resetFlags(t, c)
 	t.Cleanup(func() { resetFlags(t, c) })
 	for k, v := range set {
@@ -43,72 +55,72 @@ func TestFlagValidation(t *testing.T) {
 	other := filepath.Join(dir, "out.csv")
 
 	type tc struct {
-		c   *cobra.Command
-		set map[string]string
+		path string
+		set  map[string]string
 	}
 
 	bad := []tc{
-		{closestCmd, map[string]string{"threads": "-1"}},
-		{closestCmd, map[string]string{"number": "-3"}},
-		{closestCmd, map[string]string{"query": f, "outfile": f}},
-		{closestCmd, map[string]string{"max-dist": "-1"}},
-		{closestCmd, map[string]string{"max-dist": "-0.5"}},
-		{closestCmd, map[string]string{"max-dist": "nan"}},
-		{closestCmd, map[string]string{"max-dist": "x"}},
-		{snpCmd, map[string]string{"threshold": "-0.5"}},
-		{snpCmd, map[string]string{"reference": f, "outfile": f}},
-		{variantsCmd, map[string]string{"threads": "0"}},
-		{variantsCmd, map[string]string{"threshold": "-0.2"}},
-		{variantsCmd, map[string]string{"msa": f, "outfile": f}},
-		{variantsCmd, map[string]string{"start": "9", "end": "5"}},
-		{samVariantsCmd, map[string]string{"start": "9", "end": "5"}},
-		{samVariantsCmd, map[string]string{"threads": "0"}},
-		{samVariantsCmd, map[string]string{"threshold": "-0.5"}},
-		{samVariantsCmd, map[string]string{"reference": f, "outfile": f}},
-		{toMultiAlignCmd, map[string]string{"samfile": f, "fasta-out": f}},
-		{toPairAlignCmd, map[string]string{"threads": "-1"}},
-		{toprankingCmd, map[string]string{"size-up": "-2"}},
-		{toprankingCmd, map[string]string{"dist-push": "-1"}},
-		{toprankingCmd, map[string]string{"threshold-pair": "-0.1"}},
-		{toprankingCmd, map[string]string{"ignore": f, "outfile": f}},
-		{toprankingCmd, map[string]string{"query": "q.csv", "target": "t.csv"}}, // no --size-* or --dist-*
-		{toprankingCmd, map[string]string{"size-up": "2", "query": "q.txt", "target": "t.csv"}},
-		{toprankingCmd, map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
-		{closestCmd, map[string]string{"measure": "bogus"}},
-		{toMultiAlignCmd, map[string]string{"trim": "true", "start": "5"}},
-		{updownListCmd, map[string]string{"query": f, "outfile": f}},
+		{"closest", map[string]string{"threads": "-1"}},
+		{"closest", map[string]string{"number": "-3"}},
+		{"closest", map[string]string{"query": f, "outfile": f}},
+		{"closest", map[string]string{"max-dist": "-1"}},
+		{"closest", map[string]string{"max-dist": "-0.5"}},
+		{"closest", map[string]string{"max-dist": "nan"}},
+		{"closest", map[string]string{"max-dist": "x"}},
+		{"snps", map[string]string{"threshold": "-0.5"}},
+		{"snps", map[string]string{"reference": f, "outfile": f}},
+		{"variants", map[string]string{"threads": "0"}},
+		{"variants", map[string]string{"threshold": "-0.2"}},
+		{"variants", map[string]string{"msa": f, "outfile": f}},
+		{"variants", map[string]string{"start": "9", "end": "5"}},
+		{"sam variants", map[string]string{"start": "9", "end": "5"}},
+		{"sam variants", map[string]string{"threads": "0"}},
+		{"sam variants", map[string]string{"threshold": "-0.5"}},
+		{"sam variants", map[string]string{"reference": f, "outfile": f}},
+		{"sam toMultiAlign", map[string]string{"samfile": f, "fasta-out": f}},
+		{"sam toPairAlign", map[string]string{"threads": "-1"}},
+		{"updown topranking", map[string]string{"size-up": "-2"}},
+		{"updown topranking", map[string]string{"dist-push": "-1"}},
+		{"updown topranking", map[string]string{"threshold-pair": "-0.1"}},
+		{"updown topranking", map[string]string{"ignore": f, "outfile": f}},
+		{"updown topranking", map[string]string{"query": "q.csv", "target": "t.csv"}}, // no --size-* or --dist-*
+		{"updown topranking", map[string]string{"size-up": "2", "query": "q.txt", "target": "t.csv"}},
+		{"updown topranking", map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
+		{"closest", map[string]string{"measure": "bogus"}},
+		{"sam toMultiAlign", map[string]string{"trim": "true", "start": "5"}},
+		{"updown list", map[string]string{"query": f, "outfile": f}},
 	}
 	for _, b := range bad {
-		if err := preRun(t, b.c, b.set); err == nil {
-			t.Errorf("%s %v: expected an error", b.c.CommandPath(), b.set)
+		if err := preRun(t, b.path, b.set); err == nil {
+			t.Errorf("%s %v: expected an error", b.path, b.set)
 		}
 	}
 
 	good := []tc{
-		{closestCmd, map[string]string{}},
-		{closestCmd, map[string]string{"threads": "0"}},
-		{closestCmd, map[string]string{"number": "5", "table": "true"}},
-		{closestCmd, map[string]string{"table": "true"}}, // ignored without -n/-d
-		{closestCmd, map[string]string{"max-dist": "0"}},
-		{closestCmd, map[string]string{"max-dist": "inf"}},
-		{closestCmd, map[string]string{"query": f, "outfile": other}},
-		{snpCmd, map[string]string{"threshold": "0.5"}},
-		{variantsCmd, map[string]string{"start": "5", "end": "5", "threshold": "0.1"}},
-		{variantsCmd, map[string]string{"start": "5"}},
-		{variantsCmd, map[string]string{"end": "5"}},
-		{samVariantsCmd, map[string]string{"start": "5"}},
-		{variantsCmd, map[string]string{"reference": f, "outfile": f}}, // --reference is a record ID here
-		{samVariantsCmd, map[string]string{"threads": "4", "reference": f, "outfile": other}},
-		{toMultiAlignCmd, map[string]string{}},
-		{toprankingCmd, map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
-		{toprankingCmd, map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
-		{closestCmd, map[string]string{"measure": "TN93"}},
-		{toMultiAlignCmd, map[string]string{"trim": "true", "trimstart": "5"}},
-		{updownListCmd, map[string]string{}},
+		{"closest", map[string]string{}},
+		{"closest", map[string]string{"threads": "0"}},
+		{"closest", map[string]string{"number": "5", "table": "true"}},
+		{"closest", map[string]string{"table": "true"}}, // ignored without -n/-d
+		{"closest", map[string]string{"max-dist": "0"}},
+		{"closest", map[string]string{"max-dist": "inf"}},
+		{"closest", map[string]string{"query": f, "outfile": other}},
+		{"snps", map[string]string{"threshold": "0.5"}},
+		{"variants", map[string]string{"start": "5", "end": "5", "threshold": "0.1"}},
+		{"variants", map[string]string{"start": "5"}},
+		{"variants", map[string]string{"end": "5"}},
+		{"sam variants", map[string]string{"start": "5"}},
+		{"variants", map[string]string{"reference": f, "outfile": f}}, // --reference is a record ID here
+		{"sam variants", map[string]string{"threads": "4", "reference": f, "outfile": other}},
+		{"sam toMultiAlign", map[string]string{}},
+		{"updown topranking", map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
+		{"updown topranking", map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
+		{"closest", map[string]string{"measure": "TN93"}},
+		{"sam toMultiAlign", map[string]string{"trim": "true", "trimstart": "5"}},
+		{"updown list", map[string]string{}},
 	}
 	for _, g := range good {
-		if err := preRun(t, g.c, g.set); err != nil {
-			t.Errorf("%s %v: unexpected error %v", g.c.CommandPath(), g.set, err)
+		if err := preRun(t, g.path, g.set); err != nil {
+			t.Errorf("%s %v: unexpected error %v", g.path, g.set, err)
 		}
 	}
 }

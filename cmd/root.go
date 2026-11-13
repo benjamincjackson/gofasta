@@ -50,6 +50,12 @@ func silenceUsageOnceRunning(c *cobra.Command) {
 
 var silenceUsageOnce sync.Once
 
+// addStrictFlag adds the --strict flag, which each command that skips records it can't process has, to c,
+// setting *strict
+func addStrictFlag(c *cobra.Command, strict *bool) {
+	c.Flags().BoolVar(strict, "strict", false, "Stop with an error at the first record that can't be processed, instead of warning and skipping it")
+}
+
 // Execute executes the root command.
 func Execute() {
 	silenceUsageOnce.Do(func() { silenceUsageOnceRunning(rootCmd) })
