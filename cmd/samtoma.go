@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-
 	"github.com/spf13/cobra"
 
 	"github.com/virus-evolution/gofasta/pkg/gfio"
@@ -11,18 +9,15 @@ import (
 
 // toMultiAlignOptions holds the values of the flags of the command newToMultiAlignCmd returns
 type toMultiAlignOptions struct {
-	outfile   string
-	start     int
-	end       int
-	pad       bool
-	wrap      int
-	trim      bool
-	trimStart int
-	trimEnd   int // --trim, --trimstart and --trimend are hidden, kept for backwards compatibility
-	strict    bool
+	outfile string
+	start   int
+	end     int
+	pad     bool
+	wrap    int
+	strict  bool
 }
 
-// s holds the values of the sam command's flags, which its subcommands share
+// newToMultiAlignCmd builds the sam toMultiAlign command; s holds the sam command's flags, which its subcommands share
 func newToMultiAlignCmd(s *samOptions) *cobra.Command {
 	var o toMultiAlignOptions
 	c := &cobra.Command{
@@ -47,25 +42,9 @@ the fasta file to stdout, e.g.:
 			return firstError(
 				intAtLeast(cmd, 1, "threads"),
 				outputNotInput(cmd, "fasta-out", "samfile", "reference"),
-				trimFlagsErr(&o),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
-
-			/*
-				Start of trimming argument reconciliation to maintain backwards compatibility
-				(trimFlagsErr, from PreRunE, has checked the two sets of flags are not combined)
-			*/
-			if o.trimStart != -1 {
-				o.start = o.trimStart + 1
-			}
-
-			if o.trimEnd != -1 {
-				o.end = o.trimEnd
-			}
-			/*
-				End of trimming argument reconciliation to maintain backwards compatibility
-			*/
 
 			samIn, err := openIn(cmd, "samfile")
 			if err != nil {
@@ -91,29 +70,7 @@ the fasta file to stdout, e.g.:
 	c.Flags().StringVarP(&o.outfile, "fasta-out", "o", "stdout", "Where to write the alignment")
 	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
 
-	c.Flags().BoolVarP(&o.trim, "trim", "", false, "Trim the alignment")
-	c.Flags().IntVarP(&o.trimStart, "trimstart", "", -1, "Start coordinate for trimming (0-based, half open)")
-	c.Flags().IntVarP(&o.trimEnd, "trimend", "", -1, "End coordinate for trimming (0-based, half open)")
-	c.Flags().MarkHidden("trim")
-	c.Flags().MarkHidden("trimstart")
-	c.Flags().MarkHidden("trimend")
-
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false
 	return c
-}
-
-// junk:
-
-// trimFlagsErr checks that the old trimming flags (--trim, --trimstart, --trimend) are not combined
-// with --start and --end, which replace them
-func trimFlagsErr(o *toMultiAlignOptions) error {
-	if (o.trim || o.trimStart != -1 || o.trimEnd != -1) && (o.start != -1 || o.end != -1) {
-		return errors.New(`As of version 1.0.0 --start and --end replace --trim, --trimstart and --trimend 
-The old flags and their behaviour are retained for backwards compatibility, but you shouldn't combine the two sets of flags.
-Note the change of coordinate system if moving from old to new flags.
-
-`)
-	}
-	return nil
 }

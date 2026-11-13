@@ -74,7 +74,6 @@ func TestFlagValidation(t *testing.T) {
 		{"updown topranking", map[string]string{"size-up": "2", "query": "q.txt", "target": "t.csv"}},
 		{"updown topranking", map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
 		{"closest", map[string]string{"measure": "bogus"}},
-		{"sam toMultiAlign", map[string]string{"trim": "true", "start": "5"}},
 		{"updown list", map[string]string{"query": f, "outfile": f}},
 	}
 	for _, b := range bad {
@@ -102,7 +101,6 @@ func TestFlagValidation(t *testing.T) {
 		{"updown topranking", map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
 		{"updown topranking", map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
 		{"closest", map[string]string{"measure": "TN93"}},
-		{"sam toMultiAlign", map[string]string{"trim": "true", "trimstart": "5"}},
 		{"updown list", map[string]string{}},
 	}
 	for _, g := range good {

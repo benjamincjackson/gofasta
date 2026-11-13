@@ -17,7 +17,7 @@ type toPairAlignOptions struct {
 	strict         bool
 }
 
-// s holds the values of the sam command's flags, which its subcommands share
+// newToPairAlignCmd builds the sam toPairAlign command; s holds the sam command's flags, which its subcommands share
 func newToPairAlignCmd(s *samOptions) *cobra.Command {
 	var o toPairAlignOptions
 	c := &cobra.Command{

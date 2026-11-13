@@ -23,7 +23,7 @@ type samVariantsOptions struct {
 	strict     bool
 }
 
-// s holds the values of the sam command's flags, which its subcommands share
+// newSamVariantsCmd builds the sam variants command; s holds the sam command's flags, which its subcommands share
 func newSamVariantsCmd(s *samOptions) *cobra.Command {
 	var o samVariantsOptions
 	c := &cobra.Command{

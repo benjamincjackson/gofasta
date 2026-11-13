@@ -35,7 +35,7 @@ type toprankingOptions struct {
 	strict          bool
 }
 
-// u holds the values of the updown command's flags, which its subcommands share
+// newToprankingCmd builds the updown topranking command; u holds the updown command's flags, which its subcommands share
 func newToprankingCmd(u *updownOptions) *cobra.Command {
 	var o toprankingOptions
 	c := &cobra.Command{
