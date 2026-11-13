@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-	"io"
 
 	"github.com/spf13/cobra"
 
@@ -12,18 +10,17 @@ import (
 
 // variantsOptions holds the values of the flags of the command newVariantsCmd returns
 type variantsOptions struct {
-	msa        string
-	reference  string
-	annotation string
-	outfile    string
-	threads    int
-	aggregate  bool
-	threshold  float64
-	appendSNP  bool
-	start      int
-	end        int
-	genbank    string // the hidden --genbank, kept for backwards compatibility
-	strict     bool
+	msa       string
+	reference string
+	outfile   string
+	threads   int
+	aggregate bool
+	threshold float64
+	appendSNP bool
+	start     int
+	end       int
+	annotationOptions
+	strict bool
 }
 
 func newVariantsCmd() *cobra.Command {
@@ -67,7 +64,9 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				intAtLeast(cmd, 1, "threads"),
 				floatAtLeast(cmd, 0, "threshold"),
 				startNotAfterEnd(cmd),
-				outputNotInput(cmd, "outfile", "msa", "annotation", "genbank"),
+				checkAnnotationFlags(cmd),
+				oneStdin(cmd, "msa", "annotation", "genbank", "gff"),
+				outputNotInput(cmd, "outfile", "msa", "annotation", "genbank", "gff"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -83,27 +82,9 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				stdin = true
 			}
 
-			// some backwards compatibility wrangling of --genbank vs --annotation
-			var anno io.ReadCloser
-			var annoSuffix string
-			if o.genbank != "" {
-				if o.annotation != "" {
-					return errors.New("--annotation replaces --genbank")
-				}
-				anno, err = openIn(cmd, "genbank")
-				if err != nil {
-					return err
-				}
-				annoSuffix = "gb"
-			} else {
-				annoSuffix, err = annotationFormat(o.annotation)
-				if err != nil {
-					return err
-				}
-				anno, err = openIn(cmd, "annotation")
-				if err != nil {
-					return err
-				}
+			anno, annoSuffix, err := o.annotationOptions.open(cmd)
+			if err != nil {
+				return err
 			}
 			defer anno.Close()
 
@@ -121,7 +102,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 
 	c.Flags().StringVarP(&o.msa, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
 	c.Flags().StringVarP(&o.reference, "reference", "r", "", "The ID of the reference record in the msa")
-	c.Flags().StringVarP(&o.annotation, "annotation", "a", "", "GenBank or GFF3 format annotation file. Must have suffix .gb, .gbk, .gbff, .gff or .gff3")
+	addAnnotationFlags(c, &o.annotationOptions)
 	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Name of the file of variants to write")
 	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")
 	c.Flags().IntVarP(&o.end, "end", "", -1, "Only report variants with a reference base at or before this position")
@@ -132,9 +113,6 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 
 	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
 	c.Flags().Lookup("append-snps").NoOptDefVal = "true"
-
-	c.Flags().StringVarP(&o.genbank, "genbank", "", "", "Genbank format annotation")
-	c.Flags().MarkHidden("genbank")
 
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false

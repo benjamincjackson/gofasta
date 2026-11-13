@@ -188,6 +188,11 @@ write("aln_badquery.sam", header + "\n".join(records[:3] + [past_end] + records[
 write("aln_untidy.sam", header + "\n".join(records[:2]) + "\n\n" + "\n".join(records[2:]))
 write("empty.sam", "")
 
+# the annotations under names that don't say their format, for --genbank and --gff
+for src, dst in (("ref.gb", "annotation_gb.txt"), ("ref.gff", "annotation_gff.txt")):
+    with open(os.path.join(out, src)) as fh:
+        write(dst, fh.read())
+
 # gzipped copies, for the cases that read gzipped input (mtime=0 so they are the same on every run)
 for name in ("msa.fasta", "ref.gb", "aln.sam", "query.fasta", "target.fasta", "query.csv", "target.csv"):
     with open(os.path.join(out, name), "rb") as fh:
