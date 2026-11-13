@@ -15,6 +15,7 @@ func TestToMultiAlignCmdTrim(t *testing.T) {
 	toMultiAlignStart := -1
 	toMultiAlignEnd := -1
 	toMultiAlignPad := false
+	toMultiAlignTrim := false
 	toMultiAlignTrimStart := 265
 	toMultiAlignTrimEnd := 29674
 	toMultiAlignWrap := -1
@@ -43,7 +44,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
+	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -79,7 +80,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
+	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -96,6 +97,7 @@ func TestToMultiAlignCmdTrimPad(t *testing.T) {
 	toMultiAlignStart := -1
 	toMultiAlignEnd := -1
 	toMultiAlignPad := true
+	toMultiAlignTrim := false
 	toMultiAlignTrimStart := 265
 	toMultiAlignTrimEnd := 29674
 	toMultiAlignWrap := -1
@@ -124,7 +126,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
+	err = sam.ToMultiAlign(samReader, outWriterOld, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, 1, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -160,7 +162,7 @@ Don't combine them (and note the change of coordinate system if using the new op
 		toMultiAlignEnd = toMultiAlignTrimEnd
 	}
 
-	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, true)
+	err = sam.ToMultiAlign(samReader, outWriterNew, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, 1, true)
 	if err != nil {
 		t.Error(err)
 	}

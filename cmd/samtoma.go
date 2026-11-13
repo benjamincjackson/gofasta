@@ -9,42 +9,27 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/sam"
 )
 
-var toMultiAlignOutfile string
-var toMultiAlignStart int
-var toMultiAlignEnd int
-var toMultiAlignPad bool
-var toMultiAlignWrap int
-
-// junk:
-var toMultiAlignTrim bool
-var toMultiAlignTrimStart int
-var toMultiAlignTrimEnd int
-
-func init() {
-	samCmd.AddCommand(toMultiAlignCmd)
-
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignStart, "start", "", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignEnd, "end", "", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
-	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignPad, "pad", "", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
-	toMultiAlignCmd.Flags().StringVarP(&toMultiAlignOutfile, "fasta-out", "o", "stdout", "Where to write the alignment")
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignWrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
-
-	toMultiAlignCmd.Flags().BoolVarP(&toMultiAlignTrim, "trim", "", false, "Trim the alignment")
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignTrimStart, "trimstart", "", -1, "Start coordinate for trimming (0-based, half open)")
-	toMultiAlignCmd.Flags().IntVarP(&toMultiAlignTrimEnd, "trimend", "", -1, "End coordinate for trimming (0-based, half open)")
-	toMultiAlignCmd.Flags().MarkHidden("trim")
-	toMultiAlignCmd.Flags().MarkHidden("trimstart")
-	toMultiAlignCmd.Flags().MarkHidden("trimend")
-
-	toMultiAlignCmd.Flags().BoolVar(getStrictBoolVarArgs())
-	toMultiAlignCmd.Flags().SortFlags = false
+// toMultiAlignOptions holds the values of the flags of the command newToMultiAlignCmd returns
+type toMultiAlignOptions struct {
+	outfile   string
+	start     int
+	end       int
+	pad       bool
+	wrap      int
+	trim      bool
+	trimStart int
+	trimEnd   int // --trim, --trimstart and --trimend are hidden, kept for backwards compatibility
+	strict    bool
 }
 
-var toMultiAlignCmd = &cobra.Command{
-	Use:     "toMultiAlign",
-	Aliases: []string{"tomultialign", "toma"},
-	Short:   "Convert a SAM file to a multiple alignment in fasta format",
-	Long: `Convert a SAM file to a multiple alignment in fasta format
+// s holds the values of the sam command's flags, which its subcommands share
+func newToMultiAlignCmd(s *samOptions) *cobra.Command {
+	var o toMultiAlignOptions
+	c := &cobra.Command{
+		Use:     "toMultiAlign",
+		Aliases: []string{"tomultialign", "toma"},
+		Short:   "Convert a SAM file to a multiple alignment in fasta format",
+		Long: `Convert a SAM file to a multiple alignment in fasta format
 
 Insertions relative to the reference are omitted, so all sequences in the output are the same ( = reference) length.
 
@@ -58,52 +43,72 @@ If input and output files are not specified, the behaviour is to read the sam fi
 the fasta file to stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
 
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		return firstError(
-			intAtLeast(cmd, 1, "threads"),
-			outputNotInput(cmd, "fasta-out", "samfile", "reference"),
-			trimFlagsErr(),
-		)
-	},
-	RunE: func(cmd *cobra.Command, args []string) (err error) {
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return firstError(
+				intAtLeast(cmd, 1, "threads"),
+				outputNotInput(cmd, "fasta-out", "samfile", "reference"),
+				trimFlagsErr(&o),
+			)
+		},
+		RunE: func(cmd *cobra.Command, args []string) (err error) {
 
-		/*
-			Start of trimming argument reconciliation to maintain backwards compatibility
-			(trimFlagsErr, from PreRunE, has checked the two sets of flags are not combined)
-		*/
-		if toMultiAlignTrimStart != -1 {
-			toMultiAlignStart = toMultiAlignTrimStart + 1
-		}
+			/*
+				Start of trimming argument reconciliation to maintain backwards compatibility
+				(trimFlagsErr, from PreRunE, has checked the two sets of flags are not combined)
+			*/
+			if o.trimStart != -1 {
+				o.start = o.trimStart + 1
+			}
 
-		if toMultiAlignTrimEnd != -1 {
-			toMultiAlignEnd = toMultiAlignTrimEnd
-		}
-		/*
-			End of trimming argument reconciliation to maintain backwards compatibility
-		*/
+			if o.trimEnd != -1 {
+				o.end = o.trimEnd
+			}
+			/*
+				End of trimming argument reconciliation to maintain backwards compatibility
+			*/
 
-		samIn, err := openIn(cmd, "samfile")
-		if err != nil {
-			return err
-		}
-		defer samIn.Close()
+			samIn, err := openIn(cmd, "samfile")
+			if err != nil {
+				return err
+			}
+			defer samIn.Close()
 
-		out, err := openOut(cmd, "fasta-out")
-		if err != nil {
-			return err
-		}
-		defer gfio.CloseOut(out, &err)
+			out, err := openOut(cmd, "fasta-out")
+			if err != nil {
+				return err
+			}
+			defer gfio.CloseOut(out, &err)
 
-		err = sam.ToMultiAlign(samIn, out, toMultiAlignWrap, toMultiAlignStart, toMultiAlignEnd, toMultiAlignPad, samThreads, strict)
+			err = sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, s.threads, o.strict)
 
-		return
-	},
+			return
+		},
+	}
+
+	c.Flags().IntVarP(&o.start, "start", "", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
+	c.Flags().IntVarP(&o.end, "end", "", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
+	c.Flags().BoolVarP(&o.pad, "pad", "", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
+	c.Flags().StringVarP(&o.outfile, "fasta-out", "o", "stdout", "Where to write the alignment")
+	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
+
+	c.Flags().BoolVarP(&o.trim, "trim", "", false, "Trim the alignment")
+	c.Flags().IntVarP(&o.trimStart, "trimstart", "", -1, "Start coordinate for trimming (0-based, half open)")
+	c.Flags().IntVarP(&o.trimEnd, "trimend", "", -1, "End coordinate for trimming (0-based, half open)")
+	c.Flags().MarkHidden("trim")
+	c.Flags().MarkHidden("trimstart")
+	c.Flags().MarkHidden("trimend")
+
+	addStrictFlag(c, &o.strict)
+	c.Flags().SortFlags = false
+	return c
 }
+
+// junk:
 
 // trimFlagsErr checks that the old trimming flags (--trim, --trimstart, --trimend) are not combined
 // with --start and --end, which replace them
-func trimFlagsErr() error {
-	if (toMultiAlignTrim || toMultiAlignTrimStart != -1 || toMultiAlignTrimEnd != -1) && (toMultiAlignStart != -1 || toMultiAlignEnd != -1) {
+func trimFlagsErr(o *toMultiAlignOptions) error {
+	if (o.trim || o.trimStart != -1 || o.trimEnd != -1) && (o.start != -1 || o.end != -1) {
 		return errors.New(`As of version 1.0.0 --start and --end replace --trim, --trimstart and --trimend 
 The old flags and their behaviour are retained for backwards compatibility, but you shouldn't combine the two sets of flags.
 Note the change of coordinate system if moving from old to new flags.
