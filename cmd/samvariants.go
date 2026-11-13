@@ -49,6 +49,8 @@ change that isn't in a codon that is represented by an amino acid change). The f
 	ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
 	del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
 	aa:S:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
+	aa:S:H69- - the amino acid at (1-based) residue 69 in the S gene is an H in the reference and is deleted in this sequence
+	aa:S:214EPE - the amino acids EPE are inserted immediately after (1-based) residue 214 in the S gene in this sequence
 	nuc:C3037T - the nucleotide at (1-based) position 3037 is a C in the reference and a T in this sequence
 
 Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids
