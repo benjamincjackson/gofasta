@@ -6,10 +6,12 @@ package closest
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"math"
+	"math/bits"
 	"os"
 	"runtime"
 	"strconv"
@@ -45,29 +47,66 @@ func lessDistance(a, b float64) bool {
 	return a < b
 }
 
+// The distance measures classify sites without branching (which bases differ is unpredictable, so
+// branches would often be mispredicted), eight sites at a time: the eight bytes are read as one uint64,
+// each test sets the top bit of each byte (lane) where it holds, and the set bits are counted. The tests:
+//   - zeroLanes(x): the lane is 0
+//   - disjoint: the bases certainly differ (they share no base: the high nibble of a&b is 0)
+//   - known: the base is A, C, G or T (bit 3, moved to bit 7)
+// The last len%8 sites are done one at a time, with the same tests on a single byte.
+
+const (
+	lo7  = 0x7f7f7f7f7f7f7f7f
+	hi1  = 0x8080808080808080
+	hiN  = 0xf0f0f0f0f0f0f0f0
+	bit3 = 0x0808080808080808
+	allA = 0xc8c8c8c8c8c8c8c8 // A|G (200) in every lane
+	allY = 0x3838383838383838 // C|T (56) in every lane
+)
+
+// zeroLanes sets the top bit of each byte of x that is 0
+func zeroLanes(x uint64) uint64 { return ^(((x & lo7) + lo7) | x) & hi1 }
+
+func disjointLanes(a, b uint64) uint64 { return zeroLanes(a & b & hiN) }
+
+func knownLanes(a uint64) uint64 { return (a & bit3) << 4 }
+
+// isZero, disjoint and known are the single-site tests, giving 0 or 1
+func isZero(x uint32) uint32 { return (x - 1) >> 31 }
+
+func disjoint(a, b byte) uint32 { return isZero(uint32(a&b) >> 4) }
+
+func known(a byte) uint32 { return uint32(a>>3) & 1 }
+
+// rawDistance is the number of sites where the bases certainly differ per site where they are certainly
+// different or certainly the same
 func rawDistance(query, target fasta.EncodedRecord) float64 {
-	n := 0
-	d := 0
-	for i, tNuc := range target.Seq {
-		if (query.Seq[i] & tNuc) < 16 {
-			n += 1
-			d += 1
-		}
-		if (query.Seq[i]&8 == 8) && query.Seq[i] == tNuc {
-			d += 1
-		}
+	q, t := query.Seq, target.Seq[:len(query.Seq)]
+	var n, same int
+	i := 0
+	for ; i+8 <= len(q); i += 8 {
+		a, b := binary.LittleEndian.Uint64(q[i:]), binary.LittleEndian.Uint64(t[i:])
+		n += bits.OnesCount64(disjointLanes(a, b))
+		same += bits.OnesCount64(knownLanes(a) & zeroLanes(a^b))
 	}
-	distance := float64(n) / float64(d)
-	return distance
+	for ; i < len(q); i++ {
+		a, b := q[i], t[i]
+		n += int(disjoint(a, b))
+		same += int(known(a) & isZero(uint32(a^b)))
+	}
+	return float64(n) / float64(n+same)
 }
 
-// TO DO - have this operate on the lists of snps not the entire sequences
+// snpDistance is the number of sites where the bases certainly differ
 func snpDistance(query, target fasta.EncodedRecord) float64 {
+	q, t := query.Seq, target.Seq[:len(query.Seq)]
 	n := 0
-	for i, tNuc := range target.Seq {
-		if (query.Seq[i] & tNuc) < 16 {
-			n += 1
-		}
+	i := 0
+	for ; i+8 <= len(q); i += 8 {
+		n += bits.OnesCount64(disjointLanes(binary.LittleEndian.Uint64(q[i:]), binary.LittleEndian.Uint64(t[i:])))
+	}
+	for ; i < len(q); i++ {
+		n += int(disjoint(q[i], t[i]))
 	}
 	return float64(n)
 }
@@ -76,6 +115,41 @@ func snpDistance(query, target fasta.EncodedRecord) float64 {
 // Mol Biol Evol. 1993 May;10(3):512-26. doi: 10.1093/oxfordjournals.molbev.a040023. PMID: 8336541.
 // See also ape: https://github.com/cran/ape/blob/c2fd899f66d6493a80484033772a3418e5d706a4/src/dist_dna.c
 func tn93Distance(query, target fasta.EncodedRecord) float64 {
+	count_L, count_d, count_P1, count_P2 := tn93Counts(query.Seq, target.Seq)
+	return tn93FromCounts(query, target, count_L, count_d, count_P1, count_P2)
+}
+
+// tn93Counts returns, over the sites where both bases are known for sure, the number of sites
+// (count_L), of differences (count_d), of A <-> G differences (count_P1) and of C <-> T differences
+// (count_P2)
+func tn93Counts(query, target []byte) (count_L, count_d, count_P1, count_P2 int) {
+	target = target[:len(query)]
+	same := 0
+	i := 0
+	for ; i+8 <= len(query); i += 8 {
+		a, b := binary.LittleEndian.Uint64(query[i:]), binary.LittleEndian.Uint64(target[i:])
+		ka := knownLanes(a)
+		diff := disjointLanes(a, b) & ka & knownLanes(b) // the bases are different (and known for sure)
+		same += bits.OnesCount64(ka & zeroLanes(a^b))    // the bases are certainly the same
+		count_d += bits.OnesCount64(diff)
+		count_P1 += bits.OnesCount64(diff & zeroLanes((a|b)^allA)) // one is adenine and the other guanine
+		count_P2 += bits.OnesCount64(diff & zeroLanes((a|b)^allY)) // one is cytosine and the other thymine
+	}
+	for ; i < len(query); i++ {
+		a, b := query[i], target[i]
+		ka := known(a)
+		diff := disjoint(a, b) & ka & known(b)
+		same += int(ka & isZero(uint32(a^b)))
+		count_d += int(diff)
+		count_P1 += int(diff & isZero(uint32(a|b)^200))
+		count_P2 += int(diff & isZero(uint32(a|b)^56))
+	}
+	return same + count_d, count_d, count_P1, count_P2
+}
+
+// tn93FromCounts is the TN93 distance given the counts from tn93Counts. The base frequencies are
+// those of the two whole sequences.
+func tn93FromCounts(query, target fasta.EncodedRecord, count_L, count_d, count_P1, count_P2 int) float64 {
 
 	// Total ATGC length of the two sequences
 	L := float64(target.Count_A + target.Count_C + target.Count_G + target.Count_T + query.Count_A + query.Count_C + query.Count_G + query.Count_T)
@@ -93,27 +167,6 @@ func tn93Distance(query, target fasta.EncodedRecord) float64 {
 	k1 := 2.0 * g_A * g_G / g_R
 	k2 := 2.0 * g_T * g_C / g_Y
 	k3 := 2.0 * (g_R*g_Y - g_A*g_G*g_Y/g_R - g_T*g_C*g_R/g_Y)
-
-	count_P1 := 0 // count of transitional differences between purines (A ⇄ G)
-	count_P2 := 0 // count of transitional differences between pyramidines (C ⇄ T)
-
-	count_d := 0 // total number of differences
-	count_L := 0 // total length of resolved comparison
-
-	// calculate the three types of change from the pairwise comparison
-	for i, tNuc := range target.Seq {
-		if (query.Seq[i]&tNuc) < 16 && query.Seq[i]&8 == 8 && tNuc&8 == 8 { // are the bases different (and known for sure)
-			count_d++
-			count_L++
-			if (query.Seq[i] | tNuc) == 200 { // 1 if one of the bases is adenine and the other one is guanine, 0 otherwise
-				count_P1++
-			} else if (query.Seq[i] | tNuc) == 56 { // 1 if one of the bases is cytosine and the other one is thymine, 0 otherwise
-				count_P2++
-			}
-		} else if query.Seq[i]&8 == 8 && query.Seq[i] == tNuc { // are the bases certainly the same
-			count_L++
-		}
-	}
 
 	// estimated rates from this pairwise comparison
 	P1 := float64(count_P1) / float64(count_L)                   // rate of changes which are transitional differences between purines (A ⇄ G)
