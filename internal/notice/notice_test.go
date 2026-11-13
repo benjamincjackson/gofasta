@@ -41,3 +41,33 @@ func TestFormatGroupsIdenticalTexts(t *testing.T) {
 		t.Errorf("blocks should be sorted by licence:\n%s", out)
 	}
 }
+
+// Notices that differ only in the Go licence's text (as between Go versions) are the same without it,
+// and the text is returned; other differences remain
+func TestWithoutGoLicence(t *testing.T) {
+	bsd := "Redistribution and use in source and binary forms, with or without modification ... may be used to endorse or promote products derived from this software"
+	make := func(goText, otherText string) string {
+		return format([]component{
+			{name: "a v1 (https://a)", licence: "MIT License", text: otherText},
+			{name: goStdlib, licence: `BSD 3-Clause "New" or "Revised" License`, text: goText},
+		})
+	}
+	go123 := "Copyright (c) 2009 The Go Authors. All rights reserved.\n\n" + bsd
+	go125 := "Copyright 2009 The Go Authors.\n\n" + bsd
+	a, text := WithoutGoLicence(make(go123, "mit"))
+	b, _ := WithoutGoLicence(make(go125, "mit"))
+	if a != b {
+		t.Errorf("notices differing only in the Go licence differ without it:\n%s\n---\n%s", a, b)
+	}
+	if text != go123 {
+		t.Errorf("got the Go licence %q, want %q", text, go123)
+	}
+	// the same when the Go block is last (as in gofasta's NOTICE)
+	last := format([]component{{name: goStdlib, licence: `BSD 3-Clause "New" or "Revised" License`, text: go125}})
+	if _, text := WithoutGoLicence(last); text != go125 {
+		t.Errorf("last block: got the Go licence %q, want %q", text, go125)
+	}
+	if c, _ := WithoutGoLicence(make(go123, "MIT, changed")); c == a {
+		t.Error("a change outside the Go licence was hidden")
+	}
+}

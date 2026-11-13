@@ -16,6 +16,9 @@ import (
 	"strings"
 )
 
+// goStdlib is how NOTICE names the Go standard library
+const goStdlib = "the Go standard library and runtime (https://go.dev)"
+
 // Platforms are the GOOS/GOARCH pairs gofasta is built for: modules compiled in on any of them are
 // included
 var Platforms = [][2]string{{"linux", "amd64"}, {"linux", "arm64"}, {"darwin", "amd64"}, {"darwin", "arm64"}}
@@ -80,7 +83,7 @@ func Generate(dir string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("the Go standard library: %w", err)
 	}
-	components = append(components, component{name: "the Go standard library and runtime (https://go.dev)", licence: licence, text: text})
+	components = append(components, component{name: goStdlib, licence: licence, text: text})
 
 	return format(components), nil
 }
@@ -227,3 +230,34 @@ func format(components []component) string {
 	}
 	return b.String()
 }
+
+// WithoutGoLicence returns notice with the licence text of the Go standard library's block replaced by a
+// placeholder, and that text (without the newlines that end it). The text comes from the Go toolchain that ran the generator, and it differs
+// between Go versions in its copyright line (e.g. "Copyright (c) 2009 The Go Authors. All rights reserved."
+// in Go 1.23, "Copyright 2009 The Go Authors." in Go 1.25), so a check that NOTICE is up to date compares
+// notices without it.
+func WithoutGoLicence(notice string) (string, string) {
+	rule := strings.Repeat("-", 80)
+	user := "\n  " + goStdlib + "\n"
+	i := strings.Index(notice, user)
+	if i < 0 {
+		return notice, ""
+	}
+	// the text starts after the rule that ends the block's header, and runs to the next block's rule
+	start := strings.Index(notice[i:], rule+"\n\n")
+	if start < 0 {
+		return notice, ""
+	}
+	start += i + len(rule) + 2
+	end := strings.Index(notice[start:], "\n"+rule+"\n")
+	if end < 0 {
+		end = len(notice)
+	} else {
+		end += start + 1
+	}
+	text := strings.TrimRight(notice[start:end], "\n")
+	return notice[:start] + "(the Go standard library's licence)" + notice[start+len(text):], text
+}
+
+// Identify names the licence of text (see identify)
+func Identify(text string) (string, error) { return identify(text) }
