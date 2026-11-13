@@ -1,4 +1,0 @@
-args: snps -r ref.fasta -q nosuchfile.fasta
-exit: 1
---- stderr
-Error: open -q / --query nosuchfile.fasta: no such file or directory

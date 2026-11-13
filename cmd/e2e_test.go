@@ -47,21 +47,6 @@ type e2eCase struct {
 }
 
 var e2eCases = []e2eCase{
-	// snps
-	{name: "snps", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta"}},
-	{name: "snps_stdin", args: []string{"snps", "-r", "ref.fasta"}, stdin: "msa.fasta"},
-	{name: "snps_hardgaps", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "--hard-gaps"}},
-	{name: "snps_aggregate", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "--aggregate"}},
-	{name: "snps_aggregate_threshold", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "--aggregate", "--threshold", "0.3"}},
-	{name: "snps_outfile", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "-o", "out.csv"}},
-	{name: "snps_badnuc", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badnuc.fasta"}},
-	{name: "snps_badrow", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta"}},
-	{name: "snps_badnuc_strict", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badnuc.fasta", "--strict"}},
-	{name: "snps_badrow_strict", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta", "--strict"}},
-	{name: "snps_aggregate_badrow", args: []string{"snps", "-r", "ref.fasta", "-q", "msa_badrow.fasta", "--aggregate"}},
-	{name: "snps_all_bad", args: []string{"snps", "-r", "ref_short.fasta", "-q", "msa.fasta"}},
-	{name: "snps_empty", args: []string{"snps", "-r", "ref.fasta", "-q", "empty.fasta"}},
-	{name: "snps_missing_file", args: []string{"snps", "-r", "ref.fasta", "-q", "nosuchfile.fasta"}},
 
 	// variants
 	{name: "variants_gb", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gb"}, threadsFlag: "-t"},
@@ -69,7 +54,6 @@ var e2eCases = []e2eCase{
 	{name: "variants_stdin", args: []string{"variants", "-r", "ref", "-a", "ref.gb"}, stdin: "msa.fasta"},
 	{name: "required_closest_query", args: []string{"closest", "--target", "target.fasta"}},
 	{name: "required_closest_target", args: []string{"closest", "--query", "query.fasta"}},
-	{name: "required_snps_reference", args: []string{"snps", "-q", "query.fasta"}},
 	{name: "required_updown_list_reference", args: []string{"updown", "list", "-q", "query.fasta"}},
 	{name: "required_topranking_query_target", args: []string{"updown", "topranking", "--size-total", "2"}},
 	{name: "required_topa_reference", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-o", "stdout"}},
@@ -84,13 +68,16 @@ var e2eCases = []e2eCase{
 	{name: "variants_two_annotations", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gb", "--gff", "ref.gff"}},
 	{name: "variants_no_annotation", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref"}},
 	{name: "sam_variants_genbank_flag", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "--genbank", "annotation_gb.txt"}},
-	// without an annotation, as snps: compare with the snps cases
+	// without an annotation: nucleotide changes, deletions and insertions only
 	{name: "variants_reference_fasta", args: []string{"variants", "--msa", "msa.fasta", "--reference-fasta", "ref.fasta"}, threadsFlag: "-t"},
 	{name: "variants_reference_fasta_aggregate", args: []string{"variants", "--msa", "msa.fasta", "--reference-fasta", "ref.fasta", "--aggregate"}},
 	{name: "variants_reference_fasta_stdin", args: []string{"variants", "--msa", "msa.fasta", "--reference-fasta", "stdin"}, stdin: "ref.fasta"},
 	{name: "variants_reference_fasta_badrow", args: []string{"variants", "--msa", "msa_badrow.fasta", "--reference-fasta", "ref.fasta"}},
 	{name: "variants_reference_fasta_gb", args: []string{"variants", "--msa", "msa.fasta", "--reference-fasta", "ref.fasta", "-a", "ref.gb"}},
 	{name: "variants_reference_fasta_short_gb", args: []string{"variants", "--msa", "msa.fasta", "--reference-fasta", "ref_short.fasta", "-a", "ref.gb"}},
+	{name: "variants_reference_fasta_all_bad", args: []string{"variants", "--msa", "msa.fasta", "--reference-fasta", "ref_short.fasta"}},
+	{name: "variants_reference_fasta_msa_stdin", args: []string{"variants", "--reference-fasta", "ref.fasta"}, stdin: "msa.fasta"},
+	{name: "snps_removed", args: []string{"snps", "-r", "ref.fasta", "-q", "msa.fasta", "--hard-gaps"}},
 	{name: "variants_reference_both", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "--reference-fasta", "ref.fasta"}},
 	{name: "variants_no_reference", args: []string{"variants", "--msa", "msa.fasta"}},
 	{name: "variants_gb_two_records", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref_tworecords.gb"}},
