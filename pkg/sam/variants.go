@@ -126,7 +126,7 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 		for i, nuc := range pair.ref {
 			pair.ref[i] = EA[nuc]
 		}
-		offsetRefCoord, _ := variants.GetMSAOffsets(pair.ref)
+		offsetRefCoord := variants.RefToMSAOffsets(pair.ref)
 		AS, err := variants.GetVariantsPair(pair.ref, pair.query, pair.refname, pair.queryname, pair.idx, cdsregions, intregions, offsetRefCoord)
 		return AS, pipeline.Named(pair.queryname, err)
 	}

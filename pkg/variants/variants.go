@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
 	"github.com/virus-evolution/gofasta/pkg/encoding"
@@ -586,6 +587,25 @@ func GetMSAOffsets(refseq []byte) ([]int, []int) {
 	}
 
 	return refToMSA, MSAToRef
+}
+
+// zeroOffsets is a slice of zeros shared by RefToMSAOffsets
+var zeroOffsets atomic.Pointer[[]int]
+
+// RefToMSAOffsets returns GetMSAOffsets's first result, refToMSA, without the second. If refseq has no
+// gaps every offset is 0, and the slice returned is shared: callers must not change it.
+func RefToMSAOffsets(refseq []byte) []int {
+	if bytes.IndexByte(refseq, 244) >= 0 {
+		refToMSA, _ := GetMSAOffsets(refseq)
+		return refToMSA
+	}
+	n := len(refseq)
+	if z := zeroOffsets.Load(); z != nil && len(*z) >= n {
+		return (*z)[:n:n]
+	}
+	z := make([]int, n)
+	zeroOffsets.Store(&z)
+	return z
 }
 
 func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int) (AnnoStructs, error) {

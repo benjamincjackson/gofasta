@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/virus-evolution/gofasta/pkg/encoding"
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
@@ -455,5 +456,30 @@ func TestOutsideRangeCodonsAndDeletions(t *testing.T) {
 		if got := outsideRange(c.v, c.start, c.end); got != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
+	}
+}
+
+// RefToMSAOffsets gives GetMSAOffsets's refToMSA, with or without gaps in the reference; the shared
+// zeros for a gapless reference have no spare capacity, so appending to them can't change them
+func TestRefToMSAOffsets(t *testing.T) {
+	EA := encoding.MakeEncodingArray()
+	encode := func(s string) []byte {
+		b := []byte(s)
+		for i := range b {
+			b[i] = EA[b[i]]
+		}
+		return b
+	}
+	for _, s := range []string{"ACGTACGTAC", "ACG--TAC-GT", "ACGTA", "-ACGT-", ""} {
+		want, _ := GetMSAOffsets(encode(s))
+		if got := RefToMSAOffsets(encode(s)); !reflect.DeepEqual(got, want) {
+			t.Errorf("%q: got %v, want %v", s, got, want)
+		}
+	}
+	long := RefToMSAOffsets(encode("ACGTACGTAC"))
+	short := RefToMSAOffsets(encode("ACGT"))
+	_ = append(short, 7)
+	if cap(short) != 4 || long[4] != 0 {
+		t.Errorf("appending to the shared zeros changed them: cap %d, long %v", cap(short), long)
 	}
 }
