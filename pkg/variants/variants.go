@@ -462,8 +462,8 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	}
 
 	r := Region{
-		Name:        f.Info["gene"],
-		Translation: f.Info["translation"] + "*",
+		Name:        f.Value("gene"),
+		Translation: f.Value("translation") + "*",
 	}
 
 	var err error
@@ -472,9 +472,9 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	if err != nil {
 		return Region{}, err
 	}
-	codon_start, err := strconv.Atoi(f.Info["codon_start"])
+	codon_start, err := strconv.Atoi(f.Value("codon_start"))
 	if err != nil || codon_start < 1 || codon_start > 3 || codon_start > len(temp) {
-		return Region{}, errors.New("Genbank CDS feature has an invalid \"codon_start\" attibute: " + f.Info["codon_start"])
+		return Region{}, errors.New("Genbank CDS feature has an invalid \"codon_start\" attibute: " + f.Value("codon_start"))
 	}
 	r.Positions, err = codingPositions(temp, codon_start-1)
 	if err != nil {

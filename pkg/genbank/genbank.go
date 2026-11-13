@@ -12,7 +12,18 @@ import (
 	"unicode/utf8"
 )
 
-var errFeaturesBeforeFeature = errors.New("Error parsing Genbank FEATURES: qualifier before the first feature")
+var (
+	errFeaturesBeforeFeature = errors.New("Error parsing Genbank FEATURES: qualifier before the first feature")
+	errMultipleRecords       = errors.New("Error parsing Genbank file: it has more than one record (only one reference is supported)")
+)
+
+// maxLineLength is the longest line ReadGenBank accepts
+const maxLineLength = 1 << 30
+
+// qualifierIndent is the column (0-based) where the INSDC feature table puts locations and qualifiers;
+// feature keys start at column 5. A line indented less than this that does not start with '/' starts a
+// feature.
+const qualifierIndent = 21
 
 // Genbank is a master struct containing information from a single genbank record
 type Genbank struct {
@@ -55,180 +66,133 @@ type genbankField struct {
 type GenbankFeature struct {
 	Feature  string
 	Location Location
-	Info     map[string]string
+	// Info holds the qualifiers: every value of each, in file order. A qualifier without a value (such
+	// as /pseudo) has the value "". Quoted values are unquoted ("" is a quote); wrapped lines of a quoted
+	// value are joined with a space, except for /translation, where they are joined directly.
+	Info map[string][]string
 }
 
 // True/False a feature contains the given attribute
 func (F *GenbankFeature) HasAttribute(tag string) bool {
-	if _, ok := F.Info[tag]; ok {
-		return true
-	}
-	return false
+	_, ok := F.Info[tag]
+	return ok
 }
 
-// isFeatureLine returns true/false does this line of the file code a new
-// FEATURE (CDS, gene, 5'UTR etc)
-func isFeatureLine(line string, quoteClosed bool) bool {
-
-	if quoteClosed {
-		lineFields := strings.Fields(line)
-		if len(lineFields) == 2 {
-			if lineFields[0][0] != '/' {
-				return true
-			}
-		}
+// Value returns the first value of the given qualifier, or "" if the feature does not have it
+func (F *GenbankFeature) Value(tag string) string {
+	if v := F.Info[tag]; len(v) > 0 {
+		return v[0]
 	}
-
-	return false
+	return ""
 }
 
-// parseGenbankFEATURES gets the FEATURES info from a genbank file
+// parseGenbankFEATURES gets the FEATURES info from a genbank file, following the INSDC feature table
+// layout: a feature key, then its location (which may wrap onto further lines), then its qualifiers
+// (/key, /key=value or /key="value", where a quoted value may wrap onto further lines)
 func parseGenbankFEATURES(field genbankField) ([]GenbankFeature, error) {
-
-	rawLines := field.lines
-
 	features := make([]GenbankFeature, 0)
 
-	quoteClosed := true
-	var feature string
-	var pos string
-	var gb GenbankFeature
-	var keyBuffer []rune
-	var valueBuffer []rune
-	var isKey bool
+	var cur *GenbankFeature
+	var location strings.Builder
+	inLocation := false // the current feature's location may still be continued
 
-	for linecounter, line := range rawLines {
+	var key string
+	var value strings.Builder
+	haveQualifier := false
+	inQuote := false
 
+	// readQuoted adds the text of a quoted value to value, up to its closing quote if there is one
+	readQuoted := func(text string) {
+		for i := 0; i < len(text); i++ {
+			if text[i] != '"' {
+				value.WriteByte(text[i])
+				continue
+			}
+			if i+1 < len(text) && text[i+1] == '"' {
+				value.WriteByte('"')
+				i++
+				continue
+			}
+			inQuote = false
+			return
+		}
+	}
+	endQualifier := func() {
+		if haveQualifier {
+			cur.Info[key] = append(cur.Info[key], value.String())
+		}
+		haveQualifier, inQuote = false, false
+		key = ""
+		value.Reset()
+	}
+	endFeature := func() {
+		endQualifier()
+		if cur != nil {
+			cur.Location = Location{Representation: location.String()}
+			features = append(features, *cur)
+		}
+		cur = nil
+		location.Reset()
+	}
+
+	for _, line := range field.lines {
+		text := strings.TrimSpace(line)
 		// blank (or whitespace-only) lines carry no information
-		if strings.TrimSpace(line) == "" {
+		if text == "" {
 			continue
 		}
 
-		newFeature := isFeatureLine(line, quoteClosed)
+		if inQuote {
+			if key != "translation" && value.Len() > 0 {
+				value.WriteByte(' ')
+			}
+			readQuoted(text)
+			continue
+		}
 
-		if newFeature && linecounter == 0 {
+		indent := len(line) - len(strings.TrimLeft(line, " \t"))
+		switch {
+		case text[0] != '/' && indent < qualifierIndent:
+			endFeature()
+			fields := strings.Fields(text)
+			cur = &GenbankFeature{Feature: fields[0], Info: make(map[string][]string)}
+			location.WriteString(strings.Join(fields[1:], ""))
+			inLocation = true
 
-			lineFields := strings.Fields(line)
-
-			feature = lineFields[0]
-			pos = lineFields[1]
-
-			gb = GenbankFeature{}
-			gb.Feature = feature
-			gb.Location = Location{Representation: pos}
-			gb.Info = make(map[string]string)
-
-			keyBuffer = make([]rune, 0)
-			valueBuffer = make([]rune, 0)
-
-		} else if strings.TrimSpace(line)[0] == '/' && len(keyBuffer) == 0 {
-
-			if gb.Info == nil {
+		case text[0] == '/':
+			if cur == nil {
 				return nil, errFeaturesBeforeFeature
 			}
-
-			keyBuffer = make([]rune, 0)
-			valueBuffer = make([]rune, 0)
-
-			isKey = true
-
-			quoteClosed = true
-
-			for _, character := range strings.TrimSpace(line)[1:] {
-
-				if character == '=' {
-					isKey = false
-					continue
-				}
-
-				if isKey == true {
-					keyBuffer = append(keyBuffer, character)
-				} else {
-					if character == '"' {
-						quoteClosed = !quoteClosed
-						continue
-					}
-					valueBuffer = append(valueBuffer, character)
-				}
+			endQualifier()
+			inLocation = false
+			haveQualifier = true
+			body := text[1:]
+			i := strings.IndexByte(body, '=')
+			if i < 0 {
+				key = body
+				continue
+			}
+			key = body[:i]
+			if v := body[i+1:]; strings.HasPrefix(v, "\"") {
+				inQuote = true
+				readQuoted(v[1:])
+			} else {
+				value.WriteString(v)
 			}
 
-		} else if !quoteClosed {
-
-			for _, character := range strings.TrimSpace(line) {
-				if character == '"' {
-					quoteClosed = !quoteClosed
-					continue
-				}
-
-				valueBuffer = append(valueBuffer, character)
-			}
-
-		} else if strings.TrimSpace(line)[0] == '/' && len(keyBuffer) != 0 {
-
-			quoteClosed = true
-
-			if gb.Info == nil {
+		default:
+			// a continuation line: of the location, or of an unquoted value (e.g. /transl_except)
+			if cur == nil {
 				return nil, errFeaturesBeforeFeature
 			}
-
-			gb.Info[string(keyBuffer)] = string(valueBuffer)
-
-			keyBuffer = make([]rune, 0)
-			valueBuffer = make([]rune, 0)
-
-			isKey = true
-
-			for _, character := range strings.TrimSpace(line)[1:] {
-
-				if character == '=' {
-					isKey = false
-					continue
-				}
-
-				if isKey {
-					keyBuffer = append(keyBuffer, character)
-				} else {
-					if character == '"' {
-						quoteClosed = !quoteClosed
-						continue
-					}
-					valueBuffer = append(valueBuffer, character)
-				}
+			if inLocation {
+				location.WriteString(strings.ReplaceAll(text, " ", ""))
+			} else if haveQualifier {
+				value.WriteString(text)
 			}
-
-		} else if newFeature && linecounter != 0 {
-
-			quoteClosed = true
-
-			if gb.Info == nil {
-				return nil, errFeaturesBeforeFeature
-			}
-
-			gb.Info[string(keyBuffer)] = string(valueBuffer)
-			features = append(features, gb)
-
-			lineFields := strings.Fields(line)
-			feature = lineFields[0]
-			pos = lineFields[1]
-
-			gb = GenbankFeature{}
-			gb.Feature = feature
-			gb.Location = Location{Representation: pos}
-			gb.Info = make(map[string]string)
-
-			keyBuffer = make([]rune, 0)
-			valueBuffer = make([]rune, 0)
 		}
 	}
-
-	if len(keyBuffer) > 0 && len(valueBuffer) > 0 {
-		if gb.Info == nil {
-			return nil, errFeaturesBeforeFeature
-		}
-		gb.Info[string(keyBuffer)] = string(valueBuffer)
-	}
-
-	features = append(features, gb)
+	endFeature()
 
 	return features, nil
 }
@@ -252,67 +216,63 @@ func parseGenbankORIGIN(field genbankField) []byte {
 }
 
 // ReadGenBank reads a genbank annotation file and returns a struct that contains
-// parsed versions of the fields it contains. Not all fields are currently parsed.
+// parsed versions of the fields it contains. Not all fields are currently parsed. The file must hold
+// one record: anything after the record's closing "//" line is an error.
 func ReadGenBank(r io.Reader) (Genbank, error) {
 
 	gb := Genbank{}
 
 	s := bufio.NewScanner(r)
+	s.Buffer(make([]byte, 0, 64*1024), maxLineLength)
 
-	first := true
 	var header string
 	var lines []string
-	var field genbankField
+	ended := false // the record's closing "//" has been read
+
+	parseField := func() error {
+		switch header {
+		case "FEATURES":
+			var err error
+			gb.FEATURES, err = parseGenbankFEATURES(genbankField{header: header, lines: lines})
+			return err
+		case "ORIGIN":
+			gb.ORIGIN = parseGenbankORIGIN(genbankField{header: header, lines: lines})
+		}
+		return nil
+	}
 
 	for s.Scan() {
 		line := s.Text()
 
-		if len(line) == 0 {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if ended {
+			return Genbank{}, errMultipleRecords
+		}
+		if strings.TrimSpace(line) == "//" {
+			ended = true
 			continue
 		}
 
 		r, _ := utf8.DecodeRune([]byte{line[0]})
 
 		if unicode.IsUpper(r) {
-			if first {
-				header = strings.Fields(line)[0]
-				first = false
-				continue
+			if err := parseField(); err != nil {
+				return Genbank{}, err
 			}
-
-			switch {
-			case header == "FEATURES":
-				field = genbankField{header: header, lines: lines}
-				var err error
-				gb.FEATURES, err = parseGenbankFEATURES(field)
-				if err != nil {
-					return Genbank{}, err
-				}
-			case header == "ORIGIN":
-				field = genbankField{header: header, lines: lines}
-				gb.ORIGIN = parseGenbankORIGIN(field)
-			}
-
 			header = strings.Fields(line)[0]
 			lines = make([]string, 0)
-
 			continue
 		}
 
 		lines = append(lines, line)
 	}
-
-	switch {
-	case header == "FEATURES":
-		field = genbankField{header: header, lines: lines}
-		var err error
-		gb.FEATURES, err = parseGenbankFEATURES(field)
-		if err != nil {
-			return Genbank{}, err
-		}
-	case header == "ORIGIN":
-		field = genbankField{header: header, lines: lines}
-		gb.ORIGIN = parseGenbankORIGIN(field)
+	if err := s.Err(); err != nil {
+		return Genbank{}, errors.New("Error reading Genbank file: " + err.Error())
+	}
+	if err := parseField(); err != nil {
+		return Genbank{}, err
 	}
 
 	return gb, nil

@@ -67,6 +67,7 @@ var e2eCases = []e2eCase{
 	{name: "variants_gb", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gb"}, threadsFlag: "-t"},
 	{name: "variants_gff", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gff"}, threadsFlag: "-t"},
 	{name: "variants_stdin", args: []string{"variants", "-r", "ref", "-a", "ref.gb"}, stdin: "msa.fasta"},
+	{name: "variants_gb_two_records", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref_tworecords.gb"}},
 	{name: "variants_append_snps", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gb", "--append-snps"}},
 	{name: "variants_aggregate", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gb", "--aggregate"}, threadsFlag: "-t"},
 	{name: "variants_aggregate_threshold", args: []string{"variants", "--msa", "msa.fasta", "-r", "ref", "-a", "ref.gb", "--aggregate", "--threshold", "0.2", "--append-snps"}},

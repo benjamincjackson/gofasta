@@ -90,6 +90,7 @@ def genbank():
 
 
 write("ref.gb", genbank())
+write("ref_tworecords.gb", genbank() + genbank())
 write("ref.gff", "\n".join([
     "##gff-version 3",
     "##sequence-region ref 1 120",

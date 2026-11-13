@@ -110,7 +110,7 @@ func TestGFFPhaseMatchesGenbankCodonStart(t *testing.T) {
 			gb, err := CDSRegionfromGenbank(genbank.GenbankFeature{
 				Feature:  "CDS",
 				Location: genbank.Location{Representation: loc},
-				Info:     map[string]string{"gene": "g1", "codon_start": string(rune('1' + phase)), "translation": "XXXX"},
+				Info:     map[string][]string{"gene": {"g1"}, "codon_start": {string(rune('1' + phase))}, "translation": {"XXXX"}},
 			})
 			if err != nil {
 				t.Fatalf("%s codon_start %d: %v", tc.strand, phase+1, err)
