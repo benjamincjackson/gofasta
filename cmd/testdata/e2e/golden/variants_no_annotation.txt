@@ -1,23 +1,13 @@
 args: variants --msa msa.fasta -r ref
-exit: 1
+exit: 0
+--- stdout
+query,mutations
+q1,nuc:G5A|nuc:A14G
+q2,nuc:C80T|nuc:A100G
+q3,del:21:3
+q4,nuc:C30R
+q5,nuc:T50C
+q6,nuc:G5A|nuc:A14G
+q7,nuc:A14G|nuc:T40C|nuc:C115T
+q8,
 --- stderr
-Error: give an annotation with one of --annotation, --genbank or --gff
-Usage:
-  gofasta variants [flags]
-
-Flags:
-      --msa string          Multiple sequence alignment in fasta format (default "stdin")
-  -r, --reference string    The ID of the reference record in the msa
-  -a, --annotation string   GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz)
-      --genbank string      GenBank annotation file, whatever it is called (instead of --annotation)
-      --gff string          GFF3 annotation file, whatever it is called (instead of --annotation)
-  -o, --outfile string      Name of the file of variants to write (default "stdout")
-      --start int           Only report variants with a reference base at or after this position (default -1)
-      --end int             Only report variants with a reference base at or before this position (default -1)
-      --aggregate           Report the proportions of each change
-      --threshold float     If --aggregate, only report changes with a freq greater than or equal to this value
-      --append-snps         Report the codon's SNPs in parenthesis after each amino acid mutation
-  -t, --threads int         Number of threads to use (default 1)
-      --strict              Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -h, --help                help for variants
-

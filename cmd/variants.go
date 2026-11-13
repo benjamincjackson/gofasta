@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"io"
 
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"github.com/virus-evolution/gofasta/pkg/variants"
@@ -9,15 +10,16 @@ import (
 
 // variantsOptions holds the values of the flags of the command newVariantsCmd returns
 type variantsOptions struct {
-	msa       string
-	reference string
-	outfile   string
-	threads   int
-	aggregate bool
-	threshold float64
-	appendSNP bool
-	start     int
-	end       int
+	msa            string
+	reference      string
+	referenceFasta string
+	outfile        string
+	threads        int
+	aggregate      bool
+	threshold      float64
+	appendSNP      bool
+	start          int
+	end            int
 	annotationOptions
 	strict bool
 }
@@ -63,9 +65,10 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				intAtLeast(cmd, 1, "threads"),
 				floatAtLeast(cmd, 0, "threshold"),
 				startNotAfterEnd(cmd),
-				checkAnnotationFlags(cmd),
-				oneStdin(cmd, "msa", "annotation", "genbank", "gff"),
-				outputNotInput(cmd, "outfile", "msa", "annotation", "genbank", "gff"),
+				checkAnnotationFlags(cmd, false),
+				referenceFlags(cmd, o.annotationOptions.given(cmd)),
+				oneStdin(cmd, "msa", "reference-fasta", "annotation", "genbank", "gff"),
+				outputNotInput(cmd, "outfile", "msa", "reference-fasta", "annotation", "genbank", "gff"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -81,11 +84,24 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 				stdin = true
 			}
 
-			anno, annoSuffix, err := o.annotationOptions.open(cmd)
-			if err != nil {
-				return err
+			var ref io.ReadCloser // nil unless --reference-fasta
+			if o.referenceFasta != "" {
+				ref, err = openIn(cmd, "reference-fasta")
+				if err != nil {
+					return err
+				}
+				defer ref.Close()
 			}
-			defer anno.Close()
+
+			var anno io.ReadCloser // nil, and annoSuffix "", without an annotation
+			var annoSuffix string
+			if o.annotationOptions.given(cmd) {
+				anno, annoSuffix, err = o.annotationOptions.open(cmd)
+				if err != nil {
+					return err
+				}
+				defer anno.Close()
+			}
 
 			out, err := openOut(cmd, "outfile")
 			if err != nil {
@@ -93,7 +109,11 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = variants.Variants(msa, stdin, o.reference, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.threads, o.strict)
+			var refIn io.Reader // (an untyped nil if there is no --reference-fasta)
+			if ref != nil {
+				refIn = ref
+			}
+			err = variants.Variants(msa, stdin, o.reference, refIn, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.threads, o.strict)
 
 			return
 		},
@@ -101,6 +121,7 @@ Frame-shifting mutations in coding sequence are reported as indels but are ignor
 
 	c.Flags().StringVarP(&o.msa, "msa", "", "stdin", "Multiple sequence alignment in fasta format")
 	c.Flags().StringVarP(&o.reference, "reference", "r", "", "The ID of the reference record in the msa")
+	c.Flags().StringVar(&o.referenceFasta, "reference-fasta", "", "Reference sequence in a fasta file of its own, the same width as the msa (instead of --reference)")
 	addAnnotationFlags(c, &o.annotationOptions)
 	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Name of the file of variants to write")
 	c.Flags().IntVarP(&o.start, "start", "", -1, "Only report variants with a reference base at or after this position")

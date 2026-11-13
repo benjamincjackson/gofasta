@@ -38,7 +38,7 @@ func TestGFFPhaseIsApplied(t *testing.T) {
 	msa := []byte(">q\nGGGGCTCAACCCATTTTTTT\n")
 
 	out := new(bytes.Buffer)
-	err := Variants(bytes.NewReader(msa), false, "", bytes.NewReader(gffText), "gff", out, -1, -1, false, 0.0, false, 1, true)
+	err := Variants(bytes.NewReader(msa), false, "", nil, bytes.NewReader(gffText), "gff", out, -1, -1, false, 0.0, false, 1, true)
 	if err != nil {
 		t.Fatal(err)
 	}

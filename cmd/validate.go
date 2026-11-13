@@ -31,6 +31,20 @@ func inheritedRequired(cmd *cobra.Command, names ...string) error {
 	return nil
 }
 
+// referenceFlags checks variants' reference flags: --reference (a record of the msa) and
+// --reference-fasta can't both be given, and without an annotation (whose own sequence could be the
+// reference) one of them must be
+func referenceFlags(cmd *cobra.Command, annotation bool) error {
+	id, file := cmd.Flags().Changed("reference"), cmd.Flags().Changed("reference-fasta")
+	switch {
+	case id && file:
+		return errors.New("give only one of --reference and --reference-fasta")
+	case !id && !file && !annotation:
+		return errors.New("without an annotation, give the reference with --reference or --reference-fasta")
+	}
+	return nil
+}
+
 // firstError returns the first non-nil error
 func firstError(errs ...error) error {
 	for _, err := range errs {
