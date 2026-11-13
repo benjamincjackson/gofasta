@@ -171,6 +171,8 @@ you haven't also invoked --dist-push).
 	c.Flags().Lookup("no-fill").NoOptDefVal = "true"
 
 	addStrictFlag(c, &o.strict)
+	c.MarkFlagRequired("query")
+	c.MarkFlagRequired("target")
 	c.Flags().SortFlags = false
 	return c
 }

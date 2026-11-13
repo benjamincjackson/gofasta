@@ -34,7 +34,10 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 `,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return outputNotInput(cmd, "outfile", "query", "reference")
+			return firstError(
+				inheritedRequired(cmd, "reference"),
+				outputNotInput(cmd, "outfile", "query", "reference"),
+			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 

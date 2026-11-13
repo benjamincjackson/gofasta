@@ -128,6 +128,8 @@ between every pair.
 	c.Flags().BoolVarP(&o.table, "table", "", false, "Write a long-form table of the output")
 
 	addStrictFlag(c, &o.strict)
+	c.MarkFlagRequired("query")
+	c.MarkFlagRequired("target")
 	c.Flags().SortFlags = false
 	return c
 }

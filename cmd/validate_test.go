@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // findCmd returns the command at path (e.g. "sam variants") in a newly built gofasta command, so its
@@ -20,11 +21,19 @@ func findCmd(t *testing.T, path string) *cobra.Command {
 	return c
 }
 
-// preRun sets the given flags of a new command at path and runs its PreRunE
+// preRun sets the given flags of a new command at path and runs its PreRunE. A flag marked required that
+// is not in set is given a placeholder value, so each case tests only what it sets.
 func preRun(t *testing.T, path string, set map[string]string) error {
 	t.Helper()
 	c := findCmd(t, path)
 	c.InheritedFlags() // merges the parent's persistent flags into c.Flags(), so they can be set
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		if _, ok := set[f.Name]; !ok && len(f.Annotations[cobra.BashCompOneRequiredFlag]) > 0 {
+			if err := c.Flags().Set(f.Name, "required-placeholder"); err != nil {
+				t.Fatalf("setting --%s: %v", f.Name, err)
+			}
+		}
+	})
 	for k, v := range set {
 		if err := c.Flags().Set(k, v); err != nil {
 			t.Fatalf("setting --%s: %v", k, err)
@@ -75,6 +84,8 @@ func TestFlagValidation(t *testing.T) {
 		{"updown topranking", map[string]string{"size-up": "2", "query": "q.fasta", "target": "t.csv"}}, // no --reference
 		{"closest", map[string]string{"measure": "bogus"}},
 		{"updown list", map[string]string{"query": f, "outfile": f}},
+		{"updown list", map[string]string{}},     // no --reference
+		{"sam toPairAlign", map[string]string{}}, // no --reference
 	}
 	for _, b := range bad {
 		if err := preRun(t, b.path, b.set); err == nil {
@@ -101,7 +112,8 @@ func TestFlagValidation(t *testing.T) {
 		{"updown topranking", map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
 		{"updown topranking", map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
 		{"closest", map[string]string{"measure": "TN93"}},
-		{"updown list", map[string]string{}},
+		{"updown list", map[string]string{"reference": f}},
+		{"sam toPairAlign", map[string]string{"reference": f}},
 	}
 	for _, g := range good {
 		if err := preRun(t, g.path, g.set); err != nil {

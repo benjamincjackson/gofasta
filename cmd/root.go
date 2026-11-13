@@ -20,8 +20,28 @@ https://doi.org/10.1093/bioinformatics/btac424`,
 		Version: "1.2.3",
 	}
 	root.AddCommand(newClosestCmd(), newSNPsCmd(), newVariantsCmd(), newSamCmd(), newUpdownCmd(), newLicencesCmd())
+	requiredFlagsFirst(root)
 	silenceUsageOnceRunning(root)
 	return root
+}
+
+// requiredFlagsFirst makes each command with a PreRunE check its required flags (MarkFlagRequired) before
+// the checks in PreRunE: cobra checks them only after PreRunE, so a check there that reads a missing flag
+// would report something less clear than the flag being missing.
+func requiredFlagsFirst(c *cobra.Command) {
+	for _, sub := range c.Commands() {
+		requiredFlagsFirst(sub)
+	}
+	if c.PreRunE == nil {
+		return
+	}
+	pre := c.PreRunE
+	c.PreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := cmd.ValidateRequiredFlags(); err != nil {
+			return err
+		}
+		return pre(cmd, args)
+	}
 }
 
 // silenceUsageOnceRunning makes each command that does the work (one without subcommands) print only the

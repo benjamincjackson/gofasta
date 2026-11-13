@@ -42,7 +42,10 @@ instead, use -o stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toPairAlign -r reference.fasta -o stdout`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			return intAtLeast(cmd, 1, "threads")
+			return firstError(
+				inheritedRequired(cmd, "reference"),
+				intAtLeast(cmd, 1, "threads"),
+			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
 

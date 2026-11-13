@@ -15,6 +15,22 @@ import (
 // The helpers below check the values of flags that the user set (defaults are not checked). Each command calls
 // the ones it needs from its PreRunE, which cobra runs before RunE opens any input or creates any output.
 
+// inheritedRequired checks that each named flag, inherited from the command's parent, was given: flags a
+// command defines itself are marked required with MarkFlagRequired instead (marking a parent's persistent
+// flag would make it required for all its subcommands). The message is cobra's.
+func inheritedRequired(cmd *cobra.Command, names ...string) error {
+	missing := make([]string, 0)
+	for _, name := range names {
+		if !cmd.Flags().Changed(name) {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf(`required flag(s) "%s" not set`, strings.Join(missing, `", "`))
+	}
+	return nil
+}
+
 // firstError returns the first non-nil error
 func firstError(errs ...error) error {
 	for _, err := range errs {

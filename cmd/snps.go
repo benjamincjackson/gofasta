@@ -85,6 +85,7 @@ from stdin and write the snps file to stdout, e.g. you could do this:
 	c.Flags().Lookup("aggregate").NoOptDefVal = "true"
 
 	addStrictFlag(c, &o.strict)
+	c.MarkFlagRequired("reference")
 	c.Flags().SortFlags = false
 	return c
 }
