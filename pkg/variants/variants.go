@@ -148,13 +148,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 
 		// get the reference from the genbank source if required
 		if len(ref.Seq) == 0 {
-			EA := encoding.MakeEncodingArray()
-			encodedrefseq := make([]byte, len(gb.ORIGIN))
-			for i := range gb.ORIGIN {
-				encodedrefseq[i] = EA[gb.ORIGIN[i]]
-			}
-			ref = fasta.EncodedRecord{ID: "annotation_fasta", Seq: encodedrefseq}
-			os.Stderr.WriteString("using --annotation fasta as reference\n")
+			ref = annotationReference(string(gb.ORIGIN))
 		}
 
 		refLenDegapped := len(ref.Decode().Degap().Seq)
@@ -185,20 +179,12 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 			case 0:
 				return errors.New("couldn't find a reference sequence in the --query or the gff")
 			case 1:
-				var encodedrefseq []byte
 				for _, v := range gff.FASTA {
-					encodedrefseq = make([]byte, len(v.Seq))
-					EA := encoding.MakeEncodingArray()
-					for i := range v.Seq {
-						encodedrefseq[i] = EA[v.Seq[i]]
-					}
-					ref = fasta.EncodedRecord{ID: "annotation_fasta", Seq: encodedrefseq}
+					ref = annotationReference(v.Seq)
 				}
-				os.Stderr.WriteString("using --annotation fasta as reference\n")
 			default:
 				return errors.New("more than one sequence in gff ##FASTA section")
 			}
-
 		}
 
 		// get the offsets accounting for insertions relative to the reference
@@ -219,12 +205,10 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 		// file has a ##sequence-region line
 		if len(gff.SequenceRegions) > 1 {
 			return errors.New("more than one sequence-region in gff header")
-		} else if len(gff.SequenceRegions) == 1 {
-			for key := range gff.SequenceRegions {
-				region := key
-				if len(refSeqDegapped) != gff.SequenceRegions[region].End {
-					return errors.New("the degapped reference sequence (" + ref.ID + ") is not the same length as the gff annotation")
-				}
+		}
+		for _, region := range gff.SequenceRegions {
+			if len(refSeqDegapped) != region.End {
+				return errors.New("the degapped reference sequence (" + ref.ID + ") is not the same length as the gff annotation")
 			}
 		}
 
@@ -282,6 +266,18 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 	return nil
 }
 
+// annotationReference is the reference sequence taken from the annotation, encoded (a character that
+// is not IUPAC is encoded as 0, as by the encoding array, not rejected), with a note on stderr
+func annotationReference(seq string) fasta.EncodedRecord {
+	EA := encoding.MakeEncodingArray()
+	encoded := make([]byte, len(seq))
+	for i := range seq {
+		encoded[i] = EA[seq[i]]
+	}
+	os.Stderr.WriteString("using --annotation fasta as reference\n")
+	return fasta.EncodedRecord{ID: "annotation_fasta", Seq: encoded}
+}
+
 // findReference gets the reference sequence from the msa if it is in there. Only the reference itself
 // is checked: the other records are checked when they are processed.
 func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, error) {
@@ -327,7 +323,7 @@ func RegionsFromGFF(anno gff.GFF, refSeqDegapped string) ([]Region, []int, error
 	for _, fs := range groups {
 		r, err := CDSRegionfromGFF(fs, refSeqDegapped)
 		if err != nil {
-			return []Region{}, []int{}, err
+			return nil, nil, err
 		}
 		tempcds = append(tempcds, r)
 	}
@@ -400,11 +396,11 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	}
 	r.Start = slices.Min(r.Positions)
 	r.Stop = slices.Max(r.Positions)
-	refSeqFeat := ""
-	for _, p := range r.Positions {
-		refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
+	feat := make([]byte, len(r.Positions))
+	for i, p := range r.Positions {
+		feat[i] = refSeqDegapped[p-1]
 	}
-	refSeqFeat = strings.ToUpper(refSeqFeat)
+	refSeqFeat := strings.ToUpper(string(feat))
 	if r.Strand == -1 {
 		refSeqFeat = alphabet.Complement(refSeqFeat)
 	}
@@ -447,7 +443,7 @@ func gffFeatureName(f gff.Feature) string {
 func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, error) {
 
 	if refLength < 0 {
-		return []Region{}, []int{}, errors.New("negative reference length")
+		return nil, nil, errors.New("negative reference length")
 	}
 
 	cds := make([]Region, 0)
@@ -455,11 +451,11 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 		if f.Feature == "CDS" {
 			REGION, err := CDSRegionfromGenbank(f)
 			if err != nil {
-				return []Region{}, []int{}, err
+				return nil, nil, err
 			}
 			// every position must lie within the reference
 			if len(REGION.Positions) > 0 && (slices.Min(REGION.Positions) < 1 || slices.Max(REGION.Positions) > refLength) {
-				return []Region{}, []int{}, errors.New("Genbank CDS feature \"" + REGION.Name + "\" is not within the reference sequence (length " + strconv.Itoa(refLength) + ")")
+				return nil, nil, errors.New("Genbank CDS feature \"" + REGION.Name + "\" is not within the reference sequence (length " + strconv.Itoa(refLength) + ")")
 			}
 			cds = append(cds, REGION)
 		}
@@ -489,8 +485,6 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 		Translation: f.Value("translation") + "*",
 	}
 
-	var err error
-
 	temp, err := f.Location.GetPositions()
 	if err != nil {
 		return Region{}, err
@@ -514,10 +508,9 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 	if err != nil {
 		return Region{}, err
 	}
+	r.Strand = 1
 	if reverse {
 		r.Strand = -1
-	} else {
-		r.Strand = 1
 	}
 
 	return r, nil
@@ -580,34 +573,21 @@ func outsideRange(v Variant, start, end int) bool {
 }
 
 // GetMSAOffsets returns two arrays which contain coordinate shifting information that can be used to
-// convert reference to msa coordinates, and vice versa
+// convert reference to msa coordinates, and vice versa: refToMSA, the number of columns to add to each
+// (0-based) reference position, and MSAToRef, the number to subtract from each column (0 for a column
+// that is a gap in the reference)
 func GetMSAOffsets(refseq []byte) ([]int, []int) {
-
-	// get the length of the reference sequence without any gaps
-	degappedLen := 0
-	for _, nuc := range refseq {
-		// if there is no alignment gap at this site, ++
-		if nuc != 244 {
-			degappedLen++
-		}
-	}
-
-	// We get some offsets:
-	// 1) refToMSA = the number of bases to add to convert each reference position to MSA coordinates
-	// 2) MSAToRef = the number of bases to subtract to convert each MSA position to reference coordinates
-	//			   - note that for MSAToRef positions that are gaps in the ref get a 0 in the MSAToRef slice
-	gapsum := 0
-	refToMSA := make([]int, degappedLen)
+	refToMSA := make([]int, 0, len(refseq))
 	MSAToRef := make([]int, len(refseq))
+	gaps := 0
 	for i, nuc := range refseq {
-		if nuc == 244 { // 244 represents a gap ('-')
-			gapsum++
+		if nuc == 244 { // 244 is a gap ('-')
+			gaps++
 			continue
 		}
-		refToMSA[i-gapsum] = gapsum
-		MSAToRef[i] = gapsum
+		refToMSA = append(refToMSA, gaps)
+		MSAToRef[i] = gaps
 	}
-
 	return refToMSA, MSAToRef
 }
 
@@ -632,8 +612,6 @@ func RefToMSAOffsets(refseq []byte) []int {
 
 func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregions []Region, intregions []int, offsetRefCoord []int) (AnnoStructs, error) {
 
-	AS := AnnoStructs{}
-
 	indels := getIndelsPair(ref, query)
 	nucs := getNucsPair(ref, query, intregions, offsetRefCoord)
 	AAs := make([]Variant, 0)
@@ -647,30 +625,14 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, handled)...)
 	}
 
-	variants := make([]Variant, 0)
-	variants = append(variants, indels...)
-	variants = append(variants, nucs...)
-	variants = append(variants, AAs...)
-
-	// sort the variants
+	// (never nil, even with no variants)
+	variants := append(append(append(make([]Variant, 0, len(indels)+len(nucs)+len(AAs)), indels...), nucs...), AAs...)
 	sort.SliceStable(variants, func(i, j int) bool {
 		return variants[i].Position < variants[j].Position || (variants[i].Position == variants[j].Position && variants[i].Changetype < variants[j].Changetype)
 	})
 
-	// there might be dups if there was a snp in the region of a join()
-	// (deletions that abut the start of the sequence are not reported, see getIndelsPair)
-	finalVariants := make([]Variant, 0)
-	for i, v := range variants {
-		if i > 0 && v == variants[i-1] {
-			continue
-		}
-		finalVariants = append(finalVariants, v)
-	}
-
-	// and we're done
-	AS = AnnoStructs{Queryname: queryID, Vs: finalVariants, Idx: idx}
-
-	return AS, nil
+	// there might be duplicates (adjacent, once sorted) if there was a snp in the region of a join()
+	return AnnoStructs{Queryname: queryID, Vs: slices.Compact(variants), Idx: idx}, nil
 }
 
 // FormatVariant returns a string representation of a single mutation, the format
@@ -686,10 +648,9 @@ func FormatVariant(v Variant, appendSNP bool) (string, error) {
 	case "nuc":
 		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position) + v.QueAl
 	case "aa":
+		s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
 		if appendSNP {
-			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl + "(" + v.SNPs + ")"
-		} else {
-			s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
+			s += "(" + v.SNPs + ")"
 		}
 	default:
 		return "", errors.New("couldn't parse variant type")
