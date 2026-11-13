@@ -4,9 +4,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/virus-evolution/gofasta/pkg/alphabet"
-	"github.com/virus-evolution/gofasta/pkg/encoding"
 )
 
 // cdsSlot is one reference base of a CDS, in CDS order, with what the query has there
@@ -21,7 +21,9 @@ type cdsSlot struct {
 
 // cdsSlots lines up the query with each base of a CDS. Insertions are recorded only between two bases
 // of the CDS that are next to each other in the reference.
-func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, DA [256]string) []cdsSlot {
+// Every slot is overwritten, so buf (whose length is ignored) may hold slots from an earlier call; it is
+// grown if it is too small.
+func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, buf []cdsSlot) []cdsSlot {
 	// the query's first and last bases: gaps outside them are missing data, not deletions
 	first, last := -1, -1
 	for i, q := range query {
@@ -34,15 +36,19 @@ func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, DA [256]st
 	}
 
 	col := func(p int) int { return (p - 1) + offsetRefCoord[p-1] }
-	slots := make([]cdsSlot, len(region.Positions))
+	slots := buf[:0]
+	if cap(slots) < len(region.Positions) {
+		slots = make([]cdsSlot, len(region.Positions))
+	}
+	slots = slots[:len(region.Positions)]
 	for k, p := range region.Positions {
 		c := col(p)
-		s := cdsSlot{refPos: p, refBase: DA[ref[c]]}
+		s := cdsSlot{refPos: p, refBase: decodingArray[ref[c]]}
 		switch {
-		case DA[query[c]] == "N":
+		case decodingArray[query[c]] == "N":
 			s.missing = true
 		case query[c] != 244:
-			s.queBase = DA[query[c]]
+			s.queBase = decodingArray[query[c]]
 			s.snp = (query[c] & ref[c]) < 16
 		case c < first || c > last || first < 0:
 			s.missing = true
@@ -52,7 +58,7 @@ func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, DA [256]st
 			var b strings.Builder
 			for i := c + region.Strand; i != next; i += region.Strand {
 				if ref[i] == 244 && query[i] != 244 {
-					b.WriteString(DA[query[i]])
+					b.WriteString(decodingArray[query[i]])
 				}
 			}
 			s.inserted = b.String()
@@ -61,6 +67,9 @@ func cdsSlots(ref, query []byte, region Region, offsetRefCoord []int, DA [256]st
 	}
 	return slots
 }
+
+// slotPool holds slot buffers for cdsSlots, so that a long CDS does not need a new one for each query
+var slotPool = sync.Pool{New: func() any { return new([]cdsSlot) }}
 
 // indelWindow is a group of indels in a CDS together with the codons they touch (0-based codon indices,
 // inclusive)
@@ -106,10 +115,13 @@ func indelWindows(slots []cdsSlot) []indelWindow {
 // here) if they shift the reading frame, come after one that does, run outside the CDS, touch a missing
 // stretch of the query (N, or uncovered ends), or touch the start codon (a first residue M) or the stop codon (a last residue *).
 func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]Variant, map[int]bool) {
-	DA := encoding.MakeDecodingArray()
-	CD := alphabet.MakeCodonDict()
 
-	slots := cdsSlots(ref, query, region, offsetRefCoord, DA)
+	buf := slotPool.Get().(*[]cdsSlot)
+	slots := cdsSlots(ref, query, region, offsetRefCoord, *buf)
+	defer func() {
+		*buf = slots
+		slotPool.Put(buf)
+	}()
 	nCodons := len(slots) / 3
 	handled := make(map[int]bool)
 	variants := make([]Variant, 0)
@@ -187,7 +199,7 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		}
 		qAA := ""
 		for i := 0; i+3 <= len(qNuc); i += 3 {
-			if aa, ok := CD[qNuc[i:i+3]]; ok {
+			if aa, ok := codonDict[qNuc[i:i+3]]; ok {
 				qAA += aa
 			} else {
 				qAA += "X"

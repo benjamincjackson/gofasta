@@ -523,6 +523,25 @@ func codes(proteincoding []Region, refLength int) []int {
 	return intergenicregions
 }
 
+// indelInSpan reports whether one of the indels (from getIndelsPair) touches start..stop: a deletion
+// with a deleted base there, or an insertion after a base there. getIndelAAsPair can only find
+// something in a CDS for which this is true, so it is skipped for the others.
+func indelInSpan(indels []Variant, start, stop int) bool {
+	for _, v := range indels {
+		switch v.Changetype {
+		case "del":
+			if v.Position <= stop && v.Position+v.Length-1 >= start {
+				return true
+			}
+		case "ins":
+			if v.Position >= start && v.Position <= stop {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // outsideRange reports whether a variant has no reference base in start..end: the bases of its codon for
 // an amino acid change, the deleted bases for a deletion, and its position otherwise (for an insertion,
 // the base it follows). A bound that is not > 0 is not applied, so either bound can be used on its own.
@@ -577,8 +596,12 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 	nucs := getNucsPair(ref, query, intregions, offsetRefCoord)
 	AAs := make([]Variant, 0)
 	for _, r := range cdsregions {
-		indelAAs, handled := getIndelAAsPair(ref, query, r, offsetRefCoord)
-		AAs = append(AAs, indelAAs...)
+		var handled map[int]bool
+		if indelInSpan(indels, r.Start, r.Stop) {
+			var indelAAs []Variant
+			indelAAs, handled = getIndelAAsPair(ref, query, r, offsetRefCoord)
+			AAs = append(AAs, indelAAs...)
+		}
 		AAs = append(AAs, getAAsPair(ref, query, r, offsetRefCoord, handled)...)
 	}
 
