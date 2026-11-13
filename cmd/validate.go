@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"math"
 	"os"
 	"path/filepath"
@@ -27,6 +28,20 @@ func inheritedRequired(cmd *cobra.Command, names ...string) error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf(`required flag(s) "%s" not set`, strings.Join(missing, `", "`))
+	}
+	return nil
+}
+
+// referenceFlags checks variants' reference flags: --reference (a fasta file) and --reference-id (a
+// record of the alignment) can't both be given, and without an annotation (whose own sequence could be
+// the reference) one of them must be
+func referenceFlags(cmd *cobra.Command, annotation bool) error {
+	file, id := cmd.Flags().Changed("reference"), cmd.Flags().Changed("reference-id")
+	switch {
+	case id && file:
+		return errors.New("give only one of --reference and --reference-id")
+	case !id && !file && !annotation:
+		return errors.New("without an annotation, give the reference with --reference or --reference-id")
 	}
 	return nil
 }
@@ -133,7 +148,7 @@ func outputNotInput(cmd *cobra.Command, output string, inputs ...string) error {
 // sameFile is true if both are names of the same existing file (stdin/stdout/empty names are never files)
 func sameFile(a, b string) bool {
 	for _, n := range []string{a, b} {
-		if n == "" || n == "stdin" || n == "stdout" {
+		if n == "" || gfio.IsStdin(n) || gfio.IsStdout(n) {
 			return false
 		}
 	}

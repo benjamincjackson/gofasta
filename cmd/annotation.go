@@ -3,7 +3,6 @@ package cmd
 import (
 	"errors"
 	"io"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -25,8 +24,8 @@ func addAnnotationFlags(c *cobra.Command, a *annotationOptions) {
 	c.Flags().StringVar(&a.gff, "gff", "", "GFF3 annotation file, whatever it is called (instead of --annotation)")
 }
 
-// checkAnnotationFlags checks that exactly one annotation flag was given
-func checkAnnotationFlags(cmd *cobra.Command) error {
+// checkAnnotationFlags checks that at most one annotation flag was given, and if required, that one was
+func checkAnnotationFlags(cmd *cobra.Command, required bool) error {
 	given := 0
 	for _, name := range annotationFlagNames {
 		if cmd.Flags().Changed(name) {
@@ -34,7 +33,7 @@ func checkAnnotationFlags(cmd *cobra.Command) error {
 		}
 	}
 	switch {
-	case given == 0:
+	case given == 0 && required:
 		return errors.New("give an annotation with one of --annotation, --genbank or --gff")
 	case given > 1:
 		return errors.New("give only one of --annotation, --genbank and --gff")
@@ -42,8 +41,18 @@ func checkAnnotationFlags(cmd *cobra.Command) error {
 	return nil
 }
 
+// given reports whether an annotation flag was given
+func (a annotationOptions) given(cmd *cobra.Command) bool {
+	for _, name := range annotationFlagNames {
+		if cmd.Flags().Changed(name) {
+			return true
+		}
+	}
+	return false
+}
+
 // open opens the annotation and returns it with its format ("gb" or "gff"); checkAnnotationFlags has
-// checked that exactly one of the flags was given
+// checked that at most one of the flags was given, and given has said that one was
 func (a annotationOptions) open(cmd *cobra.Command) (io.ReadCloser, string, error) {
 	name, format := "annotation", ""
 	switch {
@@ -59,18 +68,4 @@ func (a annotationOptions) open(cmd *cobra.Command) (io.ReadCloser, string, erro
 	}
 	f, err := openIn(cmd, name)
 	return f, format, err
-}
-
-// oneStdin checks that at most one of the named input flags is stdin (its default may be)
-func oneStdin(cmd *cobra.Command, names ...string) error {
-	stdin := make([]string, 0)
-	for _, name := range names {
-		if f := cmd.Flag(name); f != nil && f.Value.String() == "stdin" {
-			stdin = append(stdin, "--"+name)
-		}
-	}
-	if len(stdin) > 1 {
-		return errors.New("only one input can be read from stdin, but " + strings.Join(stdin, " and ") + " are both stdin")
-	}
-	return nil
 }

@@ -1,4 +1,0 @@
-args: snps -r ref.fasta -q empty.fasta
-exit: 1
---- stderr
-Error: empty fasta file

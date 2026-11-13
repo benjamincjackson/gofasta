@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"io"
 	"os"
 	"path"
@@ -391,7 +392,7 @@ func oneFilePerName(sink func(pipeline.Result[alignPair]) error) func(pipeline.R
 
 // ToPairAlign converts a SAM file containing pairwise alignments between assembled genomes into pairwise fasta-format alignments,
 // optionally including the reference sequence and insertions relative to it, optionally trimmed to coordinates in (degapped-)reference space.
-// The alignments are written to stdout if outpath is "stdout", otherwise to one file per query in the directory outpath.
+// The alignments are written to stdout if outpath is "stdout" or "-", otherwise to one file per query in the directory outpath.
 // A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
 func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int, strict bool) error {
 
@@ -419,7 +420,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 	}
 
 	write := func(AP alignPair) error { return writePair(os.Stdout, AP, wrap, omitRef) }
-	if outpath != "stdout" {
+	if !gfio.IsStdout(outpath) {
 		if err := os.MkdirAll(outpath, 0755); err != nil {
 			return err
 		}
@@ -443,7 +444,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 
 	h := pipeline.NewHandler(strict, os.Stderr, queryNoun, write)
 	sink := h.Sink
-	if outpath != "stdout" {
+	if !gfio.IsStdout(outpath) {
 		sink = oneFilePerName(sink)
 	}
 	if err := pipeline.Run(context.Background(), threads, src.next, work, withNotes(src, sink)); err != nil {

@@ -1,4 +1,4 @@
-args: updown topranking -r ref.fasta -q query.fasta -t msa_badrow.fasta --size-total 4
+args: updown topranking -r ref.fasta --query query.fasta --target msa_badrow.fasta --size-total 4
 exit: 0
 --- stdout
 query,closestsame,closestup,closestdown,closestside

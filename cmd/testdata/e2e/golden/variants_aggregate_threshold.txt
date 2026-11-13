@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref -a ref.gb --aggregate --threshold 0.2 --append-snps
+args: variants -q msa.fasta --reference-id ref -a ref.gb --aggregate --threshold 0.2 --append-snps
 exit: 0
 --- stdout
 mutation,frequency

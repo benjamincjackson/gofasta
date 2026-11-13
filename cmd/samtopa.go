@@ -44,7 +44,7 @@ instead, use -o stdout, e.g.:
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				inheritedRequired(cmd, "reference"),
-				intAtLeast(cmd, 1, "threads"),
+				intAtLeast(cmd, 0, "threads"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -61,7 +61,7 @@ instead, use -o stdout, e.g.:
 			}
 			defer ref.Close()
 
-			err = sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, s.threads, o.strict)
+			err = sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(s.threads), o.strict)
 
 			return err
 		},

@@ -63,17 +63,15 @@ func TestFlagValidation(t *testing.T) {
 		{"closest", map[string]string{"max-dist": "-0.5"}},
 		{"closest", map[string]string{"max-dist": "nan"}},
 		{"closest", map[string]string{"max-dist": "x"}},
-		{"snps", map[string]string{"threshold": "-0.5"}},
-		{"snps", map[string]string{"reference": f, "outfile": f}},
-		{"variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
+		{"variants", map[string]string{"threads": "-1", "annotation": "a.gb"}},
 		{"variants", map[string]string{"threshold": "-0.2", "annotation": "a.gb"}},
-		{"variants", map[string]string{"msa": f, "outfile": f, "annotation": "a.gb"}},
+		{"variants", map[string]string{"query": f, "outfile": f, "annotation": "a.gb"}},
 		{"variants", map[string]string{"start": "9", "end": "5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"start": "9", "end": "5", "annotation": "a.gb"}},
-		{"sam variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
+		{"sam variants", map[string]string{"threads": "-1", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"threshold": "-0.5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}},
-		{"sam toMultiAlign", map[string]string{"samfile": f, "fasta-out": f}},
+		{"sam toMultiAlign", map[string]string{"samfile": f, "outfile": f}},
 		{"sam toPairAlign", map[string]string{"threads": "-1"}},
 		{"updown topranking", map[string]string{"size-up": "-2"}},
 		{"updown topranking", map[string]string{"dist-push": "-1"}},
@@ -88,7 +86,7 @@ func TestFlagValidation(t *testing.T) {
 		{"variants", map[string]string{}},    // no annotation
 		{"variants", map[string]string{"annotation": "a.gb", "genbank": "a.gb"}},
 		{"sam variants", map[string]string{"gff": "a.gff", "annotation": "a.gff"}},
-		{"variants", map[string]string{"gff": "stdin"}}, // --msa is stdin too
+		{"variants", map[string]string{"gff": "stdin"}}, // --query is stdin too
 		{"sam variants", map[string]string{"genbank": "stdin", "samfile": "stdin"}},
 		{"sam toPairAlign", map[string]string{}}, // no --reference
 	}
@@ -106,20 +104,23 @@ func TestFlagValidation(t *testing.T) {
 		{"closest", map[string]string{"max-dist": "0"}},
 		{"closest", map[string]string{"max-dist": "inf"}},
 		{"closest", map[string]string{"query": f, "outfile": other}},
-		{"snps", map[string]string{"threshold": "0.5"}},
 		{"variants", map[string]string{"start": "5", "end": "5", "threshold": "0.1", "annotation": "a.gb"}},
 		{"variants", map[string]string{"start": "5", "annotation": "a.gb"}},
 		{"variants", map[string]string{"end": "5", "annotation": "a.gb"}},
 		{"sam variants", map[string]string{"start": "5", "annotation": "a.gb"}},
-		{"variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}}, // --reference is a record ID here
+		{"variants", map[string]string{"reference-id": f, "outfile": f, "annotation": "a.gb"}}, // --reference-id is a record ID, not a file
 		{"sam variants", map[string]string{"threads": "4", "reference": f, "outfile": other, "annotation": "a.gb"}},
 		{"sam toMultiAlign", map[string]string{}},
 		{"updown topranking", map[string]string{"size-up": "2", "threshold-pair": "0.2", "query": "q.csv", "target": "t.csv"}},
 		{"updown topranking", map[string]string{"size-total": "2", "query": "q.fasta", "target": "t.csv", "reference": "r.fasta"}},
 		{"closest", map[string]string{"measure": "TN93"}},
 		{"updown list", map[string]string{"reference": f}},
+		{"updown list", map[string]string{"reference": f, "threads": "0"}},
+		{"updown topranking", map[string]string{"size-up": "2", "query": "q.csv", "target": "t.csv", "threads": "0"}},
+		{"variants", map[string]string{"threads": "0", "annotation": "a.gb"}},
+		{"sam toMultiAlign", map[string]string{"threads": "0"}},
 		{"sam toPairAlign", map[string]string{"reference": f}},
-		{"variants", map[string]string{"msa": f, "gff": "stdin"}},
+		{"variants", map[string]string{"query": f, "gff": "stdin"}},
 		{"variants", map[string]string{"genbank": "annotation.txt"}},
 		{"sam variants", map[string]string{"samfile": f, "gff": "stdin"}},
 	}

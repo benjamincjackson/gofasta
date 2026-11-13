@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"runtime"
 	"strconv"
 	"strings"
 
@@ -45,7 +44,7 @@ func writeLine(w io.Writer, udLine updownLine) error {
 // List gets a list of ATGC SNPs with respect to reference + ambiguous sites for each query sequence in a fasta-format
 // alignment, and writes it to file. A record that can't be processed (an invalid character, or a different
 // length from the reference) is reported on stderr and skipped, unless strict, when it stops the run.
-func List(reference, alignment io.Reader, out io.Writer, strict bool) error {
+func List(reference, alignment io.Reader, out io.Writer, threads int, strict bool) error {
 
 	temp, err := fasta.LoadEncodeAlignment(reference, false, false, false)
 	if err != nil {
@@ -73,7 +72,7 @@ func List(reference, alignment io.Reader, out io.Writer, strict bool) error {
 	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "record", Many: "records"}, func(udL updownLine) error {
 		return writeLine(out, udL)
 	})
-	if err := pipeline.Run(context.Background(), runtime.NumCPU(), fasta.NewRecordSource(alignment), work, h.Sink); err != nil {
+	if err := pipeline.Run(context.Background(), threads, fasta.NewRecordSource(alignment), work, h.Sink); err != nil {
 		return err
 	}
 	return h.Finish()

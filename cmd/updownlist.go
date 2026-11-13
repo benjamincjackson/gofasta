@@ -9,6 +9,7 @@ import (
 
 // updownListOptions holds the values of the flags of the command newUpdownListCmd returns
 type updownListOptions struct {
+	threads int
 	query   string
 	outfile string
 	strict  bool
@@ -36,6 +37,7 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				inheritedRequired(cmd, "reference"),
+				intAtLeast(cmd, 0, "threads"),
 				outputNotInput(cmd, "outfile", "query", "reference"),
 			)
 		},
@@ -59,7 +61,7 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 			}
 			defer gfio.CloseOut(out, &err)
 
-			err = updown.List(ref, query, out, o.strict)
+			err = updown.List(ref, query, out, resolveThreads(o.threads), o.strict)
 
 			return
 		},
@@ -68,6 +70,7 @@ a "|"-delimited list of ranges (1-based, inclusive) of tracts of ambiguities (an
 	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
 	c.Flags().StringVarP(&o.outfile, "outfile", "o", "stdout", "Output to write")
 
+	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false
 	return c

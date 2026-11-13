@@ -1,4 +1,4 @@
-args: updown topranking -r ref.fasta -q query.fasta -t target.fasta --size-up 1 --size-down 1 --size-side 1 --size-same 1 --dist-all 3
+args: updown topranking -r ref.fasta --query query.fasta --target target.fasta --size-up 1 --size-down 1 --size-side 1 --size-same 1 --dist-all 3
 exit: 0
 --- stdout
 query,closestsame,closestup,closestdown,closestside

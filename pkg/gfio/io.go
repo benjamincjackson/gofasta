@@ -25,13 +25,19 @@ func parseInErr(err error, label string) error {
 	}
 }
 
-// OpenIn opens path for reading, or stdin if path is "stdin". Gzipped input (recognised by its first two
+// IsStdin reports whether path means stdin: "stdin" or "-"
+func IsStdin(path string) bool { return path == "stdin" || path == "-" }
+
+// IsStdout reports whether path means stdout: "stdout" or "-"
+func IsStdout(path string) bool { return path == "stdout" || path == "-" }
+
+// OpenIn opens path for reading, or stdin if path is "stdin" or "-". Gzipped input (recognised by its first two
 // bytes, so whatever the file is called) is decompressed as it is read; concatenated gzip members, as
 // bgzip writes, are read as one stream. An uncompressed file is returned as its *os.File; a gzipped file
 // can be moved back to its start with Seek(0, io.SeekStart). An error names label (e.g. the command-line
 // flag that gave the path, such as "-q / --query").
 func OpenIn(path, label string) (io.ReadCloser, error) {
-	if path == "stdin" {
+	if IsStdin(path) {
 		br := bufio.NewReader(os.Stdin)
 		if isGzip(br) {
 			zr, err := gzip.NewReader(br)
@@ -101,9 +107,9 @@ func (g *gzipFile) Seek(offset int64, whence int) (int64, error) {
 	return 0, nil
 }
 
-// OpenOut creates path for writing, or returns stdout if path is "stdout".
+// OpenOut creates path for writing, or returns stdout if path is "stdout" or "-".
 func OpenOut(path string) (*os.File, error) {
-	if path == "stdout" {
+	if IsStdout(path) {
 		return os.Stdout, nil
 	}
 	return os.Create(path)

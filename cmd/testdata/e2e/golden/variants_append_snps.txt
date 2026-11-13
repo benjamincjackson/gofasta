@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref -a ref.gb --append-snps
+args: variants -q msa.fasta --reference-id ref -a ref.gb --append-snps
 exit: 0
 --- stdout
 query,mutations

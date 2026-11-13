@@ -27,8 +27,8 @@ func newSamCmd() *cobra.Command {
 		},
 	}
 
-	c.PersistentFlags().IntVarP(&o.threads, "threads", "t", 1, "Number of threads to use")
-	c.PersistentFlags().StringVarP(&o.file, "samfile", "s", "stdin", "Samfile to read. If none is specified, will read from stdin")
+	addThreadsFlag(c.PersistentFlags(), &o.threads)
+	c.PersistentFlags().StringVarP(&o.file, "samfile", "s", "stdin", "SAM file to read")
 	c.PersistentFlags().StringVarP(&o.reference, "reference", "r", "", "Reference fasta file used to generate the sam file")
 	c.AddCommand(newToMultiAlignCmd(&o), newToPairAlignCmd(&o), newSamVariantsCmd(&o))
 	return c

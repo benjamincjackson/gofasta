@@ -1,4 +1,4 @@
-args: variants -r ref -a ref.gb
+args: variants --reference-id ref -a ref.gb
 stdin: msa_badnuc.fasta
 exit: 0
 --- stdout

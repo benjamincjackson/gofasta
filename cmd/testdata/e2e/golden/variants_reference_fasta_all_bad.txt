@@ -1,0 +1,14 @@
+args: variants -q msa.fasta -r ref_short.fasta
+exit: 1
+--- stderr
+warning: skipping ref (record 1): Gapped reference sequence and alignment are not the same width
+warning: skipping q1 (record 2): Gapped reference sequence and alignment are not the same width
+warning: skipping q2 (record 3): Gapped reference sequence and alignment are not the same width
+warning: skipping q3 (record 4): Gapped reference sequence and alignment are not the same width
+warning: skipping q4 (record 5): Gapped reference sequence and alignment are not the same width
+warning: skipping q5 (record 6): Gapped reference sequence and alignment are not the same width
+warning: skipping q6 (record 7): Gapped reference sequence and alignment are not the same width
+warning: skipping q7 (record 8): Gapped reference sequence and alignment are not the same width
+warning: skipping q8 (record 9): Gapped reference sequence and alignment are not the same width
+warning: skipped 9 of 9 records
+Error: none of the 9 records could be processed

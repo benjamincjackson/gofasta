@@ -1,4 +1,4 @@
-args: variants --msa msa_badrow.fasta -r ref -a ref.gb --strict
+args: variants -q msa_badrow.fasta --reference-id ref -a ref.gb --strict
 exit: 1
 --- stderr
 Error: short (record 4): Gapped reference sequence and alignment are not the same width

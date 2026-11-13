@@ -1,4 +1,4 @@
-args: variants --msa msa_badnuc.fasta -r ref -a ref.gb
+args: variants -q msa_badnuc.fasta --reference-id ref -a ref.gb
 exit: 0
 --- stdout
 query,mutations

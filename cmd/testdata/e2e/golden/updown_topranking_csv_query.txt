@@ -1,4 +1,4 @@
-args: updown topranking -r ref.fasta -q query.csv -t target.fasta --size-total 4
+args: updown topranking -r ref.fasta --query query.csv --target target.fasta --size-total 4
 exit: 0
 --- stdout
 query,closestsame,closestup,closestdown,closestside

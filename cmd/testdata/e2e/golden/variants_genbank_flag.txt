@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref --genbank annotation_gb.txt
+args: variants -q msa.fasta --reference-id ref --genbank annotation_gb.txt
 exit: 0
 --- stdout
 query,mutations

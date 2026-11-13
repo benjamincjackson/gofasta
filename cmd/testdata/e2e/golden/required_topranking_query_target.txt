@@ -6,8 +6,8 @@ Usage:
   gofasta updown topranking [flags]
 
 Flags:
-  -q, --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -t, --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
+      --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
+      --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
   -o, --outfile string           CSV-format file of closest neighbours to write (default "stdout")
       --table                    Write a long-form table of the output
   -r, --reference string         Reference sequence, in fasta format - only required if --query and --target are fasta files
@@ -25,6 +25,7 @@ Flags:
       --threshold-target int     Target can have at most this number of ambiguities to be considered (default 10000)
       --dist-push int            Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible
       --no-fill                  Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins
+  -t, --threads int              Number of threads (and CPUs) to use: 0, the default, for all of them
       --strict                   Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help                     help for topranking
 

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -160,13 +159,13 @@ func parseCSVRow(row csvRow) (updownLine, error) {
 
 // collectQueries runs the query records through a pipeline, reporting the ones that fail on stderr and
 // leaving them out (unless strict, when the first is an error), and returns the others in input order
-func collectQueries[In any](next func() (In, error), work func(In) (updownLine, error), strict bool) ([]updownLine, error) {
+func collectQueries[In any](next func() (In, error), work func(In) (updownLine, error), threads int, strict bool) ([]updownLine, error) {
 	udla := make([]updownLine, 0)
 	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "query", Many: "queries"}, func(udL updownLine) error {
 		udla = append(udla, udL)
 		return nil
 	})
-	if err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, h.Sink); err != nil {
+	if err := pipeline.Run(context.Background(), threads, next, work, h.Sink); err != nil {
 		return nil, err
 	}
 	if err := h.Finish(); err != nil {
@@ -178,18 +177,18 @@ func collectQueries[In any](next func() (In, error), work func(In) (updownLine, 
 // readCSVToUDLList reads a csv file in the format produced by gofasta updown
 // list to an array of updownLine structs, each of which contains the snps and
 // ambiguous positions for one query or target sequence
-func readCSVToUDLList(in io.Reader, strict bool) ([]updownLine, error) {
+func readCSVToUDLList(in io.Reader, threads int, strict bool) ([]updownLine, error) {
 	next := newCSVSource(in, errors.New("bad header when parsing --query csv: is this file the output of gofasta updown list?"))
-	return collectQueries(next, parseCSVRow, strict)
+	return collectQueries(next, parseCSVRow, threads, strict)
 }
 
 // fastaToUDLList converts a fasta format alignment to an array of updownLine
 // structs, given a reference sequence, each of which contains the snps and
 // ambiguous positions for one query or target sequence
-func fastaToUDLList(in io.Reader, refSeq []byte, strict bool) ([]updownLine, error) {
+func fastaToUDLList(in io.Reader, refSeq []byte, threads int, strict bool) ([]updownLine, error) {
 	DA := encoding.MakeDecodingArray()
 	work := func(record fasta.Record) (updownLine, error) { return lineFromRecord(refSeq, record, DA) }
-	return collectQueries(fasta.NewRecordSource(in), work, strict)
+	return collectQueries(fasta.NewRecordSource(in), work, threads, strict)
 }
 
 // lineFromRecord encodes a fasta record and gets its mutation and ambiguity lists

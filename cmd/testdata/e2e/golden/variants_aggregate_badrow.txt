@@ -1,4 +1,4 @@
-args: variants --msa msa_badrow.fasta -r ref -a ref.gb --aggregate
+args: variants -q msa_badrow.fasta --reference-id ref -a ref.gb --aggregate
 exit: 0
 --- stdout
 mutation,frequency

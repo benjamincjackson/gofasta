@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref -a ref.gb --aggregate
+args: variants -q msa.fasta --reference-id ref -a ref.gb --aggregate
 exit: 0
 --- stdout
 mutation,frequency

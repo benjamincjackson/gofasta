@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref -a ref_tworecords.gb
+args: variants -q msa.fasta --reference-id ref -a ref_tworecords.gb
 exit: 1
 --- stderr
 Error: Error parsing Genbank file: it has more than one record (only one reference is supported)

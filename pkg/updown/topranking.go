@@ -13,7 +13,6 @@ import (
 	"io"
 	"math"
 	"os"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -712,7 +711,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
-	threshpair float32, threshtarg int, nofill bool, distpush int, strict bool) error {
+	threshpair float32, threshtarg int, nofill bool, distpush int, threads int, strict bool) error {
 
 	sizeArray, distArray, err := checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush, os.Stderr)
 	if err != nil {
@@ -735,12 +734,12 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 
 	switch q_in_type {
 	case "csv":
-		queries, err = readCSVToUDLList(query, strict)
+		queries, err = readCSVToUDLList(query, threads, strict)
 		if err != nil {
 			return err
 		}
 	case "fasta":
-		queries, err = fastaToUDLList(query, refSeq, strict)
+		queries, err = fastaToUDLList(query, refSeq, threads, strict)
 		if err != nil {
 			return err
 		}
@@ -814,7 +813,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		}
 		return nil
 	})
-	if err := pipeline.Run(context.Background(), runtime.NumCPU(), next, work, h.Sink); err != nil {
+	if err := pipeline.Run(context.Background(), threads, next, work, h.Sink); err != nil {
 		return err
 	}
 	if err := h.Finish(); err != nil {

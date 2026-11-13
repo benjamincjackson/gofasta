@@ -148,14 +148,15 @@ Use `gofasta closest` to find the closest neighbours by traditional genetic dist
 ```
 ❯ gofasta closest --help | sed -n '/Flags/,$p'
 Flags:
-  -t, --threads int       Number of CPUs to use (Default: all available CPUs)
+  -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
       --query string      Alignment of sequences to find neighbours for, in fasta format
       --target string     Alignment of sequences to search for neighbours in, in fasta format
-  -m, --measure string    which distance measure to use (raw, snp or tn93) (default "raw")
+  -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
   -n, --number int        (Optional) the closest n sequences to each query will be returned
   -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
   -o, --outfile string    The output file to write (default "stdout")
-      --table             write a long-form table of the output
+      --table             Write a long-form table of the output
+      --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help              help for closest
 ```
  The available distance measures are `raw` (the default) which is the number of nucleotide differences <i>per site</i> ; `snp`, which is the total number of nucleotide differences, and `tn93`, which is [Tamura and Nei's (1993) evolutionary distance](https://academic.oup.com/mbe/article/10/3/512/1016366).
@@ -212,48 +213,36 @@ An example of command-line use and more explanation is available by running `gof
 
 ### Annotating mutations
 
-Use `gofasta snps` to extract nucleotide changes relative to a reference sequence from a multiple sequence alignment, and `gofasta variants` and `gofasta sam variants` to extract amino acid, indel and nucleotide changes relative to an annotated reference sequence from alignments in fasta and sam format, respectively.
+Use `gofasta variants` to extract nucleotide changes and indels relative to a reference sequence from a multiple sequence alignment, and, given an annotation of the reference, amino acid changes as well; `gofasta sam variants` does the same for alignments in sam format (and always needs an annotation).
 
 <details><summary><b>Nucleotide changes</b></summary>
 </br>
 
-`gofasta snps` will list all the nucleotide changes in a multiple sequence alignment (`--query`) compared to a reference sequence which is provided in a separate file (`--reference`). The two files have to be the same width (i.e. aligned to the same thing).
+Without an annotation, `gofasta variants` lists the nucleotide changes, deletions and insertions in a multiple sequence alignment (`--query`) compared to a reference sequence. The reference can be a sequence in a separate fasta file (`--reference`) of the same width as the alignment (i.e. aligned to the same thing), or a record of the alignment (`--reference-id`, its ID).
 
-```
-❯ gofasta snps -h | sed -n '/Flags/,$p'
-Flags:
-  -r, --reference string   Reference sequence, in fasta format
-  -q, --query string       Alignment of sequences to find snps in, in fasta format (default "stdin")
-  -o, --outfile string     Output to write (default "stdout")
-      --hard-gaps          Don't treat alignment gaps as missing data
-      --aggregate          Report the proportions of each change
-      --threshold float    If --aggregate, only report snps with a freq greater than or equal to this value
-  -h, --help               help for snps
-```
+The basic usage creates a csv file with a header and a line for each sequence in `--query`. The first column is the sequence name, and the second column is a '|'-delimited list of changes: `nuc:` followed by the reference allele, the 1-based position in reference coordinates and the query allele; `del:POS:LEN` for a deletion starting at reference position POS; `ins:POS:LEN` for an insertion after reference position POS. Deletions at the start and end of the alignment (uncovered ends) are not reported.
 
-The basic usage creates a csv file with a header and a line for each sequence in `--query`. The first column is the sequence name, and the second column is a '|'-delimited list of nucleotide changes who format is: reference allele, 1-based position in alignment coordinates, query allele.
-
-IUPAC ambiguity codes are treated as the set of bases that they represent, and only certainly-different changes are reported. For example an output of `A101S` is possible, but `A101W` is not. Alignment gaps (`-`) are treated like `N`s (aNy base) unless you use `--hard-gaps`.
+IUPAC ambiguity codes are treated as the set of bases that they represent, and only certainly-different changes are reported. For example an output of `nuc:A101S` is possible, but `nuc:A101W` is not.
 ```
-❯ gofasta snps -r MN908947.fa -q aligned.fasta -o snps.csv
+❯ gofasta variants -r MN908947.fa -q aligned.fasta -o variants.csv
 ❯
-❯ head -n2 snps.csv
-query,SNPs
-query1,T670G|G4184A|C4321T|C9344T|A9424G|C9534T|C10198T|G10447A|C10449A|G12160A|C12880T|C14408T|C15714T|C17410T|C19955T|A20055G|T21570G|C21618T|G21987A|T22200G|G22578A|T22679C|C22686T|A22688G|A23403G|C23525T|T23599G|C23604A|C23854A|G23948T|T24469A|C25000T|C26060T|C26270T|G27382C|A27383T|T27384C|G27788T|C27807T|A28271T|C28311T|C28724T|G28881A|G28882A|G28883C|A29510C
+❯ head -n2 variants.csv
+query,mutations
+query1,nuc:T670G|nuc:G4184A|nuc:C4321T|nuc:C9344T|nuc:A9424G|nuc:C9534T|nuc:C10198T|nuc:G10447A|nuc:C10449A|nuc:G12160A|nuc:C12880T|nuc:C14408T|nuc:C15714T|nuc:C17410T|nuc:C19955T|nuc:A20055G|nuc:T21570G|nuc:C21618T|nuc:G21987A|nuc:T22200G|nuc:G22578A|nuc:T22679C|nuc:C22686T|nuc:A22688G|nuc:A23403G|nuc:C23525T|nuc:T23599G|nuc:C23604A|nuc:C23854A|nuc:G23948T|nuc:T24469A|nuc:C25000T|nuc:C26060T|nuc:C26270T|nuc:G27382C|nuc:A27383T|nuc:T27384C|nuc:G27788T|nuc:C27807T|nuc:A28271T|nuc:C28311T|nuc:C28724T|nuc:G28881A|nuc:G28882A|nuc:G28883C|nuc:A29510C
 ```
 
 If you invoke `--aggregate`, the proportion of each change in the whole alignment is written.
 ```
-❯ gofasta snps -r MN908947.fa -q aligned.fasta --aggregate
-SNP,frequency
-C44T,0.250000000
-C241T,0.750000000
-T670G,0.916666667
-C1314T,0.083333333
-C1613A,0.083333333
-C1684T,0.083333333
-C2790T,0.833333333
-C3037T,0.833333333
+❯ gofasta variants -r MN908947.fa -q aligned.fasta --aggregate
+mutation,frequency
+nuc:C44T,0.250000000
+nuc:C241T,0.750000000
+nuc:T670G,0.916666667
+nuc:C1314T,0.083333333
+nuc:C1613A,0.083333333
+nuc:C1684T,0.083333333
+nuc:C2790T,0.833333333
+nuc:C3037T,0.833333333
 ...
 ```
 
@@ -284,19 +273,19 @@ Examples of the output formats:
 
 In-frame insertions and deletions in a CDS are also described at the amino acid level, residue by residue, in the coordinates of the reference protein: a deleted residue is written with `-`, inserted residues after the number of the residue they follow, and a residue changed next to an indel as a substitution. For example, the 6-base deletion at 22029 in the S gene of the SARS-CoV-2 Delta variant is `aa:S:E156G|del:22029:6|aa:S:F157-|aa:S:R158-`. The amino acid changes are worked out from the codons that the indel touches, as aligned, so they follow the alignment; an indel in a run of repeated residues is placed as far towards the C-terminus as possible. A change in the bases of those codons is part of the amino acid change rather than a separate `nuc` entry, and `--append-snps` lists the nucleotide indel (and any such changes) in the parentheses. Nothing after a stop codon is reported (an insertion that brings in a stop gives, e.g., `aa:N:Y87*`). Indels that shift the reading frame, come after one that does, run past the end of the CDS, touch its start or stop codon, or touch missing data (`N`, or the uncovered ends of an alignment) are reported only as `ins` or `del`.
 
-As with `gofasta snps` the default mode writes a csv with one line per query sequence, and each sequence's mutations in the second column. Use `--aggregate` to get the overall frequencies of mutations in the alignment(s).
+As without an annotation, the default mode writes a csv with one line per query sequence, and each sequence's mutations in the second column. Use `--aggregate` to get the overall frequencies of mutations in the alignment(s).
 
 So, for example, you can find the frequencies of all the amino acid changes at residue 681 in the Spike gene, and the nucleotide changes underlying them, from the sample of SARS-CoV-2 sequences in `aligned.fasta` like:
 
 ```
-❯ gofasta variants --msa aligned.fasta --annotation MN908947.gb --aggregate --append-snps | grep "^aa:S:P681"
+❯ gofasta variants -q aligned.fasta --annotation MN908947.gb --aggregate --append-snps | grep "^aa:S:P681"
 aa:S:P681H(nuc:C23604A),0.004000000
 aa:S:P681R(nuc:C23604G),0.983000000
 ```
 
 or find which sequences have `P681H`:
 ```
-❯ gofasta variants --msa aligned.fasta --annotation MN908947.gb | grep "S:P681H" | cut -d, -f1
+❯ gofasta variants -q aligned.fasta --annotation MN908947.gb | grep "S:P681H" | cut -d, -f1
 COGUK/PHEC-XXXX107/PHEC
 COGUK/PHEC-XXXX003/PHEC
 COGUK/PHEC-XXXX996/PHEC

@@ -1,4 +1,4 @@
-args: updown topranking -q query.csv.gz -t target.csv.gz --size-total 4
+args: updown topranking --query query.csv.gz --target target.csv.gz --size-total 4
 exit: 0
 --- stdout
 query,closestsame,closestup,closestdown,closestside

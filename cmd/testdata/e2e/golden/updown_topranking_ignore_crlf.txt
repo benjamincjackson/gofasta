@@ -1,4 +1,4 @@
-args: updown topranking -r ref.fasta -q query.fasta -t target.fasta --size-total 4 --ignore ignore_crlf.txt
+args: updown topranking -r ref.fasta --query query.fasta --target target.fasta --size-total 4 --ignore ignore_crlf.txt
 exit: 0
 --- stdout
 query,closestsame,closestup,closestdown,closestside

@@ -59,10 +59,13 @@ type AnnoStructs struct {
 }
 
 // Variants annotates the mutations in each record of a multiple sequence alignment in fasta format,
-// relative to a reference sequence (the record refID in the alignment, or the sequence in the
-// annotation). A record that can't be processed (an invalid character, or a different width from the
-// reference) is reported on stderr and skipped, unless strict, when it stops the run with an error.
-func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
+// relative to a reference sequence: the record refID in the alignment, else the one record of refIn (if
+// not nil), else the sequence in the annotation. annoSuffix is the annotation's format, "gb" or "gff", or
+// "" for no annotation, when only nucleotide changes, deletions and insertions are reported (and a
+// reference must be given). A record that can't be processed (an invalid character, or a different
+// width from the reference) is reported on stderr and skipped, unless strict, when it stops the run with
+// an error.
+func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
 
 	var (
 		ref fasta.EncodedRecord
@@ -94,7 +97,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 			return err
 		}
 		if first.ID != refID {
-			return errors.New("--reference is not the first record in --msa")
+			return errors.New("--reference-id is not the first record in --query")
 		}
 		ref, err = first.Encode()
 		if err != nil {
@@ -111,6 +114,19 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		}
 	}
 
+	// or from its own file
+	if refID == "" && refIn != nil {
+		refs, err := fasta.LoadEncodeAlignment(refIn, false, false, false)
+		if err != nil {
+			return err
+		}
+		if len(refs) != 1 {
+			return errors.New("--reference must have one record (it has " + strconv.Itoa(len(refs)) + ")")
+		}
+		ref = refs[0]
+	}
+	explicitRef := len(ref.Seq) > 0 // (otherwise it comes from the annotation)
+
 	var (
 		cdsregions []Region
 		intregions []int
@@ -118,6 +134,11 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 	)
 
 	switch annoSuffix {
+	case "":
+		if !explicitRef {
+			return errors.New("no reference sequence: give --reference, --reference-id or an annotation that contains the reference sequence")
+		}
+
 	case "gb":
 		gb, err := genbank.ReadGenBank(annoIn)
 		if err != nil {
@@ -137,6 +158,11 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 
 		refLenDegapped := len(ref.Decode().Degap().Seq)
 
+		// check that the reference sequence is in the same coordinates as the annotation
+		if refLenDegapped != len(gb.ORIGIN) {
+			return errors.New("the degapped reference sequence (" + ref.ID + ", " + strconv.Itoa(refLenDegapped) + " bases) is not the same length as the genbank annotation's sequence (" + strconv.Itoa(len(gb.ORIGIN)) + " bases)")
+		}
+
 		// get a list of CDS + intergenic regions from the genbank file
 		cdsregions, intregions, err = RegionsFromGenbank(gb, refLenDegapped)
 		if err != nil {
@@ -145,11 +171,6 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 
 		// get the offsets accounting for insertions relative to the reference
 		refToMSA, _ = GetMSAOffsets(ref.Seq)
-
-		// check that the reference sequence is in the same coordinates as the annotation
-		if len(refToMSA) != len(gb.ORIGIN) {
-			return errors.New("the degapped reference sequence (" + ref.ID + ") is not the same length as the genbank annotation")
-		}
 
 	case "gff":
 		gff, err := gff.ReadGFF(annoIn)
@@ -161,7 +182,7 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		if len(ref.Seq) == 0 {
 			switch len(gff.FASTA) {
 			case 0:
-				return errors.New("couldn't find a reference sequence in the --msa or the gff")
+				return errors.New("couldn't find a reference sequence in the --query or the gff")
 			case 1:
 				var encodedrefseq []byte
 				for _, v := range gff.FASTA {
@@ -183,6 +204,15 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		refToMSA, _ = GetMSAOffsets(ref.Seq)
 
 		refSeqDegapped := ref.Decode().Degap().Seq
+
+		// a reference that was given must be in the same coordinates as the gff's own sequence, if it has one
+		if explicitRef && len(gff.FASTA) == 1 {
+			for _, v := range gff.FASTA {
+				if len(refSeqDegapped) != len(v.Seq) {
+					return errors.New("the degapped reference sequence (" + ref.ID + ", " + strconv.Itoa(len(refSeqDegapped)) + " bases) is not the same length as the gff annotation's sequence (" + strconv.Itoa(len(v.Seq)) + " bases)")
+				}
+			}
+		}
 
 		// check that the reference sequence is in the same coordinates as the annotation, if the gff
 		// file has a ##sequence-region line
@@ -215,6 +245,9 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 		if len(record.Seq) != len(ref.Seq) {
 			return AnnoStructs{}, pipeline.Named(raw.ID, errors.New("Gapped reference sequence and alignment are not the same width"))
 		}
+		if annoSuffix == "" {
+			return AnnoStructs{Queryname: record.ID, Vs: getVariantsNoAnnotation(ref.Seq, record.Seq), Idx: record.Idx}, nil
+		}
 		AS, err := GetVariantsPair(ref.Seq, record.Seq, ref.ID, record.ID, record.Idx, cdsregions, intregions, refToMSA)
 		return AS, pipeline.Named(raw.ID, err)
 	}
@@ -222,13 +255,13 @@ func Variants(msaIn io.Reader, stdin bool, refID string, annoIn io.Reader, annoS
 	var write func(AnnoStructs) error
 	var agg *Aggregator
 	if aggregate {
-		agg, err = NewAggregator(out, start, end, appendSNP, ref.ID)
+		agg, err = NewAggregator(out, start, end, appendSNP, refID)
 		if err != nil {
 			return err
 		}
 		write = agg.Add
 	} else {
-		lw, err := NewLineWriter(out, start, end, appendSNP, ref.ID)
+		lw, err := NewLineWriter(out, start, end, appendSNP, refID)
 		if err != nil {
 			return err
 		}
@@ -255,7 +288,7 @@ func findReference(msaIn io.Reader, referenceID string) (fasta.EncodedRecord, er
 	for {
 		record, err := next()
 		if err == io.EOF || errors.Is(err, fasta.ErrEmptyFasta) {
-			return fasta.EncodedRecord{}, errors.New("Couldn't find reference (" + referenceID + ") in msa")
+			return fasta.EncodedRecord{}, errors.New("Couldn't find --reference-id (" + referenceID + ") in --query")
 		}
 		if err != nil {
 			return fasta.EncodedRecord{}, err

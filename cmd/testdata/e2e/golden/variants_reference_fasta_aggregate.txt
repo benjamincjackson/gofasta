@@ -1,0 +1,14 @@
+args: variants -q msa.fasta -r ref.fasta --aggregate
+exit: 0
+--- stdout
+mutation,frequency
+nuc:G5A,0.222222222
+nuc:A14G,0.333333333
+del:21:3,0.111111111
+nuc:C30R,0.111111111
+nuc:T40C,0.111111111
+nuc:T50C,0.111111111
+nuc:C80T,0.111111111
+nuc:A100G,0.111111111
+nuc:C115T,0.111111111
+--- stderr

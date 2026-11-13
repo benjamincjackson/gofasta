@@ -1,4 +1,4 @@
-args: variants --msa msa.fasta -r ref -a ref.gb -o out.csv
+args: variants -q msa.fasta --reference-id ref -a ref.gb -o out.csv
 exit: 0
 --- stdout
 --- stderr
