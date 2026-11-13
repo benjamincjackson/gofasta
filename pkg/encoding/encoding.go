@@ -19,10 +19,10 @@ func DecodeToString(bs []byte) string {
 	return s.String()
 }
 
-// MakeEncodingArray returns an array whose indices are the byte representations
+// buildEncodingArray returns an array whose indices are the byte representations
 // of IUPAC codes and whose contents are Emmanual Paradis encodings.
 // Lower case nucleotides are mapped to their upper case nucleotides's encoding
-func MakeEncodingArray() [256]byte {
+func buildEncodingArray() [256]byte {
 	var byteArray [256]byte
 
 	byteArray['A'] = 136
@@ -61,10 +61,15 @@ func MakeEncodingArray() [256]byte {
 	return byteArray
 }
 
-// MakeEncodingArrayHardGaps is as MakeEncodingArray but with '-'
+var encodingArrayTable = buildEncodingArray()
+
+// MakeEncodingArray returns a copy of the table buildEncodingArray builds, which is built only once
+func MakeEncodingArray() [256]byte { return encodingArrayTable }
+
+// buildEncodingArrayHardGaps is as MakeEncodingArray but with '-'
 // set to EP's original code (4; character is not completely unknown,
 // character represents NONE of ACTG)
-func MakeEncodingArrayHardGaps() [256]byte {
+func buildEncodingArrayHardGaps() [256]byte {
 	var byteArray [256]byte
 
 	byteArray['A'] = 136
@@ -103,12 +108,17 @@ func MakeEncodingArrayHardGaps() [256]byte {
 	return byteArray
 }
 
-// MakeScoreArray makes an array that maps (the byte value of) IUPAC nucleotide
+var encodingArrayHardGapsTable = buildEncodingArrayHardGaps()
+
+// MakeEncodingArrayHardGaps returns a copy of the table buildEncodingArrayHardGaps builds, which is built only once
+func MakeEncodingArrayHardGaps() [256]byte { return encodingArrayHardGapsTable }
+
+// buildScoreArray makes an array that maps (the byte value of) IUPAC nucleotide
 // characters (which are the arrays indices) to a score for how ambiguous that
 // nucleotide is. The score is caculated as:
 // 12 * 1/possible real nucleotides.
 // E.g. an 'A' scores 12, but an 'N' (A, C, G or T) scores 3
-func MakeScoreArray() [256]int64 {
+func buildScoreArray() [256]int64 {
 	var byteArray [256]int64
 
 	byteArray['A'] = 12
@@ -147,9 +157,14 @@ func MakeScoreArray() [256]int64 {
 	return byteArray
 }
 
-// MakeEncodedScoreArray is like MakeScoreArray() but the indices are EP bitwise representations of
+var scoreArrayTable = buildScoreArray()
+
+// MakeScoreArray returns a copy of the table buildScoreArray builds, which is built only once
+func MakeScoreArray() [256]int64 { return scoreArrayTable }
+
+// buildEncodedScoreArray is like MakeScoreArray() but the indices are EP bitwise representations of
 // nucleotides
-func MakeEncodedScoreArray() [256]int64 {
+func buildEncodedScoreArray() [256]int64 {
 
 	var byteArray [256]int64
 
@@ -174,9 +189,14 @@ func MakeEncodedScoreArray() [256]int64 {
 	return byteArray
 }
 
-// MakeDecodingArray returns an array whose indices are Emmanual Paradis encodings
+var encodedScoreArrayTable = buildEncodedScoreArray()
+
+// MakeEncodedScoreArray returns a copy of the table buildEncodedScoreArray builds, which is built only once
+func MakeEncodedScoreArray() [256]int64 { return encodedScoreArrayTable }
+
+// buildDecodingArray returns an array whose indices are Emmanual Paradis encodings
 // of IUPAC codes and whose contents are IUPAC codes as strings
-func MakeDecodingArray() [256]string {
+func buildDecodingArray() [256]string {
 	var byteArray [256]string
 
 	byteArray[136] = "A"
@@ -200,3 +220,8 @@ func MakeDecodingArray() [256]string {
 
 	return byteArray
 }
+
+var decodingArrayTable = buildDecodingArray()
+
+// MakeDecodingArray returns a copy of the table buildDecodingArray builds, which is built only once
+func MakeDecodingArray() [256]string { return decodingArrayTable }

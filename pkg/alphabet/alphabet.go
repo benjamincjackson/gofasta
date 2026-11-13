@@ -54,7 +54,7 @@ func ReverseComplement(nuc string) string {
 	return string(temp)
 }
 
-func MakeCompArray() [256]byte {
+func buildCompArray() [256]byte {
 	var compArray [256]byte
 
 	compArray['A'] = 'T'
@@ -93,7 +93,12 @@ func MakeCompArray() [256]byte {
 	return compArray
 }
 
-func MakeEncodedCompArray() [256]byte {
+var compArrayTable = buildCompArray()
+
+// MakeCompArray returns a copy of the table buildCompArray builds, which is built only once
+func MakeCompArray() [256]byte { return compArrayTable }
+
+func buildEncodedCompArray() [256]byte {
 	var compArray [256]byte
 
 	EA := encoding.MakeEncodingArray()
@@ -133,6 +138,11 @@ func MakeEncodedCompArray() [256]byte {
 
 	return compArray
 }
+
+var encodedCompArrayTable = buildEncodedCompArray()
+
+// MakeEncodedCompArray returns a copy of the table buildEncodedCompArray builds, which is built only once
+func MakeEncodedCompArray() [256]byte { return encodedCompArrayTable }
 
 // MakeCodonDict returns a map from codon (string) to amino acid code (string)
 func MakeCodonDict() map[string]string {
