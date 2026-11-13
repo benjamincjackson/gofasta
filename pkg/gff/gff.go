@@ -1,5 +1,4 @@
-/*
- */
+// Package gff reads annotation files in GFF version 3 format.
 package gff
 
 import (
@@ -85,38 +84,27 @@ func (g *GFF) populateIDMap() {
 	g.IDmap = make(map[string][]int)
 	for i, f := range g.Features {
 		if f.HasAttribute("ID") {
-			if len(g.IDmap[f.Attributes["ID"][0]]) > 0 {
-				g.IDmap[f.Attributes["ID"][0]] = append(g.IDmap[f.Attributes["ID"][0]], i)
-			} else {
-				g.IDmap[f.Attributes["ID"][0]] = []int{i}
-			}
+			id := f.Attributes["ID"][0]
+			g.IDmap[id] = append(g.IDmap[id], i)
 		}
 	}
 }
 
 func (g *GFF) featuresOfType(t string) []Feature {
-
 	fa := make([]Feature, 0)
-
 	for _, f := range g.Features {
 		if f.Type == t {
 			fa = append(fa, f)
 		}
 	}
-
 	return fa
 }
 
 func (g *GFF) featuresFromID(id string) []Feature {
-
 	fa := make([]Feature, 0)
-
-	if indices, ok := g.IDmap[id]; ok {
-		for _, idx := range indices {
-			fa = append(fa, g.Features[idx])
-		}
+	for _, idx := range g.IDmap[id] {
+		fa = append(fa, g.Features[idx])
 	}
-
 	return fa
 }
 
@@ -192,19 +180,15 @@ see: https://github.com/The-Sequence-Ontology/Specifications/blob/fe73505276dd32
 */
 
 func (F *Feature) HasAttribute(tag string) bool {
-	if _, ok := F.Attributes[tag]; ok {
-		return true
-	}
-	return false
+	_, ok := F.Attributes[tag]
+	return ok
 }
 
 // ReadGFF reads a gff version 3 format annotation file and returns a struct that contains
 // parsed versions of the fields it contains.
 func ReadGFF(f io.Reader) (GFF, error) {
 
-	gff := GFF{}
-	gff.SequenceRegions = make(map[string]SequenceRegion)
-	gff.IDmap = make(map[string][]int)
+	gff := GFF{SequenceRegions: make(map[string]SequenceRegion)}
 
 	header := make([]string, 0)
 	comments := make([]string, 0)
@@ -214,14 +198,13 @@ func ReadGFF(f io.Reader) (GFF, error) {
 	inFasta := false
 	fastaBuffer := new(bytes.Buffer)
 
-	var err error
-
 	s := bufio.NewScanner(f)
 	s.Buffer(make([]byte, 0, 64*1024), maxLineLength)
 	for s.Scan() {
 		line := s.Text()
 		if inFasta {
-			fastaBuffer.Write([]byte(line + "\n"))
+			fastaBuffer.WriteString(line)
+			fastaBuffer.WriteByte('\n')
 		} else if strings.TrimSpace(line) == "" {
 			continue
 		} else if strings.HasPrefix(line, "##FASTA") {
@@ -234,12 +217,10 @@ func ReadGFF(f io.Reader) (GFF, error) {
 			if firstAfterHeader {
 				gff.HeaderLines = header
 				gff.CommentLines = comments
-				err = gff.versionStringFromHeader()
-				if err != nil {
+				if err := gff.versionStringFromHeader(); err != nil {
 					return gff, err
 				}
-				err = gff.setSequenceRegionsFromHeader()
-				if err != nil {
+				if err := gff.setSequenceRegionsFromHeader(); err != nil {
 					return gff, err
 				}
 				firstAfterHeader = false
@@ -259,73 +240,44 @@ func ReadGFF(f io.Reader) (GFF, error) {
 	gff.Features = features
 	gff.populateIDMap()
 
-	if len(fastaBuffer.Bytes()) > 0 {
-		fastamap := make(map[string]fasta.Record)
-		fastaReader := bytes.NewReader(fastaBuffer.Bytes())
-		EFRs, err := fasta.LoadEncodeAlignment(fastaReader, false, false, false)
+	if fastaBuffer.Len() > 0 {
+		EFRs, err := fasta.LoadEncodeAlignment(fastaBuffer, false, false, false)
 		if err != nil {
 			return gff, err
 		}
+		gff.FASTA = make(map[string]fasta.Record)
 		for _, EFR := range EFRs {
-			fastamap[EFR.ID] = EFR.Decode()
+			gff.FASTA[EFR.ID] = EFR.Decode()
 		}
-
-		gff.FASTA = fastamap
 	}
 
-	return gff, err
+	return gff, nil
 }
 
 func featureFromLine(l string) (Feature, error) {
-
-	F := Feature{}
-
 	fields := strings.Split(l, "\t")
-
-	var err error
-
 	if len(fields) != 9 {
-		return F, errors.New("GFF parsing error: wrong number of fields: " + l)
+		return Feature{}, errors.New("GFF parsing error: wrong number of fields: " + l)
 	}
-
-	F.Seqid, err = seqidFromField(fields[0])
-	if err != nil {
+	F := Feature{Source: fields[1], Type: fields[2], Score: fields[5]} // TO DO - parse the score properly
+	var err error
+	if F.Seqid, err = seqidFromField(fields[0]); err != nil {
 		return F, err
 	}
-
-	F.Source = fields[1]
-
-	F.Type = fields[2]
-
-	F.Start, err = strconv.Atoi(fields[3])
-	if err != nil {
+	if F.Start, err = strconv.Atoi(fields[3]); err != nil {
 		return F, err
 	}
-
-	F.End, err = strconv.Atoi(fields[4])
-	if err != nil {
+	if F.End, err = strconv.Atoi(fields[4]); err != nil {
 		return F, err
 	}
-
-	// TO DO - this properly
-	F.Score = fields[5]
-
-	F.Strand, err = strandFromField(fields[6], l)
-	if err != nil {
+	if F.Strand, err = strandFromField(fields[6], l); err != nil {
 		return F, err
 	}
-
-	F.Phase, err = phaseFromField(F.Type, fields[7], l)
-	if err != nil {
+	if F.Phase, err = phaseFromField(F.Type, fields[7], l); err != nil {
 		return F, err
 	}
-
 	F.Attributes, err = attributesFromField(fields[8], l)
-	if err != nil {
-		return F, err
-	}
-
-	return F, nil
+	return F, err
 }
 
 // seqidFromField accepts any non-empty seqid without whitespace that does not begin with ">".
@@ -344,22 +296,13 @@ func strandFromField(f, l string) (string, error) {
 	return f, errorBuilder(errGFFParsingStrand, l)
 }
 
+// phaseFromField accepts a phase of 0, 1 or 2, or "." for a feature that is not a CDS
 func phaseFromField(t, f, l string) (int, error) {
-	if t == "CDS" {
-		if result, err := strconv.Atoi(f); err == nil {
-			if result >= 0 && result <= 2 {
-				return result, err
-			}
-		}
-		return 0, errorBuilder(errGFFParsingPhase, l)
-	} else {
-		if result, err := strconv.Atoi(f); err == nil {
-			if result >= 0 && result <= 2 {
-				return result, err
-			}
-		} else if f == "." {
-			return 0, nil
-		}
+	if p, err := strconv.Atoi(f); err == nil && p >= 0 && p <= 2 {
+		return p, nil
+	}
+	if f == "." && t != "CDS" {
+		return 0, nil
 	}
 	return 0, errorBuilder(errGFFParsingPhase, l)
 }
