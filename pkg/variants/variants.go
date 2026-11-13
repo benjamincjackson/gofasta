@@ -11,6 +11,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,7 +22,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/genbank"
 	"github.com/virus-evolution/gofasta/pkg/gff"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
-	"golang.org/x/exp/constraints"
 )
 
 type Region struct {
@@ -375,8 +375,8 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	if err != nil {
 		return r, err
 	}
-	r.Start = gmin(r.Positions)
-	r.Stop = gmax(r.Positions)
+	r.Start = slices.Min(r.Positions)
+	r.Stop = slices.Max(r.Positions)
 	refSeqFeat := ""
 	for _, p := range r.Positions {
 		refSeqFeat = refSeqFeat + string(refSeqDegapped[p-1])
@@ -435,7 +435,7 @@ func RegionsFromGenbank(gb genbank.Genbank, refLength int) ([]Region, []int, err
 				return []Region{}, []int{}, err
 			}
 			// every position must lie within the reference
-			if len(REGION.Positions) > 0 && (gmin(REGION.Positions) < 1 || gmax(REGION.Positions) > refLength) {
+			if len(REGION.Positions) > 0 && (slices.Min(REGION.Positions) < 1 || slices.Max(REGION.Positions) > refLength) {
 				return []Region{}, []int{}, errors.New("Genbank CDS feature \"" + REGION.Name + "\" is not within the reference sequence (length " + strconv.Itoa(refLength) + ")")
 			}
 			cds = append(cds, REGION)
@@ -484,8 +484,8 @@ func CDSRegionfromGenbank(f genbank.GenbankFeature) (Region, error) {
 		return Region{}, errors.New("Genbank CDS feature \"" + r.Name + "\": the translation is shorter than the CDS")
 	}
 
-	r.Start = gmin(r.Positions)
-	r.Stop = gmax(r.Positions)
+	r.Start = slices.Min(r.Positions)
+	r.Stop = slices.Max(r.Positions)
 
 	reverse, err := f.Location.IsReverse()
 	if err != nil {
@@ -535,33 +535,6 @@ func outsideRange(v Variant, start, end int) bool {
 		return (start > 0 && v.Position+v.Length-1 < start) || (end > 0 && v.Position > end)
 	}
 	return out(v.Position)
-}
-
-// some generic functions because why not
-func gmin[T constraints.Ordered](s []T) T {
-	if len(s) == 0 {
-		panic("Can't obtain the minimum item from a 0-length slice")
-	}
-	min := s[0]
-	for _, x := range s {
-		if x < min {
-			min = x
-		}
-	}
-	return min
-}
-
-func gmax[T constraints.Ordered](s []T) T {
-	if len(s) == 0 {
-		panic("Can't obtain the maximum item from a 0-length slice")
-	}
-	max := s[0]
-	for _, x := range s {
-		if x > max {
-			max = x
-		}
-	}
-	return max
 }
 
 // GetMSAOffsets returns two arrays which contain coordinate shifting information that can be used to
