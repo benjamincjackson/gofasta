@@ -96,3 +96,20 @@ func TestIsReverse(t *testing.T) {
 		t.Errorf("Problem in TestIsReverse()")
 	}
 }
+
+// The strand comes from the direction of the location's first positions
+func TestIsReverseFromFirstPositions(t *testing.T) {
+	for loc, want := range map[string]bool{
+		"1..9":                                    false,
+		"complement(1..9)":                        true,
+		"join(9000..9100,1..50)":                  false,
+		"complement(join(1..50,9000..9100))":      true,
+		"join(complement(5..9),complement(1..3))": true,
+		"5..5": false,
+	} {
+		got, err := Location{Representation: loc}.IsReverse()
+		if err != nil || got != want {
+			t.Errorf("%s: got %v, %v, want %v", loc, got, err, want)
+		}
+	}
+}

@@ -35,16 +35,15 @@ func (l Location) GetPositions() ([]int, error) {
 	return pos, nil
 }
 
-// True/false this location is on the reverse strand
+// True/false this location is on the reverse strand: its first two positions descend, as they do in
+// complement(...), so a forward join across the origin of a circular genome, such as
+// join(9000..9100,1..50), is forward. A single position is forward.
 func (l Location) IsReverse() (bool, error) {
 	pos, err := l.GetPositions()
 	if err != nil {
 		return true, err
 	}
-	if pos[0] > pos[len(pos)-1] {
-		return true, nil
-	}
-	return false, nil
+	return len(pos) > 1 && pos[1] < pos[0], nil
 }
 
 // maxLocationDepth bounds the nesting of join/complement
