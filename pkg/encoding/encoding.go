@@ -3,7 +3,7 @@ Package encoding provides mappings between character representations of nucleoti
 and bitwise encodings, for fast sequence comparison.
 
 The coding scheme is Emmanual Paradis' design, which is described here:
-http://ape-package.ird.fr/misc/BitLevelCodingScheme.html
+https://emmanuelparadis.github.io/misc/BitLevelCodingScheme.html
 */
 package encoding
 

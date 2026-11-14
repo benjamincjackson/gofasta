@@ -1,10 +1,7 @@
     
 # gofasta
 
-
-
-
-gofasta is a command-line utility developed to handle SARS-CoV-2 alignments, but should be useful more generally for handling consensus genomes of any microbial pathogen. It has been used on datasets of millions of sequences, including by the United Kingdom's [daily SARS-CoV-2 genome processing pipelines](https://github.com/COG-UK), [Pangolin](https://github.com/cov-lineages/pangolin) and [Civet](https://github.com/artic-network/civet).
+gofasta is a command-line utility originally developed to handle SARS-CoV-2 alignments, but should be useful more generally for handling consensus genomes of any microbial pathogen. It has been used on datasets of millions of sequences, including by the United Kingdom's [daily SARS-CoV-2 genome processing pipelines](https://github.com/COG-UK), [Pangolin](https://github.com/cov-lineages/pangolin) and [Civet](https://github.com/artic-network/civet).
 
 If you use gofasta in your work, please cite [https://doi.org/10.1093/bioinformatics/btac424](https://doi.org/10.1093/bioinformatics/btac424).
 
@@ -73,7 +70,7 @@ Pairwise alignments are less computationally demanding than multiple sequence al
 <details><summary><b>Making a single alignment with multiple sequences</b></summary>
 </br>
 
-This is the pipeline currently used by [Pangolin](https://github.com/cov-lineages/pangolin):
+This is the pipeline used by [Pangolin](https://github.com/cov-lineages/pangolin) during most of the Covid pandemic:
 
 ```
 minimap2 -a -x asm20 --sam-hit-only --secondary=no --score-N=0 MN908947.fa unaligned.consensus.fasta -o aligned.sam
@@ -98,7 +95,7 @@ We give minimap2 more threads here because it's doing more work. `toma` is just 
 
 ```
 function align() {
-  minimap2 -a -x asm20 --score-N=0 ~/path/to/MN908947.fa $1 | gofasta sam toma
+  minimap2 -a -x asm20 --score-N=0 /path/to/MN908947.fa $1 | gofasta sam toma
 }
 ```
 
@@ -197,7 +194,7 @@ Flags:
   -h, --help                     help for topranking
 ```
 
-This routine has the potential to be faster than traditional genetic distance measures. It uses patterns of derived mutations to make inferences about the likely phylogenetic relationships between closely related sequences. Briefly, sequences are compressed so that they are represented by only their ATGC nucleotide differences from a common reference sequence, which is treated like the root of an imaginary tree. SNPs can either be unique to the query sequence, unique to the target sequence, or present in the intersection of the two. SNPs present in the intersection are interpreted as representing shared ancestry between query and target, whereas an excess of SNPs in either the query or target set can be interpreted to give directionality relative to a root sequence. See [the Civet preprint](https://www.medrxiv.org/content/10.1101/2021.12.13.21267267v1) for a detailed explanation of the scheme (Figure 2 and Figure S1). 
+This routine has the potential to be faster than traditional genetic distance measures. It uses patterns of derived mutations to make inferences about the likely phylogenetic relationships between closely related sequences. Briefly, sequences are compressed so that they are represented by only their ATGC nucleotide differences from a common reference sequence, which is treated like the root of an imaginary tree. SNPs can either be unique to the query sequence, unique to the target sequence, or present in the intersection of the two. SNPs present in the intersection are interpreted as representing shared ancestry between query and target, whereas an excess of SNPs in either the query or target set can be interpreted to give directionality relative to a root sequence. See [the Civet paper](https://journals.plos.org/globalpublichealth/article?id=10.1371/journal.pgph.0000704) for a detailed explanation of the scheme (Figure 2 and Figure S1). 
 
 The input `--query` and `--target` files can either be alignments in fasta format, or they can be csv-format files produced by `gofasta updown list` (or one of each). Using the csv-format files should be faster to the extent that they are quicker to read from disk compared to alignments, which initially contain the information for every site.
 
@@ -294,17 +291,10 @@ COGUK/PHEC-XXXX544/PHEC
 
 </details>
 
-## Context, limitations and alternatives
-
-Alternatives to minimap2 for pairwise viral genome alignment exist. Notably, [Nextalign](https://github.com/nextstrain/nextclade) [(Aksamentov et al. 2021)](https://joss.theoj.org/papers/10.21105/joss.03773.pdf) can use a genome annotation to apply a reading-frame-aware gap penalty, and will perform translation and amino acid alignment to call amino acid mutations. 
-
-gofasta’s functions for finding the closest genetic neighbours to a set of query sequences were designed for the specific use-case of querying a large dataset of target genomes by genetic distance to place a smaller set of focal sequences in context, without having to infer all the phylogenetic relationships between hundreds of thousands or millions of sequences. An alternative approach is currently provided by an up-to-date a [maximum parsimony phylogenetic tree consisting of publicly available SARS-CoV-2 genomes](https://hgdownload.soe.ucsc.edu/goldenPath/wuhCor1/UShER_SARS-CoV-2/) [(McBroome et al. 2021)](https://academic.oup.com/mbe/article/38/12/5819/6361626) [and associated software](https://github.com/yatisht/usher) which can be used for placing new samples and querying the dataset [(Turakhia et al. 2021)](https://www.nature.com/articles/s41588-021-00862-7).
-
-Other software exists for calculating pairwise genetic distances, including [tn93](https://github.com/veg/tn93) and [pairsnp](https://github.com/gtonkinhill/pairsnp).
 
 ## Acknowledgements and third party licences
 
-gofasta incorporates [bíogo hts](https://github.com/biogo/hts), [cobra](https://github.com/spf13/cobra) and [pflag](https://github.com/spf13/pflag), each distributed under its own licence. Their licence notices are reproduced in `NOTICE`; `gofasta licences` prints a summary and `gofasta licences -l` prints them in full.
+gofasta incorporates [cobra](https://github.com/spf13/cobra) and [pflag](https://github.com/spf13/pflag), each distributed under its own licence. Their licence notices are reproduced in `NOTICE`; `gofasta licences` prints a summary and `gofasta licences -l` prints them in full. Some of its tests rely on [bíogo hts](https://github.com/biogo/hts).
 
 gofasta uses a slightly modified version of the bit-level coding scheme for nucleotides by Emmanuel Paradis, which is used in [ape](https://doi.org/10.1093/bioinformatics/btg412). For a description of it, see [here](https://emmanuelparadis.github.io/misc/BitLevelCodingScheme.html).
 
