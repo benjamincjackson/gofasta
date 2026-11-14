@@ -14,11 +14,8 @@ Flags:
   -w, --wrap int         Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.
       --pad              If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns
   -o, --outfile string   Where to write the alignment (default "stdout")
+  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
+  -s, --samfile string   SAM file to read (default "stdin")
       --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -h, --help             help for toMultiAlign
-
-Global Flags:
-  -r, --reference string   Reference fasta file used to generate the sam file
-  -s, --samfile string     SAM file to read (default "stdin")
-  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
 

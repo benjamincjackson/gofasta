@@ -8,6 +8,8 @@ import (
 
 // toPairAlignOptions holds the values of the flags of the command newToPairAlignCmd returns
 type toPairAlignOptions struct {
+	threads        int
+	reference      string
 	outpath        string
 	omitReference  bool
 	skipInsertions bool
@@ -15,8 +17,8 @@ type toPairAlignOptions struct {
 	strict bool
 }
 
-// newToPairAlignCmd builds the sam toPairAlign command; s holds the sam command's flags, which its subcommands share
-func newToPairAlignCmd(s *samOptions) *cobra.Command {
+// newToPairAlignCmd builds the sam toPairAlign command
+func newToPairAlignCmd() *cobra.Command {
 	var o toPairAlignOptions
 	c := &cobra.Command{
 		Use:     "toPairAlign",
@@ -61,17 +63,18 @@ instead, use -o stdout, e.g.:
 			}
 			defer ref.Close()
 
-			return sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(s.threads), o.strict)
+			return sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(o.threads), o.strict)
 		},
 	}
 
 	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout")
-	// (sam's own --reference is optional for its other commands; this one shadows it, to say it is required)
-	c.Flags().StringVarP(&s.reference, "reference", "r", "", "Reference fasta file used to generate the sam file (required)")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", samReferenceUsage+" (required)")
 	c.Flags().BoolVar(&o.omitReference, "omit-reference", false, "Omit the reference sequences from the output alignments")
 	c.Flags().BoolVar(&o.skipInsertions, "skip-insertions", false, "Skip insertions relative to the reference from the output alignments")
 	addTrimFlags(c, &o.trimOptions, false)
 
+	addThreadsFlag(c.Flags(), &o.threads)
+	addSamfileFlag(c)
 	addStrictFlag(c, &o.strict)
 	requireFlags(c, "outpath")
 	c.Flags().SortFlags = false

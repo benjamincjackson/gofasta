@@ -11,13 +11,15 @@ import (
 
 // samVariantsOptions holds the values of the flags of the command newSamVariantsCmd returns
 type samVariantsOptions struct {
+	threads   int
+	reference string
 	variantsOutputOptions
 	annotationOptions
 	strict bool
 }
 
-// newSamVariantsCmd builds the sam variants command; s holds the sam command's flags, which its subcommands share
-func newSamVariantsCmd(s *samOptions) *cobra.Command {
+// newSamVariantsCmd builds the sam variants command
+func newSamVariantsCmd() *cobra.Command {
 	var o samVariantsOptions
 	c := &cobra.Command{
 		Use:   "variants",
@@ -58,7 +60,7 @@ of the format.
 
 			refFromFile := false
 			var ref io.ReadCloser // without --reference, the annotation's sequence is the reference
-			if s.reference != "" {
+			if o.reference != "" {
 				ref, err = openIn(cmd, "reference")
 				if err != nil {
 					return err
@@ -79,7 +81,7 @@ of the format.
 			}
 			defer gfio.CloseOut(out, &err)
 
-			return sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.groupAA, resolveThreads(s.threads), o.strict)
+			return sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.groupAA, resolveThreads(o.threads), o.strict)
 		},
 	}
 
@@ -87,6 +89,9 @@ of the format.
 	addOutfileFlag(c, "the variants")
 	addVariantsOutputFlags(c, &o.variantsOutputOptions)
 
+	addThreadsFlag(c.Flags(), &o.threads)
+	addSamfileFlag(c)
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", samReferenceUsage)
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false
 

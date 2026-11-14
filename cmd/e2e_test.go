@@ -165,6 +165,7 @@ var e2eCases = []e2eCase{
 	{name: "sam_toma_stdin", args: []string{"sam", "toMultiAlign"}, stdin: "aln.sam"},
 	{name: "sam_toma_pad", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "--pad"}},
 	{name: "sam_toma_start_end_pad", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "--start", "20", "--end", "100", "--pad"}},
+	{name: "sam_toma_reference_accepted", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "-r", "ref.fasta"}},
 	{name: "sam_toma_start_end", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "--start", "20", "--end", "100"}},
 	{name: "sam_toma_start_after_end", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "--start", "100", "--end", "20"}},
 	{name: "sam_toma_wrap", args: []string{"sam", "toMultiAlign", "-s", "aln.sam", "-w", "50"}},

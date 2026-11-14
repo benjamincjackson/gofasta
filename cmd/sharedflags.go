@@ -76,6 +76,14 @@ func hideDefault(c *cobra.Command, names ...string) {
 	}
 }
 
+// addSamfileFlag adds -s, --samfile (default stdin) to c, a sam command
+func addSamfileFlag(c *cobra.Command) {
+	c.Flags().StringP("samfile", "s", "stdin", "SAM file to read")
+}
+
+// samReferenceUsage describes the --reference of the sam commands that read one
+const samReferenceUsage = "Reference fasta file used to generate the sam file"
+
 // requireFlags marks the named flags of c required, and says so in their help
 func requireFlags(c *cobra.Command, names ...string) {
 	for _, n := range names {

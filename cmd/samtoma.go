@@ -9,13 +9,14 @@ import (
 
 // toMultiAlignOptions holds the values of the flags of the command newToMultiAlignCmd returns
 type toMultiAlignOptions struct {
+	threads int
 	trimOptions
 	pad    bool
 	strict bool
 }
 
-// newToMultiAlignCmd builds the sam toMultiAlign command; s holds the sam command's flags, which its subcommands share
-func newToMultiAlignCmd(s *samOptions) *cobra.Command {
+// newToMultiAlignCmd builds the sam toMultiAlign command
+func newToMultiAlignCmd() *cobra.Command {
 	var o toMultiAlignOptions
 	c := &cobra.Command{
 		Use:     "toMultiAlign",
@@ -57,7 +58,7 @@ fasta file to stdout, e.g.:
 			}
 			defer gfio.CloseOut(out, &err)
 
-			return sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(s.threads), o.strict)
+			return sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(o.threads), o.strict)
 		},
 	}
 
@@ -65,6 +66,12 @@ fasta file to stdout, e.g.:
 	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
 	addOutfileFlag(c, "the alignment")
 
+	addThreadsFlag(c.Flags(), &o.threads)
+	addSamfileFlag(c)
+	// toMultiAlign does not use a reference, but command lines that give one (as other sam commands need)
+	// still work: the flag is accepted, and hidden from the help
+	c.Flags().StringP("reference", "r", "", samReferenceUsage)
+	c.Flags().MarkHidden("reference")
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false
 	return c

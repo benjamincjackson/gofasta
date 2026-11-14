@@ -13,10 +13,7 @@ Available Commands:
   variants     Annotate mutations relative to a reference from an alignment in sam format
 
 Flags:
-  -h, --help               help for sam
-  -r, --reference string   Reference fasta file used to generate the sam file
-  -s, --samfile string     SAM file to read (default "stdin")
-  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
+  -h, --help   help for sam
 
 Use "gofasta sam [command] --help" for more information about a command.
 --- stderr
