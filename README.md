@@ -148,7 +148,7 @@ Flags:
   -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
   -n, --number int        Return the closest n --target sequences to each query (without --number or --max-dist, the single closest)
   -d, --max-dist string   Return all the --target sequences this distance or less from each query (inf for no limit)
-      --table             Write a long-form table of the output
+      --table             Write a long-form table of the output (with --number or --max-dist)
       --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
   -t, --threads int       Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help              help for closest

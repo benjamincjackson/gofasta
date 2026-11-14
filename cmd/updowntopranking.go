@@ -51,17 +51,16 @@ sequence. It does this by comparing SNPs relative to a common reference sequence
 root of the tree.
 
 --query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or
-one of each; which is worked out from their content, so they can be called anything, and either can be stdin.
-If either is an alignment, you must provide --reference, and this should be the same sequence that was used by
-gofasta updown list.
+one of each; which is worked out from their content, so they can be called anything, and either (but not both)
+can be stdin. If either is an alignment, you must provide --reference, and this should be the same sequence
+that was used by gofasta updown list.
 
 Use --dist-all, or --dist-up, --dist-down and --dist-side, to filter on SNP-distances in each direction. As
 long as you haven't also used any of the --size-* flags (--size-total, --size-up, --size-down, --size-side,
 --size-same), the program will return all the targets that are equal or less than the specified
-SNP-distance(s) away.
-If --dist-push is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to
-cover the all sequences that are the closest i SNP-distances away, and then it will return all the neighbours
-at those distances in that bin.
+SNP-distance(s) away. If --dist-push is invoked with an integer (i) argument, the program will push the
+SNP-distance boundaries to cover all the sequences that are the closest i SNP-distances away, and then it will
+return all the neighbours at those distances in that bin.
 
 If you provide a number to --size-total, the output will try to include this many closest sequences to the
 query, split evenly between the four bins. If one or more bins has a shortfall, the sizes of the other bins

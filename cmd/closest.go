@@ -42,7 +42,7 @@ Or you can find the nearest n neighbours:
 
 	gofasta closest -t 2 -n 1000 --query query.fasta --target target.fasta -o closest.n1000.csv
 
-or you can find all the neighbours under a -d distance away:
+or you can find all the neighbours a -d distance or less away:
 
 	gofasta closest -t 2 --measure snp -d 5 --query query.fasta --target target.fasta -o closest.d5snps.csv
 
@@ -113,7 +113,7 @@ between every pair.
 	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
 	c.Flags().IntVarP(&o.n, "number", "n", 0, "Return the closest n --target sequences to each query (without --number or --max-dist, the single closest)")
 	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "Return all the --target sequences this distance or less from each query (inf for no limit)")
-	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
+	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output (with --number or --max-dist)")
 	addStrictFlag(c, &o.strict)
 	addThreadsFlag(c.Flags(), &o.threads)
 	requireFlags(c, "query", "target")

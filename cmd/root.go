@@ -21,7 +21,8 @@ func newRootCmd() *cobra.Command {
 		Long: `Command-line utilities for genomic epidemiology research
 
 Files are named by their paths; "stdin" or "-" reads an input from stdin, and "stdout" or "-" writes an output
-to stdout. Any input can be gzipped.
+to stdout. Any input can be gzipped. (--annotation can't be stdin, as its format comes from its suffix: use
+--genbank or --gff.)
 
 If you use gofasta in your work, please cite:
 

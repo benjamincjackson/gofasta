@@ -34,8 +34,8 @@ If --samfile and --outfile are not given, the sam file is read from stdin and th
 stdout.
 
 --reference should be the same sequence that was used to make the --samfile alignment, and should be in the
-same coordinates as the --annotation. You don't have to provide a file to --reference if your annotation has the
-fasta record in it.
+same coordinates as the annotation (--annotation, --genbank or --gff). You don't have to provide a file to
+--reference if your annotation has the fasta record in it.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
 of the format.
