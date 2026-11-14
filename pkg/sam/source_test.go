@@ -196,7 +196,7 @@ func TestPrimaryLines(t *testing.T) {
 		"none\t2048\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
 		"two\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
 		"two\t0\tref\t10\t60\t4M\t*\t0\t0\tACGT\t*\n" +
-		"elsewhere\t0\tother\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" + // the Primary line is on another reference
+		"elsewhere\t0\tother\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" + // the primary line is on another reference
 		"elsewhere\t2048\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n"
 	src, err := newSamSource(strings.NewReader(text))
 	if err != nil {

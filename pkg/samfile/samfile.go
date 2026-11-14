@@ -261,7 +261,7 @@ type Record struct {
 	OtherSeq bool
 }
 
-// Primary reports whether r is its query's Primary line (neither secondary nor supplementary)
+// Primary reports whether r is its query's primary line (neither secondary nor supplementary)
 func (r Record) Primary() bool { return r.Flags&(FlagSecondary|FlagSupplementary) == 0 }
 
 // seqTable maps the characters SAM allows in SEQ (letters, "=" and ".") to what gofasta uses: IUPAC codes

@@ -27,7 +27,7 @@ type samRecords struct {
 	name    string // the query's name (QNAME)
 	records []samfile.Record
 	refName string // the name of the reference (the first @SQ) they are mapped to
-	// the query's Primary lines (FLAG & 0x900 == 0, counting lines skipped as unmapped or mapped to another
+	// the query's primary lines (FLAG & 0x900 == 0, counting lines skipped as unmapped or mapped to another
 	// reference): the SAM specification requires exactly one
 	primaries int
 	equals    bool // SEQ had "=" (the reference base), replaced by prepareQuery
@@ -257,7 +257,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 		return counter
 	}
 
-	// the Primary lines read for each QNAME since the current query started (a query's lines are
+	// the primary lines read for each QNAME since the current query started (a query's lines are
 	// consecutive, so only this query's and the next one's are needed)
 	primaries := map[string]int{}
 
@@ -384,7 +384,7 @@ func prepareQuery(group samRecords, ref []byte, refLen int) (samRecords, error) 
 	}
 	if group.primaries != 1 {
 		return samRecords{}, pipeline.Named(group.name, errors.New("bad sam records: the query has "+
-			strconv.Itoa(group.primaries)+" Primary lines (FLAG & 0x900 == 0), and the SAM specification requires exactly one"))
+			strconv.Itoa(group.primaries)+" primary lines (FLAG & 0x900 == 0), and the SAM specification requires exactly one"))
 	}
 	for i := range group.records {
 		if err := validateRecord(&group.records[i], refLen); err != nil {

@@ -43,12 +43,12 @@ func pairAlignFromSamWith(t *testing.T, samText string, ref string, resolve bool
 	return pair
 }
 
-// when a query has several SAM records (e.g. Primary + supplementary) and one
+// when a query has several SAM records (e.g. primary + supplementary) and one
 // contains an insertion, the bases after the insertion point are kept in every row.
 func TestBlockToSeqPairSupplementaryAfterInsertion(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
 
-	// Primary: 5M3I15M. supplementary (flag 2048): 20M, which disagrees with the Primary
+	// primary: 5M3I15M. supplementary (flag 2048): 20M, which disagrees with the primary
 	// at two of the columns they share after the insertion, so those must come out as N.
 	samText := "@SQ\tSN:ref\tLN:20\n" +
 		"q\t0\tref\t1\t60\t5M3I15M\t*\t0\t0\tACGTAGGGCGTACGTACGTACGT\t*\n" +
@@ -71,7 +71,7 @@ func TestBlockToSeqPairSupplementaryAfterInsertion(t *testing.T) {
 func TestBlockToSeqPairTwoInsertionsInOneRecord(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
 
-	// Primary: 5M3I5M3I10M. supplementary: 20M identical to the reference up to base 10,
+	// primary: 5M3I5M3I10M. supplementary: 20M identical to the reference up to base 10,
 	// then the complement of the reference for bases 11-20 (so all of those columns conflict).
 	samText := "@SQ\tSN:ref\tLN:20\n" +
 		"q\t0\tref\t1\t60\t5M3I5M3I10M\t*\t0\t0\tACGTAGGGCGTACTTTGTACGTACGT\t*\n" +
@@ -91,8 +91,8 @@ func TestBlockToSeqPairTwoInsertionsInOneRecord(t *testing.T) {
 }
 
 // a row's own insertions are counted when placing other rows' insertions. Here the
-// Primary has an insertion at reference base 5 and the supplementary has one at base 12; the
-// Primary's gaps for the supplementary's insertion must go after the Primary's own insertion.
+// primary has an insertion at reference base 5 and the supplementary has one at base 12; the
+// primary's gaps for the supplementary's insertion must go after the primary's own insertion.
 func TestBlockToSeqPairInsertionsInDifferentRecords(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
 
@@ -137,7 +137,7 @@ func TestBlockToSeqPairInsertionsAtSamePosition(t *testing.T) {
 }
 
 // rows that end before, or start after, another row's insertion.
-// The Primary covers only reference bases 1-10 and the supplementary only 11-20 (with an
+// The primary covers only reference bases 1-10 and the supplementary only 11-20 (with an
 // insertion after base 15), so neither row can be given gaps for an insertion it does not span.
 func TestBlockToSeqPairRowsEndingEarlyOrStartingLate(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"

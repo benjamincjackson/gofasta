@@ -11,28 +11,28 @@ import (
 )
 
 // Where the records of one query overlap in reference coordinates, the alignment of the record that comes
-// first (the Primary record, then the supplementary records in file order) is used for the overlapping
+// first (the primary record, then the supplementary records in file order) is used for the overlapping
 // stretch and the later records only contribute outside it.
 
-// The Primary record's alignment is used where it overlaps a supplementary record, wherever the Primary
+// The primary record's alignment is used where it overlaps a supplementary record, wherever the primary
 // record is in the file.
 func TestOverlappingRecordsPrimaryWins(t *testing.T) {
 	ref := overlapTestRef()
-	// the supplementary record covers reference 1-40 and has a different base at 31 from the Primary
+	// the supplementary record covers reference 1-40 and has a different base at 31 from the primary
 	// record, which covers 21-60
 	other := map[byte]byte{'A': 'C', 'C': 'G', 'G': 'T', 'T': 'A'}
 	suppSeq := ref[:30] + string(other[ref[30]]) + ref[31:40]
-	Primary := rec("q", 0, 21, "40M", ref[20:])
+	primary := rec("q", 0, 21, "40M", ref[20:])
 	supplementary := rec("q", 2048, 1, "40M", suppSeq)
 
-	primaryFirst := pairAlignFromSam(t, samLines(ref, Primary, supplementary), ref)
-	supplementaryFirst := pairAlignFromSam(t, samLines(ref, supplementary, Primary), ref)
+	primaryFirst := pairAlignFromSam(t, samLines(ref, primary, supplementary), ref)
+	supplementaryFirst := pairAlignFromSam(t, samLines(ref, supplementary, primary), ref)
 
 	if string(primaryFirst.query) != string(supplementaryFirst.query) || string(primaryFirst.ref) != string(supplementaryFirst.ref) {
 		t.Errorf("the order of the records should not matter\nprimary first:       %s\nsupplementary first: %s", primaryFirst.query, supplementaryFirst.query)
 	}
 	if want := ref; string(supplementaryFirst.query) != want {
-		t.Errorf("the Primary record's base should be used at 31\ngot  %s\nwant %s", supplementaryFirst.query, want)
+		t.Errorf("the primary record's base should be used at 31\ngot  %s\nwant %s", supplementaryFirst.query, want)
 	}
 }
 

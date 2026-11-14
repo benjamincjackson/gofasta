@@ -63,13 +63,13 @@ func anyStrictlyInside(ivs []interval, c int) bool {
 	return false
 }
 
-// resolveOverlaps makes the records that belong to one query (a Primary alignment and its supplementary
+// resolveOverlaps makes the records that belong to one query (a primary alignment and its supplementary
 // alignments) agree about who describes which stretch of the reference. The records are taken in priority
-// order: the Primary record first, then the supplementary records in the order they were read. Where
+// order: the primary record first, then the supplementary records in the order they were read. Where
 // records overlap on the reference, the alignment of the record that comes first in that order is used
 // for the overlapping stretch and the later records only contribute outside it. (Overlaps come mostly from
 // repeats at the genome's ends, such as poxvirus ITRs or retroviral LTRs: an aligner can place the
-// query's copy at one end on the reference's copy at the other end too, and the Primary alignment is
+// query's copy at one end on the reference's copy at the other end too, and the primary alignment is
 // the one in genome order.)
 //
 // Records are merged column by column along the reference. That works for substitutions and deletions, but an
