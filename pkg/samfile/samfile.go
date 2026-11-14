@@ -404,12 +404,13 @@ func (h *Header) ParseRecord(line []byte) (Record, error) {
 
 // ResolveEquals replaces each "=" in r's SEQ (which means "the reference base") by its reference base from
 // ref, or by N if ref is nil (no reference is known), and reports whether there were any. A "=" in an
-// insertion or a soft clip, which has no reference base, is an error.
+// insertion or a soft clip, which has no reference base, is an error, after which SEQ may have been
+// partly rewritten. SEQ is rewritten in place: ParseRecord gives each record its own.
 func (r *Record) ResolveEquals(ref []byte) (bool, error) {
 	if bytes.IndexByte(r.Seq, '=') < 0 {
 		return false, nil
 	}
-	seq := bytes.Clone(r.Seq)
+	seq := r.Seq
 	q, p := 0, r.Pos
 	for _, o := range r.Cigar {
 		qn, rn := o.Type().Consumes()
@@ -429,7 +430,6 @@ func (r *Record) ResolveEquals(ref []byte) (bool, error) {
 		q += o.Len() * qn
 		p += o.Len() * rn
 	}
-	r.Seq = seq
 	return true, nil
 }
 
