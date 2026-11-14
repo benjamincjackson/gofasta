@@ -58,7 +58,7 @@ func alignRecord(rec samfile.Record, reference []byte, refLen int, includeInsert
 			q += n
 		case samfile.CigarHardClipped, samfile.CigarPadded:
 		default:
-			// (validateRecord has already rejected these)
+			// (samfile.Header.ParseRecord has already rejected these)
 			return nil, nil, errors.New("unsupported CIGAR operation " + op.Type().String())
 		}
 	}
