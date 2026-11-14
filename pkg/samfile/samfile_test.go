@@ -1,8 +1,10 @@
-package sam
+package samfile
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"testing"
@@ -55,7 +57,7 @@ func biogoRecord(h *biogosam.Header, line []byte) (r biogosam.Record, err error)
 }
 
 // sameRecord reports how our record differs from biogo's, if it does
-func sameRecord(ours samRecord, theirs biogosam.Record) error {
+func sameRecord(ours Record, theirs biogosam.Record) error {
 	ref := -1
 	if theirs.Ref != nil {
 		ref = theirs.Ref.ID()
@@ -73,13 +75,13 @@ func sameRecord(ours samRecord, theirs biogosam.Record) error {
 		return fmt.Errorf("SEQ %q, biogo %q", ours.Seq, theirs.Seq.Expand())
 	}
 	// biogo splits operations longer than 2^28-1 (a BAM limit) into several
-	var theirOps []cigarOp
+	var theirOps []CigarOp
 	for _, op := range theirs.Cigar {
-		if n := len(theirOps); n > 0 && theirOps[n-1].Type() == cigarType(op.Type()) && theirOps[n-1].Len() > 0 && theirOps[n-1].Len()%(1<<28-1) == 0 {
-			theirOps[n-1] = newCigarOp(cigarType(op.Type()), theirOps[n-1].Len()+op.Len())
+		if n := len(theirOps); n > 0 && theirOps[n-1].Type() == CigarType(op.Type()) && theirOps[n-1].Len() > 0 && theirOps[n-1].Len()%(1<<28-1) == 0 {
+			theirOps[n-1] = NewCigarOp(CigarType(op.Type()), theirOps[n-1].Len()+op.Len())
 			continue
 		}
-		theirOps = append(theirOps, newCigarOp(cigarType(op.Type()), op.Len()))
+		theirOps = append(theirOps, NewCigarOp(CigarType(op.Type()), op.Len()))
 	}
 	if fmt.Sprint(ours.Cigar) != fmt.Sprint(theirOps) {
 		return fmt.Errorf("CIGAR %v, biogo %v", ours.Cigar, theirOps)
@@ -125,12 +127,12 @@ func TestRecordsFollowTheSpecification(t *testing.T) {
 		{"q\t0\tref\t1\t60\t4M\t*\t0\t+5\tACGT\t*", false},
 		{"q\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT", false}, // ten fields
 	}
-	h, err := parseSamHeader([]byte(testHeader))
+	h, err := ParseHeader([]byte(testHeader))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, c := range cases {
-		_, err := h.parseRecord([]byte(c.line))
+		_, err := h.ParseRecord([]byte(c.line))
 		if (err == nil) != c.ok {
 			t.Errorf("%q: got error %v, want ok = %v", c.line, err, c.ok)
 		}
@@ -169,7 +171,7 @@ func TestHeadersFollowTheSpecification(t *testing.T) {
 		{"@PG\tID:a\n@PG\tID:a\n", false},
 	}
 	for _, c := range cases {
-		_, err := parseSamHeader([]byte(c.header))
+		_, err := ParseHeader([]byte(c.header))
 		if (err == nil) != c.ok {
 			t.Errorf("%q: got error %v, want ok = %v", c.header, err, c.ok)
 		}
@@ -187,7 +189,7 @@ func TestSeqTableFollowsTheSpecification(t *testing.T) {
 
 // A SEQ character the specification does not allow (such as a FASTA alignment's "-") is read as N, and marked
 func TestOtherSeqCharacters(t *testing.T) {
-	h, err := parseSamHeader([]byte(testHeader))
+	h, err := ParseHeader([]byte(testHeader))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,15 +202,15 @@ func TestOtherSeqCharacters(t *testing.T) {
 		{"_c*\xe9", "NCNN", true},
 		{"acg.", "ACGN", false},
 	} {
-		rec, err := h.parseRecord([]byte("q\t0\tref\t1\t60\t4M\t*\t0\t0\t" + c.seq + "\t*"))
-		if err != nil || string(rec.Seq) != c.want || rec.otherSeq != c.other {
-			t.Errorf("SEQ %q: got %q, otherSeq %v, %v; want %q, %v", c.seq, rec.Seq, rec.otherSeq, err, c.want, c.other)
+		rec, err := h.ParseRecord([]byte("q\t0\tref\t1\t60\t4M\t*\t0\t0\t" + c.seq + "\t*"))
+		if err != nil || string(rec.Seq) != c.want || rec.OtherSeq != c.other {
+			t.Errorf("SEQ %q: got %q, OtherSeq %v, %v; want %q, %v", c.seq, rec.Seq, rec.OtherSeq, err, c.want, c.other)
 		}
 	}
 }
 
 func TestResolveEquals(t *testing.T) {
-	h, err := parseSamHeader([]byte(testHeader))
+	h, err := ParseHeader([]byte(testHeader))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,11 +226,11 @@ func TestResolveEquals(t *testing.T) {
 		{line: "q\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*", withRef: "ACGT", withoutRef: "ACGT"},
 	} {
 		for _, r := range [][]byte{ref, nil} {
-			rec, err := h.parseRecord([]byte(c.line))
+			rec, err := h.ParseRecord([]byte(c.line))
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = rec.resolveEquals(r)
+			_, err = rec.ResolveEquals(r)
 			want := c.withRef
 			if r == nil {
 				want = c.withoutRef
@@ -241,36 +243,6 @@ func TestResolveEquals(t *testing.T) {
 				t.Errorf("%q (reference given: %v): got %q, %v; want %q", c.line, r != nil, rec.Seq, err, want)
 			}
 		}
-	}
-}
-
-func TestPrimaryLines(t *testing.T) {
-	text := testHeader +
-		"one\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
-		"one\t2048\tref\t10\t60\t4M\t*\t0\t0\tACGT\t*\n" +
-		"none\t2048\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
-		"two\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
-		"two\t0\tref\t10\t60\t4M\t*\t0\t0\tACGT\t*\n" +
-		"elsewhere\t0\tother\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" + // the primary line is on another reference
-		"elsewhere\t2048\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n"
-	src, err := newSamSource(strings.NewReader(text))
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := map[string]bool{"one": true, "none": false, "two": false, "elsewhere": true}
-	for {
-		g, err := src.next()
-		if err != nil {
-			break
-		}
-		_, err = prepareQuery(g, nil, 100)
-		if (err == nil) != want[g.name] {
-			t.Errorf("%s: got error %v, want ok = %v", g.name, err, want[g.name])
-		}
-		delete(want, g.name)
-	}
-	if len(want) != 0 {
-		t.Errorf("queries not read: %v", want)
 	}
 }
 
@@ -290,7 +262,7 @@ func FuzzRecordsFollowTheSpecification(f *testing.F) {
 	if err != nil {
 		f.Fatal(err)
 	}
-	h, err := parseSamHeader([]byte(testHeader))
+	h, err := ParseHeader([]byte(testHeader))
 	if err != nil {
 		f.Fatal(err)
 	}
@@ -298,17 +270,17 @@ func FuzzRecordsFollowTheSpecification(f *testing.F) {
 		if strings.Contains(line, "\n") {
 			return
 		}
-		ours, err := h.parseRecord([]byte(line))
+		ours, err := h.ParseRecord([]byte(line))
 		if err != nil {
 			return
 		}
 		fields := strings.SplitN(line, "\t", 12)
 		// SEQ may hold characters the specification does not allow (read as N, and marked): biogo reads some
 		// of them as bases, so it is given N there
-		if seqOK := specFields[9].MatchString(fields[9]); seqOK == ours.otherSeq {
-			t.Fatalf("%q: otherSeq is %v, but SEQ %q matches the specification: %v", line, ours.otherSeq, fields[9], seqOK)
+		if seqOK := specFields[9].MatchString(fields[9]); seqOK == ours.OtherSeq {
+			t.Fatalf("%q: OtherSeq is %v, but SEQ %q matches the specification: %v", line, ours.OtherSeq, fields[9], seqOK)
 		}
-		if ours.otherSeq {
+		if ours.OtherSeq {
 			seq := []byte(fields[9])
 			for i, c := range seq {
 				if seqTable[c] == 0 {
@@ -346,7 +318,7 @@ func FuzzHeadersFollowTheSpecification(f *testing.F) {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, header string) {
-		ours, err := parseSamHeader([]byte(header))
+		ours, err := ParseHeader([]byte(header))
 		if err != nil {
 			return
 		}
@@ -360,13 +332,57 @@ func FuzzHeadersFollowTheSpecification(f *testing.F) {
 			return
 		}
 		refs := theirs.Refs()
-		if len(refs) != len(ours.refs) {
-			t.Fatalf("%q: %d references, biogo %d", header, len(ours.refs), len(refs))
+		if len(refs) != len(ours.Refs) {
+			t.Fatalf("%q: %d references, biogo %d", header, len(ours.Refs), len(refs))
 		}
 		for i, r := range refs {
-			if ours.refs[i].Name != r.Name() || ours.refs[i].Length != r.Len() {
-				t.Fatalf("%q: reference %d is %v, biogo %s:%d", header, i, ours.refs[i], r.Name(), r.Len())
+			if ours.Refs[i].Name != r.Name() || ours.Refs[i].Length != r.Len() {
+				t.Fatalf("%q: reference %d is %v, biogo %s:%d", header, i, ours.Refs[i], r.Name(), r.Len())
 			}
 		}
 	})
+}
+
+// The Reader reads the header, then one alignment line at a time, skipping blank lines; a bad line gives a
+// *LineError with its QNAME, and the lines after it can still be read
+func TestReader(t *testing.T) {
+	if _, err := NewReader(strings.NewReader("")); !errors.Is(err, ErrEmpty) {
+		t.Errorf("empty file: got %v, want ErrEmpty", err)
+	}
+	if _, err := NewReader(strings.NewReader("@SQ\tSN:ref\n")); err == nil {
+		t.Error("bad header: want an error")
+	}
+	text := testHeader +
+		"a\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\r\n" +
+		"\n" +
+		"b\t0\tref\t1\t60\t4X\t*\t0\t0\tACGT\t*\n" + // the next line is bad (RNAME is not an @SQ)
+		"c\t0\tnowhere\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
+		"d\t16\tref\t5\t60\t2M\t*\t0\t0\tAC\t*" // no final newline
+	r, err := NewReader(strings.NewReader(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Header.Refs) != 2 || r.Header.Refs[0] != (Reference{Name: "ref", Length: 100}) {
+		t.Errorf("header references: %v", r.Header.Refs)
+	}
+	var got []string
+	for {
+		rec, err := r.Next()
+		if err == io.EOF {
+			break
+		}
+		var bad *LineError
+		switch {
+		case errors.As(err, &bad):
+			got = append(got, "bad "+bad.Name)
+		case err != nil:
+			t.Fatal(err)
+		default:
+			got = append(got, fmt.Sprintf("%s %d %d %s", rec.Name, rec.Flags, rec.Pos, rec.Seq))
+		}
+	}
+	want := []string{"a 0 0 ACGT", "b 0 0 ACGT", "bad c", "d 16 4 AC"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
 }

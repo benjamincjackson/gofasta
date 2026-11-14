@@ -6,31 +6,33 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/virus-evolution/gofasta/pkg/samfile"
 )
 
 // Where the records of one query overlap in reference coordinates, the alignment of the record that comes
-// first (the primary record, then the supplementary records in file order) is used for the overlapping
+// first (the Primary record, then the supplementary records in file order) is used for the overlapping
 // stretch and the later records only contribute outside it.
 
-// The primary record's alignment is used where it overlaps a supplementary record, wherever the primary
+// The Primary record's alignment is used where it overlaps a supplementary record, wherever the Primary
 // record is in the file.
 func TestOverlappingRecordsPrimaryWins(t *testing.T) {
 	ref := overlapTestRef()
-	// the supplementary record covers reference 1-40 and has a different base at 31 from the primary
+	// the supplementary record covers reference 1-40 and has a different base at 31 from the Primary
 	// record, which covers 21-60
 	other := map[byte]byte{'A': 'C', 'C': 'G', 'G': 'T', 'T': 'A'}
 	suppSeq := ref[:30] + string(other[ref[30]]) + ref[31:40]
-	primary := rec("q", 0, 21, "40M", ref[20:])
+	Primary := rec("q", 0, 21, "40M", ref[20:])
 	supplementary := rec("q", 2048, 1, "40M", suppSeq)
 
-	primaryFirst := pairAlignFromSam(t, samLines(ref, primary, supplementary), ref)
-	supplementaryFirst := pairAlignFromSam(t, samLines(ref, supplementary, primary), ref)
+	primaryFirst := pairAlignFromSam(t, samLines(ref, Primary, supplementary), ref)
+	supplementaryFirst := pairAlignFromSam(t, samLines(ref, supplementary, Primary), ref)
 
 	if string(primaryFirst.query) != string(supplementaryFirst.query) || string(primaryFirst.ref) != string(supplementaryFirst.ref) {
 		t.Errorf("the order of the records should not matter\nprimary first:       %s\nsupplementary first: %s", primaryFirst.query, supplementaryFirst.query)
 	}
 	if want := ref; string(supplementaryFirst.query) != want {
-		t.Errorf("the primary record's base should be used at 31\ngot  %s\nwant %s", supplementaryFirst.query, want)
+		t.Errorf("the Primary record's base should be used at 31\ngot  %s\nwant %s", supplementaryFirst.query, want)
 	}
 }
 
@@ -146,7 +148,7 @@ func TestResolveOverlapsRandomised(t *testing.T) {
 		for i := range ref {
 			ref[i] = "ACGT"[rng.Intn(4)]
 		}
-		var recs []samRecord
+		var recs []samfile.Record
 		for k := 0; k < 1+rng.Intn(4); k++ {
 			pos := rng.Intn(L - 20)
 			var cigar []string
@@ -190,7 +192,7 @@ func TestResolveOverlapsRandomised(t *testing.T) {
 			continue
 		}
 
-		out := resolveOverlaps(append([]samRecord(nil), recs...))
+		out := resolveOverlaps(append([]samfile.Record(nil), recs...))
 
 		// the owner of every reference position, from the original records
 		owner := make([]byte, L)
@@ -204,10 +206,10 @@ func TestResolveOverlapsRandomised(t *testing.T) {
 		}
 		got := make([]byte, L)
 		for _, r := range out {
-			_, qlen := cigarLengths(r.Cigar)
+			_, qlen := samfile.CigarLengths(r.Cigar)
 			hard := 0
 			for _, op := range r.Cigar {
-				if op.Type() == cigarHardClipped {
+				if op.Type() == samfile.CigarHardClipped {
 					hard += op.Len()
 				}
 			}

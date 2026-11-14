@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/virus-evolution/gofasta/pkg/samfile"
 )
 
 // pairAlignFromSam runs one query's SAM records through the same steps as toPairAlign (grouping the records
@@ -29,7 +31,7 @@ func pairAlignFromSamWith(t *testing.T, samText string, ref string, resolve bool
 	t.Helper()
 
 	h, recs := readTestSam(t, samText)
-	group := samRecords{records: recs, refName: h.refs[0].Name}
+	group := samRecords{records: recs, refName: h.Refs[0].Name}
 	if resolve {
 		group.records = resolveOverlaps(group.records)
 	}
@@ -41,12 +43,12 @@ func pairAlignFromSamWith(t *testing.T, samText string, ref string, resolve bool
 	return pair
 }
 
-// when a query has several SAM records (e.g. primary + supplementary) and one
+// when a query has several SAM records (e.g. Primary + supplementary) and one
 // contains an insertion, the bases after the insertion point are kept in every row.
 func TestBlockToSeqPairSupplementaryAfterInsertion(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
 
-	// primary: 5M3I15M. supplementary (flag 2048): 20M, which disagrees with the primary
+	// Primary: 5M3I15M. supplementary (flag 2048): 20M, which disagrees with the Primary
 	// at two of the columns they share after the insertion, so those must come out as N.
 	samText := "@SQ\tSN:ref\tLN:20\n" +
 		"q\t0\tref\t1\t60\t5M3I15M\t*\t0\t0\tACGTAGGGCGTACGTACGTACGT\t*\n" +
@@ -69,7 +71,7 @@ func TestBlockToSeqPairSupplementaryAfterInsertion(t *testing.T) {
 func TestBlockToSeqPairTwoInsertionsInOneRecord(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
 
-	// primary: 5M3I5M3I10M. supplementary: 20M identical to the reference up to base 10,
+	// Primary: 5M3I5M3I10M. supplementary: 20M identical to the reference up to base 10,
 	// then the complement of the reference for bases 11-20 (so all of those columns conflict).
 	samText := "@SQ\tSN:ref\tLN:20\n" +
 		"q\t0\tref\t1\t60\t5M3I5M3I10M\t*\t0\t0\tACGTAGGGCGTACTTTGTACGTACGT\t*\n" +
@@ -89,8 +91,8 @@ func TestBlockToSeqPairTwoInsertionsInOneRecord(t *testing.T) {
 }
 
 // a row's own insertions are counted when placing other rows' insertions. Here the
-// primary has an insertion at reference base 5 and the supplementary has one at base 12; the
-// primary's gaps for the supplementary's insertion must go after the primary's own insertion.
+// Primary has an insertion at reference base 5 and the supplementary has one at base 12; the
+// Primary's gaps for the supplementary's insertion must go after the Primary's own insertion.
 func TestBlockToSeqPairInsertionsInDifferentRecords(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
 
@@ -135,7 +137,7 @@ func TestBlockToSeqPairInsertionsAtSamePosition(t *testing.T) {
 }
 
 // rows that end before, or start after, another row's insertion.
-// The primary covers only reference bases 1-10 and the supplementary only 11-20 (with an
+// The Primary covers only reference bases 1-10 and the supplementary only 11-20 (with an
 // insertion after base 15), so neither row can be given gaps for an insertion it does not span.
 func TestBlockToSeqPairRowsEndingEarlyOrStartingLate(t *testing.T) {
 	ref := "ACGTACGTACGTACGTACGT"
@@ -233,7 +235,7 @@ func TestBlockToSeqPairRandomisedConsistency(t *testing.T) {
 }
 
 // readTestSam parses SAM text (header lines, then records) with the package's parser
-func readTestSam(t *testing.T, text string) (*samHeader, []samRecord) {
+func readTestSam(t *testing.T, text string) (*samfile.Header, []samfile.Record) {
 	t.Helper()
 	var header []byte
 	var lines []string
@@ -244,13 +246,13 @@ func readTestSam(t *testing.T, text string) (*samHeader, []samRecord) {
 			lines = append(lines, l)
 		}
 	}
-	h, err := parseSamHeader(header)
+	h, err := samfile.ParseHeader(header)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var recs []samRecord
+	var recs []samfile.Record
 	for _, l := range lines {
-		r, err := h.parseRecord([]byte(l))
+		r, err := h.ParseRecord([]byte(l))
 		if err != nil {
 			t.Fatalf("%v\n%s", err, l)
 		}

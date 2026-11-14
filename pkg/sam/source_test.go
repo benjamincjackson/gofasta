@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
+	"github.com/virus-evolution/gofasta/pkg/samfile"
 )
 
 // samLineFor returns a sam alignment line for query name with the given flag and position
@@ -182,7 +183,38 @@ func TestSamSourceNotesOrdering(t *testing.T) {
 
 // An empty sam file is an error that says so
 func TestSamSourceEmptyFile(t *testing.T) {
-	if _, err := newSamSource(strings.NewReader("")); !errors.Is(err, errEmptySam) {
-		t.Errorf("want errEmptySam, got %v", err)
+	if _, err := newSamSource(strings.NewReader("")); !errors.Is(err, samfile.ErrEmpty) {
+		t.Errorf("want samfile.ErrEmpty, got %v", err)
+	}
+}
+
+// Exactly one primary line (FLAG & 0x900 == 0) per query, counting a line on another @SQ, which is skipped
+func TestPrimaryLines(t *testing.T) {
+	text := "@HD\tVN:1.6\n@SQ\tSN:ref\tLN:100\n@SQ\tSN:other\tLN:50\n" +
+		"one\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
+		"one\t2048\tref\t10\t60\t4M\t*\t0\t0\tACGT\t*\n" +
+		"none\t2048\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
+		"two\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" +
+		"two\t0\tref\t10\t60\t4M\t*\t0\t0\tACGT\t*\n" +
+		"elsewhere\t0\tother\t1\t60\t4M\t*\t0\t0\tACGT\t*\n" + // the Primary line is on another reference
+		"elsewhere\t2048\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n"
+	src, err := newSamSource(strings.NewReader(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"one": true, "none": false, "two": false, "elsewhere": true}
+	for {
+		g, err := src.next()
+		if err != nil {
+			break
+		}
+		_, err = prepareQuery(g, nil, 100)
+		if (err == nil) != want[g.name] {
+			t.Errorf("%s: got error %v, want ok = %v", g.name, err, want[g.name])
+		}
+		delete(want, g.name)
+	}
+	if len(want) != 0 {
+		t.Errorf("queries not read: %v", want)
 	}
 }

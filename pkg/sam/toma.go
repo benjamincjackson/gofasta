@@ -22,7 +22,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 	if err != nil {
 		return err
 	}
-	refLen := src.header.refs[0].Length
+	refLen := src.header.Refs[0].Length
 
 	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
 	if err != nil {

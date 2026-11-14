@@ -1,80 +1,175 @@
-package sam
+// Package samfile reads files in the SAM text format, following the SAM specification (SAMv1, the SAM/BAM
+// Format Specification Working Group): the header, and the mandatory fields of alignment records. Every
+// mandatory field and every header line is checked against the specification; the optional fields of
+// records, and the contents of @RG and @PG lines and of @SQ fields other than SN, LN and AN, are not. The
+// one exception is SEQ, where a character the specification does not allow is read as N (see
+// Record.OtherSeq).
+package samfile
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"strconv"
 )
 
-// This file parses the SAM text format, following the SAM specification (SAMv1, the SAM/BAM Format
-// Specification Working Group): the header, and the mandatory fields of alignment records. Every mandatory
-// field and every header line is checked against the specification; the optional fields of records, and
-// the contents of @RG and @PG lines and of @SQ fields other than SN, LN and AN, are not.
+// ErrEmpty is the error NewReader returns for a file with nothing in it
+var ErrEmpty = errors.New("the sam file is empty")
 
-// cigarType is the type of a CIGAR operation
-type cigarType uint8
+// Reader reads a SAM file: its header when it is made (see NewReader), then its alignment lines one at a
+// time (see Next)
+type Reader struct {
+	Header *Header
+	br     *bufio.Reader
+}
+
+// NewReader reads and checks the header of a SAM file (the lines at its start that begin with "@")
+func NewReader(r io.Reader) (*Reader, error) {
+	rd := &Reader{br: bufio.NewReaderSize(r, 1<<20)}
+	if _, err := rd.br.Peek(1); err == io.EOF {
+		return nil, ErrEmpty
+	} else if err != nil {
+		return nil, err
+	}
+	var text []byte
+	for {
+		p, err := rd.br.Peek(1)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if p[0] != '@' {
+			break
+		}
+		line, err := rd.readLine()
+		if err != nil {
+			return nil, err
+		}
+		text = append(append(text, line...), '\n')
+	}
+	h, err := ParseHeader(text)
+	if err != nil {
+		return nil, err
+	}
+	rd.Header = h
+	return rd, nil
+}
+
+// readLine returns the next line without its line ending (a final line need not have one), or io.EOF
+func (r *Reader) readLine() ([]byte, error) {
+	line, err := r.br.ReadBytes('\n')
+	if err == io.EOF && len(line) > 0 {
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	line = bytes.TrimSuffix(line, []byte{'\n'})
+	line = bytes.TrimSuffix(line, []byte{'\r'})
+	return line, nil
+}
+
+// LineError is the error Next returns for an alignment line that does not follow the specification. Name
+// is the line's first field (QNAME) as it is, so that the caller can tell which query the line belongs to.
+type LineError struct {
+	Name string
+	Err  error
+}
+
+func (e *LineError) Error() string { return e.Err.Error() }
+func (e *LineError) Unwrap() error { return e.Err }
+
+// Next returns the next alignment line, skipping blank lines, or io.EOF after the last one. A line that
+// does not follow the specification gives a *LineError, and the lines after it can still be read; any other
+// error means the file could not be read.
+func (r *Reader) Next() (Record, error) {
+	for {
+		line, err := r.readLine()
+		if err != nil {
+			return Record{}, err
+		}
+		if len(line) == 0 {
+			continue
+		}
+		rec, err := r.Header.ParseRecord(line)
+		if err != nil {
+			name, _, _ := bytes.Cut(line, []byte{'\t'})
+			return Record{}, &LineError{Name: string(name), Err: err}
+		}
+		return rec, nil
+	}
+}
+
+// isLetter reports whether b is an ASCII letter
+func isLetter(b byte) bool { return 'A' <= b && b <= 'Z' || 'a' <= b && b <= 'z' }
+
+// CigarType is the type of a CIGAR operation
+type CigarType uint8
 
 const (
-	cigarMatch cigarType = iota
-	cigarInsertion
-	cigarDeletion
-	cigarSkipped
-	cigarSoftClipped
-	cigarHardClipped
-	cigarPadded
-	cigarEqual
-	cigarMismatch
+	CigarMatch CigarType = iota
+	CigarInsertion
+	CigarDeletion
+	CigarSkipped
+	CigarSoftClipped
+	CigarHardClipped
+	CigarPadded
+	CigarEqual
+	CigarMismatch
 	cigarUnknown
 )
 
 var cigarLetters = "MIDNSHP=X?"
 
 // String returns the CIGAR letter of t
-func (t cigarType) String() string {
+func (t CigarType) String() string {
 	if t > cigarUnknown {
 		t = cigarUnknown
 	}
 	return cigarLetters[t : t+1]
 }
 
-// consumes returns how many query and reference bases one base of an operation of type t uses
-func (t cigarType) consumes() (query, reference int) {
+// Consumes returns how many query and reference bases one base of an operation of type t uses
+func (t CigarType) Consumes() (query, reference int) {
 	switch t {
-	case cigarMatch, cigarEqual, cigarMismatch:
+	case CigarMatch, CigarEqual, CigarMismatch:
 		return 1, 1
-	case cigarInsertion, cigarSoftClipped:
+	case CigarInsertion, CigarSoftClipped:
 		return 1, 0
-	case cigarDeletion, cigarSkipped:
+	case CigarDeletion, CigarSkipped:
 		return 0, 1
 	}
 	return 0, 0
 }
 
-// cigarOp is one CIGAR operation: its length and type
-type cigarOp uint64
+// CigarOp is one CIGAR operation: its length and type
+type CigarOp uint64
 
-func newCigarOp(t cigarType, n int) cigarOp { return cigarOp(t) | cigarOp(n)<<4 }
+func NewCigarOp(t CigarType, n int) CigarOp { return CigarOp(t) | CigarOp(n)<<4 }
 
-func (o cigarOp) Type() cigarType { return cigarType(o & 0xf) }
-func (o cigarOp) Len() int        { return int(o >> 4) }
+func (o CigarOp) Type() CigarType { return CigarType(o & 0xf) }
+func (o CigarOp) Len() int        { return int(o >> 4) }
 
-// cigarLengths returns the number of reference bases a CIGAR spans and the number of query bases it uses
-func cigarLengths(c []cigarOp) (ref, query int) {
+// CigarLengths returns the number of reference bases a CIGAR spans and the number of query bases it uses
+func CigarLengths(c []CigarOp) (ref, query int) {
 	for _, o := range c {
-		q, r := o.Type().consumes()
+		q, r := o.Type().Consumes()
 		ref += o.Len() * r
 		query += o.Len() * q
 	}
 	return ref, query
 }
 
-var cigarTypeOf = func() (t [256]cigarType) {
+var cigarTypeOf = func() (t [256]CigarType) {
 	for i := range t {
 		t[i] = cigarUnknown
 	}
 	for i := range cigarLetters[:len(cigarLetters)-1] {
-		t[cigarLetters[i]] = cigarType(i)
+		t[cigarLetters[i]] = CigarType(i)
 	}
 	return t
 }()
@@ -84,11 +179,11 @@ const maxInt31 = 1<<31 - 1
 
 // parseCigar parses a CIGAR string: "*", or operations of a length (digits) and a type (one of MIDNSHP=X).
 // Hard clips may only be first or last, and soft clips may only have hard clips between them and the ends.
-func parseCigar(b []byte) ([]cigarOp, error) {
+func parseCigar(b []byte) ([]CigarOp, error) {
 	if len(b) == 1 && b[0] == '*' {
 		return nil, nil
 	}
-	bad := func(why string) ([]cigarOp, error) {
+	bad := func(why string) ([]CigarOp, error) {
 		return nil, fmt.Errorf("sam: failed to parse cigar string %q: %s", b, why)
 	}
 	if len(b) == 0 {
@@ -100,7 +195,7 @@ func parseCigar(b []byte) ([]cigarOp, error) {
 			nops++
 		}
 	}
-	ops := make([]cigarOp, 0, nops)
+	ops := make([]CigarOp, 0, nops)
 	n, haveDigits := 0, false
 	for _, c := range b {
 		if '0' <= c && c <= '9' {
@@ -117,7 +212,7 @@ func parseCigar(b []byte) ([]cigarOp, error) {
 		case !haveDigits:
 			return bad(fmt.Sprintf("operation %q has no length", c))
 		}
-		ops = append(ops, newCigarOp(t, n))
+		ops = append(ops, NewCigarOp(t, n))
 		n, haveDigits = 0, false
 	}
 	if haveDigits {
@@ -125,9 +220,9 @@ func parseCigar(b []byte) ([]cigarOp, error) {
 	}
 	for i, o := range ops {
 		switch t := o.Type(); {
-		case t == cigarHardClipped && i != 0 && i != len(ops)-1:
+		case t == CigarHardClipped && i != 0 && i != len(ops)-1:
 			return bad("hard clip (H) not at either end")
-		case t == cigarSoftClipped && !clipToEnd(ops, i):
+		case t == CigarSoftClipped && !clipToEnd(ops, i):
 			return bad("soft clip (S) with something other than a hard clip between it and the end")
 		}
 	}
@@ -135,43 +230,43 @@ func parseCigar(b []byte) ([]cigarOp, error) {
 }
 
 // clipToEnd reports whether operation i has only hard clips between it and one end of the CIGAR
-func clipToEnd(ops []cigarOp, i int) bool {
+func clipToEnd(ops []CigarOp, i int) bool {
 	before, after := true, true
 	for _, o := range ops[:i] {
-		before = before && o.Type() == cigarHardClipped
+		before = before && o.Type() == CigarHardClipped
 	}
 	for _, o := range ops[i+1:] {
-		after = after && o.Type() == cigarHardClipped
+		after = after && o.Type() == CigarHardClipped
 	}
 	return before || after
 }
 
-// Flags of a SAM record that gofasta uses
+// Flags of a SAM record
 const (
-	flagUnmapped      = 0x4
-	flagSecondary     = 0x100
-	flagSupplementary = 0x800
+	FlagUnmapped      = 0x4
+	FlagSecondary     = 0x100
+	FlagSupplementary = 0x800
 )
 
-// samRecord holds the fields of a SAM alignment record that gofasta uses
-type samRecord struct {
+// Record holds the mandatory fields of a SAM alignment record that gofasta uses
+type Record struct {
 	Name  string
 	Flags uint16
 	Ref   int // the index of its @SQ line (RNAME), or -1 for "*"
 	Pos   int // 0-based (POS - 1)
-	Cigar []cigarOp
-	Seq   []byte // upper case, "=" for "the reference base" (see resolveEquals); nil if SEQ is "*"
+	Cigar []CigarOp
+	Seq   []byte // upper case, "=" for "the reference base" (see ResolveEquals); nil if SEQ is "*"
 	// SEQ had characters the SAM specification does not allow there (it allows letters, "=" and "."), such as
 	// the "-" a FASTA alignment uses for a gap, which aligners copy from their input: read as N
-	otherSeq bool
+	OtherSeq bool
 }
 
-// primary reports whether r is its query's primary line (neither secondary nor supplementary)
-func (r samRecord) primary() bool { return r.Flags&(flagSecondary|flagSupplementary) == 0 }
+// Primary reports whether r is its query's Primary line (neither secondary nor supplementary)
+func (r Record) Primary() bool { return r.Flags&(FlagSecondary|FlagSupplementary) == 0 }
 
 // seqTable maps the characters SAM allows in SEQ (letters, "=" and ".") to what gofasta uses: IUPAC codes
 // upper case, "=" as it is, and N for any other letter and for "."; 0 marks a character the specification
-// does not allow in SEQ (parseRecord reads it as N, and sets otherSeq)
+// does not allow in SEQ (ParseRecord reads it as N, and sets OtherSeq)
 var seqTable = func() (t [256]byte) {
 	for c := 'A'; c <= 'Z'; c++ {
 		t[c], t[c+'a'-'A'] = 'N', 'N'
@@ -214,9 +309,9 @@ func isRefName(b []byte) bool {
 	return true
 }
 
-// parseRecord parses one alignment line of a SAM file, checking its mandatory fields against the SAM
+// ParseRecord parses one alignment line of a SAM file, checking its mandatory fields against the SAM
 // specification (the optional fields after them are not checked)
-func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
+func (h *Header) ParseRecord(line []byte) (Record, error) {
 	var f [11][]byte
 	n := 0
 	for ; n < 11; n++ {
@@ -229,10 +324,10 @@ func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
 		f[n], line = line[:i], line[i+1:]
 	}
 	if n < 11 {
-		return samRecord{}, errors.New("sam: missing SAM fields")
+		return Record{}, errors.New("sam: missing SAM fields")
 	}
-	bad := func(field string, b []byte) (samRecord, error) {
-		return samRecord{}, fmt.Errorf("sam: invalid %s: %q", field, b)
+	bad := func(field string, b []byte) (Record, error) {
+		return Record{}, fmt.Errorf("sam: invalid %s: %q", field, b)
 	}
 
 	if len(f[0]) == 0 || len(f[0]) > 254 {
@@ -243,7 +338,7 @@ func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
 			return bad("QNAME (printable characters other than @)", f[0])
 		}
 	}
-	r := samRecord{Name: string(f[0])}
+	r := Record{Name: string(f[0])}
 
 	flags, ok := uintField(f[1], 0xffff)
 	if !ok {
@@ -253,7 +348,7 @@ func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
 
 	var err error
 	if r.Ref, err = h.refIndex(f[2]); err != nil {
-		return samRecord{}, fmt.Errorf("sam: failed to assign reference: %w", err)
+		return Record{}, fmt.Errorf("sam: failed to assign reference: %w", err)
 	}
 	pos, ok := uintField(f[3], maxInt31)
 	if !ok {
@@ -264,11 +359,11 @@ func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
 		return bad("MAPQ (an integer from 0 to 255)", f[4])
 	}
 	if r.Cigar, err = parseCigar(f[5]); err != nil {
-		return samRecord{}, err
+		return Record{}, err
 	}
 	if !(len(f[6]) == 1 && (f[6][0] == '=' || f[6][0] == '*')) {
 		if _, err := h.refIndex(f[6]); err != nil {
-			return samRecord{}, fmt.Errorf("sam: failed to assign mate reference: %w", err)
+			return Record{}, fmt.Errorf("sam: failed to assign mate reference: %w", err)
 		}
 	}
 	if _, ok := uintField(f[7], maxInt31); !ok {
@@ -284,11 +379,11 @@ func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
 		r.Seq = make([]byte, len(f[9]))
 		for i, c := range f[9] {
 			if r.Seq[i] = seqTable[c]; r.Seq[i] == 0 {
-				r.Seq[i], r.otherSeq = 'N', true
+				r.Seq[i], r.OtherSeq = 'N', true
 			}
 		}
-		if _, q := cigarLengths(r.Cigar); len(r.Cigar) != 0 && q != len(r.Seq) {
-			return samRecord{}, errors.New("sam: sequence/CIGAR length mismatch")
+		if _, q := CigarLengths(r.Cigar); len(r.Cigar) != 0 && q != len(r.Seq) {
+			return Record{}, errors.New("sam: sequence/CIGAR length mismatch")
 		}
 	}
 	if !(len(f[10]) == 1 && f[10][0] == '*') {
@@ -297,27 +392,27 @@ func (h *samHeader) parseRecord(line []byte) (samRecord, error) {
 		}
 		for i, c := range f[10] {
 			if c < '!' || c > '~' {
-				return samRecord{}, fmt.Errorf("sam: invalid QUAL (printable characters): %q at query position %d", c, i+1)
+				return Record{}, fmt.Errorf("sam: invalid QUAL (printable characters): %q at query position %d", c, i+1)
 			}
 		}
 		if len(f[10]) != len(r.Seq) {
-			return samRecord{}, errors.New("sam: sequence/quality length mismatch")
+			return Record{}, errors.New("sam: sequence/quality length mismatch")
 		}
 	}
 	return r, nil
 }
 
-// resolveEquals replaces each "=" in r's SEQ (which means "the reference base") by its reference base from
+// ResolveEquals replaces each "=" in r's SEQ (which means "the reference base") by its reference base from
 // ref, or by N if ref is nil (no reference is known), and reports whether there were any. A "=" in an
 // insertion or a soft clip, which has no reference base, is an error.
-func (r *samRecord) resolveEquals(ref []byte) (bool, error) {
+func (r *Record) ResolveEquals(ref []byte) (bool, error) {
 	if bytes.IndexByte(r.Seq, '=') < 0 {
 		return false, nil
 	}
 	seq := bytes.Clone(r.Seq)
 	q, p := 0, r.Pos
 	for _, o := range r.Cigar {
-		qn, rn := o.Type().consumes()
+		qn, rn := o.Type().Consumes()
 		for k := 0; k < o.Len()*qn; k++ {
 			if seq[q+k] != '=' {
 				continue
@@ -338,24 +433,24 @@ func (r *samRecord) resolveEquals(ref []byte) (bool, error) {
 	return true, nil
 }
 
-// samRef is one @SQ line of a SAM header
-type samRef struct {
+// Reference is one @SQ line of a SAM header
+type Reference struct {
 	Name   string
 	Length int
 }
 
-// samHeader holds what gofasta uses of a SAM header: its references, in order
-type samHeader struct {
-	refs []samRef
+// Header holds what gofasta uses of a SAM header: its references, in order
+type Header struct {
+	Refs []Reference
 }
 
 // refIndex returns the index of the reference named name, or -1 for "*"
-func (h *samHeader) refIndex(name []byte) (int, error) {
+func (h *Header) refIndex(name []byte) (int, error) {
 	if len(name) == 1 && name[0] == '*' {
 		return -1, nil
 	}
-	for i := range h.refs {
-		if h.refs[i].Name == string(name) {
+	for i := range h.Refs {
+		if h.Refs[i].Name == string(name) {
 			return i, nil
 		}
 	}
@@ -375,13 +470,13 @@ var (
 	errBadRefName   = errors.New("sam: invalid reference name")
 )
 
-// parseSamHeader parses the header lines of a SAM file (each starting with "@"), checking them against the
+// ParseHeader parses the header lines of a SAM file (each starting with "@"), checking them against the
 // SAM specification: each line is @HD, @SQ, @RG or @PG followed by TAG:VALUE fields (a letter, then a letter
 // or digit, ':', and a value of printable characters), with no tag twice, or @CO and a tab; @HD, if there is
 // one, is the first line, and has a VN of the form 1.6; @SQ has a valid SN and an LN from 1 to 2^31-1, and
 // no reference name (SN, or one of the AN names) is used twice; @RG and @PG have an ID not used before.
-func parseSamHeader(text []byte) (*samHeader, error) {
-	h := &samHeader{}
+func ParseHeader(text []byte) (*Header, error) {
+	h := &Header{}
 	names := map[string]bool{} // the reference names (SN and AN) so far
 	groups, progs := map[string]bool{}, map[string]bool{}
 	first := true
@@ -468,7 +563,7 @@ func isVersion(v []byte) bool {
 
 // referenceLine reads an @SQ line: SN and LN are needed, the name and any alternative names (AN, comma
 // separated) must be valid reference names not used before, and LN must be from 1 to 2^31-1
-func (h *samHeader) referenceLine(tags map[string][]byte, names map[string]bool) error {
+func (h *Header) referenceLine(tags map[string][]byte, names map[string]bool) error {
 	name, hasName := tags["SN"]
 	ln, hasLen := tags["LN"]
 	if !hasName || !hasLen {
@@ -497,7 +592,7 @@ func (h *samHeader) referenceLine(tags map[string][]byte, names map[string]bool)
 		}
 		names[string(n)] = true
 	}
-	h.refs = append(h.refs, samRef{Name: string(name), Length: length})
+	h.Refs = append(h.Refs, Reference{Name: string(name), Length: length})
 	return nil
 }
 

@@ -1,17 +1,13 @@
 /*
-Package sam provides functionality to handle sam format files.
+Package sam implements gofasta's sam commands on SAM files (read with package samfile): toMultiAlign and
+toPairAlign, which write the alignments of queries to the reference as FASTA, and variants, which lists their
+mutations.
 
-It was written to process pairwise alignments between assembled SARS-CoV-2
-genomes from minimap2.
-
-Its main purpose is to generate fasta format alignments. It also has a routine
-to list mutations between pairs of sequences.
+It was written to process pairwise alignments between assembled SARS-CoV-2 genomes from minimap2.
 */
 package sam
 
 import (
-	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +17,7 @@ import (
 	"sync/atomic"
 
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
+	"github.com/virus-evolution/gofasta/pkg/samfile"
 )
 
 // samRecords is a struct that carries a group of sam lines (belonging to the
@@ -28,9 +25,9 @@ import (
 // the order of the input when we parallelise
 type samRecords struct {
 	name    string // the query's name (QNAME)
-	records []samRecord
+	records []samfile.Record
 	refName string // the name of the reference (the first @SQ) they are mapped to
-	// the query's primary lines (FLAG & 0x900 == 0, counting lines skipped as unmapped or mapped to another
+	// the query's Primary lines (FLAG & 0x900 == 0, counting lines skipped as unmapped or mapped to another
 	// reference): the SAM specification requires exactly one
 	primaries int
 	equals    bool // SEQ had "=" (the reference base), replaced by prepareQuery
@@ -102,7 +99,7 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 
 // getSeqFromBlock gets the aligned sequence of one query from its SAM records, flattening them into one
 // sequence if there is more than one
-func getSeqFromBlock(records []samRecord, refLen int, includeInsertions bool) ([]byte, error) {
+func getSeqFromBlock(records []samfile.Record, refLen int, includeInsertions bool) ([]byte, error) {
 	block := make([][]byte, len(records))
 	for i, line := range records {
 		row, _, err := alignRecord(line, nil, refLen, includeInsertions)
@@ -156,7 +153,7 @@ func swapInGapsNs(seq []byte) []byte {
 
 // validateRecord checks that a mapped sam record is internally consistent and fits the reference, so that
 // the code that builds alignments from CIGAR strings can index its sequence without going out of range.
-func validateRecord(rec *samRecord, refLen int) error {
+func validateRecord(rec *samfile.Record, refLen int) error {
 
 	bad := func(msg string) error {
 		return errors.New("bad sam record: " + msg)
@@ -169,7 +166,7 @@ func validateRecord(rec *samRecord, refLen int) error {
 		return bad("negative position")
 	}
 
-	refSpan, queryLen := cigarLengths(rec.Cigar)
+	refSpan, queryLen := samfile.CigarLengths(rec.Cigar)
 	refEnd := rec.Pos + refSpan
 
 	if queryLen != len(rec.Seq) {
@@ -186,7 +183,7 @@ func validateRecord(rec *samRecord, refLen int) error {
 // kept with the query they were read with, so that they can be written in input order with the
 // pipeline's own warnings (see withNotes).
 type samSource struct {
-	header samHeader
+	header *samfile.Header
 	next   func() (samRecords, error)
 
 	mu    sync.Mutex
@@ -231,9 +228,6 @@ func (s *samSource) writeTail() {
 	}
 }
 
-// errEmptySam is the error for a sam file with nothing in it
-var errEmptySam = errors.New("the sam file is empty")
-
 // newSamSource reads the header of a sam file and returns a samSource whose next function returns the
 // records for the next query each time it is called, and io.EOF after the last query. The records for a query are
 // consecutive lines with the same QNAME; unmapped and secondary records, and records mapped to any
@@ -242,55 +236,16 @@ var errEmptySam = errors.New("the sam file is empty")
 // read, so that the next query starts in the right place). The records are not checked here: see
 // prepareQuery. An error from the returned function means the file could not be read.
 func newSamSource(sam io.Reader) (*samSource, error) {
-
-	br := bufio.NewReaderSize(sam, 1<<20)
-
-	// readLine returns the next line without its line ending (a final line need not have one), or io.EOF
-	readLine := func() ([]byte, error) {
-		line, err := br.ReadBytes('\n')
-		if err == io.EOF && len(line) > 0 {
-			err = nil
-		}
-		if err != nil {
-			return nil, err
-		}
-		line = bytes.TrimSuffix(line, []byte{'\n'})
-		line = bytes.TrimSuffix(line, []byte{'\r'})
-		return line, nil
-	}
-
-	if _, err := br.Peek(1); err == io.EOF {
-		return nil, errEmptySam
-	} else if err != nil {
-		return nil, err
-	}
-	var headerText []byte
-	for {
-		p, err := br.Peek(1)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		if p[0] != '@' {
-			break
-		}
-		line, err := readLine()
-		if err != nil {
-			return nil, err
-		}
-		headerText = append(append(headerText, line...), '\n')
-	}
-	h, err := parseSamHeader(headerText)
+	r, err := samfile.NewReader(sam)
 	if err != nil {
 		return nil, err
 	}
-	if len(h.refs) == 0 {
+	h := r.Header
+	if len(h.Refs) == 0 {
 		return nil, errors.New("no reference sequence (@SQ line) in the sam header")
 	}
 
-	src := &samSource{header: *h, notes: make(map[int][]string)}
+	src := &samSource{header: h, notes: make(map[int][]string)}
 	counter := 0     // the index of the query being read
 	started := false // whether a line of that query has been read
 	// a skipped line is listed with the query that comes after it in the file: the one being read if
@@ -302,51 +257,47 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 		return counter
 	}
 
-	// the primary lines read for each QNAME since the current query started (a query's lines are
+	// the Primary lines read for each QNAME since the current query started (a query's lines are
 	// consecutive, so only this query's and the next one's are needed)
 	primaries := map[string]int{}
 
 	// a parsed line: its QNAME, and the record or why it could not be parsed
 	type samLine struct {
 		name string
-		rec  samRecord
+		rec  samfile.Record
 		err  error
 	}
 
 	// readUsable returns the next line that is not skipped, or io.EOF
 	readUsable := func() (samLine, error) {
 		for {
-			line, err := readLine()
+			rec, err := r.Next()
+			var bad *samfile.LineError
+			if errors.As(err, &bad) {
+				return samLine{name: bad.Name, err: bad.Err}, nil
+			}
 			if err != nil {
 				return samLine{}, err
 			}
-			if len(line) == 0 {
-				continue
-			}
-			name, _, _ := bytes.Cut(line, []byte{'\t'})
-			rec, err := h.parseRecord(line)
-			if err != nil {
-				return samLine{name: string(name), err: err}, nil
-			}
-			if rec.primary() {
+			if rec.Primary() {
 				primaries[rec.Name]++
 			}
 			// the third bit (== 4) in the sam flag is set if the read is unmapped
-			if rec.Flags&flagUnmapped != 0 {
+			if rec.Flags&samfile.FlagUnmapped != 0 {
 				src.note(noteIdx(), "skipping unmapped read: "+rec.Name+"\n")
 				continue
 			}
 			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary
-			if rec.Flags&flagSecondary != 0 {
+			if rec.Flags&samfile.FlagSecondary != 0 {
 				src.note(noteIdx(), "ignoring secondary mapping: "+rec.Name+"\n")
 				continue
 			}
 			// only one reference sequence is supported: records mapped to any other @SQ are skipped
 			if rec.Ref > 0 {
-				src.note(noteIdx(), "skipping record mapped to a reference other than the first @SQ ("+h.refs[rec.Ref].Name+"): "+rec.Name+"\n")
+				src.note(noteIdx(), "skipping record mapped to a reference other than the first @SQ ("+h.Refs[rec.Ref].Name+"): "+rec.Name+"\n")
 				continue
 			}
-			return samLine{name: string(name), rec: rec}, nil
+			return samLine{name: rec.Name, rec: rec}, nil
 		}
 	}
 
@@ -354,7 +305,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 	finished := false
 
 	next := func() (samRecords, error) {
-		group := samRecords{idx: counter, refName: h.refs[0].Name}
+		group := samRecords{idx: counter, refName: h.Refs[0].Name}
 		started = false
 		otherSeq := false
 		for !finished {
@@ -385,7 +336,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 				continue
 			}
 			group.records = append(group.records, l.rec)
-			otherSeq = otherSeq || l.rec.otherSeq
+			otherSeq = otherSeq || l.rec.OtherSeq
 		}
 		if otherSeq {
 			src.otherSeq.Add(1)
@@ -417,7 +368,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 
 // checkRefLength checks that a reference sequence of length n is as long as the sam header's (first) @SQ
 func (s *samSource) checkRefLength(n int) error {
-	if l := s.header.refs[0].Length; l != n {
+	if l := s.header.Refs[0].Length; l != n {
 		return errors.New("the length of the reference sequence (" + strconv.Itoa(n) + ") does not match the length in the sam header (" + strconv.Itoa(l) + ")")
 	}
 	return nil
@@ -433,13 +384,13 @@ func prepareQuery(group samRecords, ref []byte, refLen int) (samRecords, error) 
 	}
 	if group.primaries != 1 {
 		return samRecords{}, pipeline.Named(group.name, errors.New("bad sam records: the query has "+
-			strconv.Itoa(group.primaries)+" primary lines (FLAG & 0x900 == 0), and the SAM specification requires exactly one"))
+			strconv.Itoa(group.primaries)+" Primary lines (FLAG & 0x900 == 0), and the SAM specification requires exactly one"))
 	}
 	for i := range group.records {
 		if err := validateRecord(&group.records[i], refLen); err != nil {
 			return samRecords{}, pipeline.Named(group.name, err)
 		}
-		had, err := group.records[i].resolveEquals(ref)
+		had, err := group.records[i].ResolveEquals(ref)
 		if err != nil {
 			return samRecords{}, pipeline.Named(group.name, err)
 		}
