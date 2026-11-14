@@ -301,3 +301,28 @@ func TestJoinCaseRowsAreAligned(t *testing.T) {
 		}
 	}
 }
+
+// A reference residue that is unknown (X in /translation, because the reference codon has an ambiguity code,
+// as in some RefSeq influenza segments) gives no amino acid change, whatever the query has there; a change
+// at a certainly different base is still a nuc: entry, and a deleted unknown residue is still reported. The
+// GFF path translates such a codon as X too, so it gives the same calls.
+func TestUnknownReferenceResidue(t *testing.T) {
+	// 1..15: ATG GCT RAT AAA TAA (M A X K *): codon 3 is AAT (N) or GAT (D)
+	ref := "ATGGCTRATAAATAA" + "CCCCC"
+	insRef, insQue := ins(snp(ref, 7, "A"), 9, "GGG")
+	cases := []joinCase{
+		{"identical", ref, ref, ""},
+		{"a residue the reference codon allows", ref, snp(ref, 7, "A"), ""},
+		{"a residue it does not allow", ref, snp(ref, 7, "C"), "nuc:R7C"},
+		{"an insertion next to the unknown residue", insRef, insQue, "aa:g:3G(ins:9:3)|ins:9:3"},
+		{"the unknown residue deleted", ref, del(ref, 7, 9), "aa:g:X3-(del:7:3)|del:7:3"},
+	}
+	cds, intergenic := genbankRegions(t, genbankText(ref, cdsSpec{"1..15", "g", "MAXK"}), len(ref))
+	runJoinCases(t, cds, intergenic, cases)
+
+	gcds, gintergenic := gffRegions(t, "ref\tt\tCDS\t1\t15\t.\t+\t0\tID=cds-g;Name=g\n", ref)
+	for i := range cases {
+		cases[i].name = "GFF: " + cases[i].name
+	}
+	runJoinCases(t, gcds, gintergenic, cases)
+}

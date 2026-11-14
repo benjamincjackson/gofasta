@@ -264,7 +264,8 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 			que := "-"
 			if i < paired {
 				que = string(qChanged[i])
-				if que == "X" || que == string(rChanged[i]) {
+				// (no substitution from or to an unknown residue; a deleted unknown residue is still reported)
+				if que == "X" || rChanged[i] == 'X' || que == string(rChanged[i]) {
 					continue
 				}
 			}

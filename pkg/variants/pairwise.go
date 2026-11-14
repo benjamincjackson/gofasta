@@ -113,7 +113,8 @@ func getAAsPair(ref, query []byte, region Region, offsetRefCoord []int, skip map
 			aa := alphabet.TranslateCodon(codon[0], codon[1], codon[2]) // (0 if it has none)
 			refaa := region.Translation[aaCounter : aaCounter+1]
 
-			if aa != 0 && aa != refaa[0] {
+			// (no change from an unknown reference residue: an X in /translation, or an ambiguous codon)
+			if aa != 0 && aa != refaa[0] && refaa[0] != 'X' {
 				temp := make([]string, 0, len(codonSNPs))
 				for _, v := range codonSNPs {
 					temp = append(temp, "nuc:"+v.RefAl+strconv.Itoa(v.Position)+v.QueAl)
