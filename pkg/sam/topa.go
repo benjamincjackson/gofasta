@@ -358,12 +358,13 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		write = func(AP alignPair) error { return writePairToFile(outpath, AP, wrap, omitRef) }
 	}
 
+	refBytes := []byte(refSeq) // shared by the workers, which only read it
 	work := func(group samRecords) (alignPair, error) {
-		group, err := src.prepareQuery(group, []byte(refSeq), len(refSeq))
+		group, err := src.prepareQuery(group, refBytes, len(refBytes))
 		if err != nil {
 			return alignPair{}, err
 		}
-		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), omitIns)
+		pair, err := blockToPairwiseAlignment(group, refBytes, omitIns)
 		if err != nil {
 			return alignPair{}, pipeline.Named(group.records[0].Name, err)
 		}

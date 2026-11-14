@@ -60,12 +60,13 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 	}
 
 	EA := encoding.MakeEncodingArray()
+	refBytes := []byte(refSeq) // shared by the workers, which only read it
 	work := func(group samRecords) (variants.AnnoStructs, error) {
-		group, err := src.prepareQuery(group, []byte(refSeq), len(refSeq))
+		group, err := src.prepareQuery(group, refBytes, len(refBytes))
 		if err != nil {
 			return variants.AnnoStructs{}, err
 		}
-		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), false)
+		pair, err := blockToPairwiseAlignment(group, refBytes, false)
 		if err != nil {
 			return variants.AnnoStructs{}, pipeline.Named(group.records[0].Name, err)
 		}
