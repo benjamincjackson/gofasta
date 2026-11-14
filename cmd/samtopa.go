@@ -30,8 +30,8 @@ Each query is written as a pairwise alignment with the reference: the reference 
 query. Unlike toMultiAlign, insertions relative to the reference are kept (unless you use --skip-insertions),
 so the output alignment can be longer than the reference. External alignment gaps are always written as N.
 
---reference must be the fasta file that was used to generate the sam file, and its sequence must be the same
-length as the @SQ line in the sam header.
+--reference must be the fasta file that was used to make the --samfile alignment, and its sequence must be the
+same length as the @SQ line in the sam header.
 
 Example usage:
 	gofasta sam toPairAlign -s aligned.sam -r reference.fasta -o alignments

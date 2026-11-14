@@ -32,11 +32,11 @@ Example usage:
 	gofasta variants -q alignment.fasta -a MN908947.gb --reference-id MN908947.3 > variants.csv
 	gofasta variants -q alignment.fasta -r MN908947.fasta > variants.csv
 
-The reference is a fasta file of its own, the same width as the alignment (--reference), or a record of the
-alignment (--reference-id; if the alignment is read from stdin, it must be the first record). Without either,
-the sequence in the annotation file is used, in which case the alignment must be in the same coordinates.
-Without an annotation, only nucleotide changes, deletions and insertions are reported, and a reference must be
-given.
+The reference is a fasta file of its own, the same width as the --query alignment (--reference), or a record
+of the --query alignment (--reference-id; if --query is stdin, it must be the first record). Without either,
+the sequence in the annotation file (--annotation, --genbank or --gff) is used, in which case the --query
+alignment must be in the same coordinates. Without an annotation, only nucleotide changes, deletions and
+insertions are reported, and --reference or --reference-id must be given.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
 of the format.
@@ -97,8 +97,8 @@ to filter on frequency.
 	}
 
 	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of the sequences to annotate, in fasta format")
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the alignment (required without an annotation, unless --reference-id)")
-	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the alignment (instead of --reference)")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the --query alignment (required without an annotation, unless --reference-id)")
+	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the --query alignment (instead of --reference)")
 	addAnnotationFlags(c, &o.annotationOptions, false)
 	addOutfileFlag(c, "the variants")
 	addVariantsOutputFlags(c, &o.variantsOutputOptions)

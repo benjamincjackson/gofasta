@@ -30,11 +30,11 @@ Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gb -o variants.csv
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gff -o variants.csv
 
-If input sam and output csv files are not specified, the behaviour is to read the sam from stdin and write the
-variants to stdout.
+If --samfile and --outfile are not given, the sam file is read from stdin and the variants are written to
+stdout.
 
---reference should be the same sequence that was used to generate the sam file, and should be in the same
-coordinates as the --annotation. You don't have to provide a file to --reference if your annotation has the
+--reference should be the same sequence that was used to make the --samfile alignment, and should be in the
+same coordinates as the --annotation. You don't have to provide a file to --reference if your annotation has the
 fasta record in it.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details

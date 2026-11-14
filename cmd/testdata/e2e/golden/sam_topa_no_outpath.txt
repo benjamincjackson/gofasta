@@ -10,7 +10,7 @@ Aliases:
 
 Flags:
   -s, --samfile string     SAM file to read (default "stdin")
-  -r, --reference string   Reference fasta file used to generate the sam file (required)
+  -r, --reference string   Reference fasta file used to make the --samfile alignment (required)
   -o, --outpath string     Directory to write one fasta file per query to, or stdout to write all the alignments to stdout (required)
       --omit-reference     Omit the reference sequences from the output alignments
       --skip-insertions    Skip insertions relative to the reference from the output alignments

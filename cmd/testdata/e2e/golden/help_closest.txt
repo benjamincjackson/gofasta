@@ -4,8 +4,8 @@ exit: 0
 Find the closest sequence(s) to a query by genetic distance
 
 The usecase is imagined to be a small number of query sequences, whose nearest neighbours by genetic distance
-need to be found amongst a large number of target sequences. The query alignment is read into memory and the
-target alignment is streamed from disk and iterated over once, so it can be arbitrarily large.
+need to be found amongst a large number of target sequences. The --query alignment is read into memory and the
+--target alignment is streamed from disk and iterated over once, so it can be arbitrarily large.
 
 You can find the single closest neighbour like:
 

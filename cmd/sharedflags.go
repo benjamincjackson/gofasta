@@ -86,7 +86,7 @@ func addSamfileFlag(c *cobra.Command) {
 }
 
 // samReferenceUsage describes the --reference of the sam commands that read one
-const samReferenceUsage = "Reference fasta file used to generate the sam file"
+const samReferenceUsage = "Reference fasta file used to make the --samfile alignment"
 
 // requireFlags marks the named flags of c required, and says so in their help
 func requireFlags(c *cobra.Command, names ...string) {

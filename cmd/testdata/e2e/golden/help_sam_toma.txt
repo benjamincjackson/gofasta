@@ -12,8 +12,8 @@ Example usage:
 If you want, you can trim (and optionally pad) the output alignment to coordinates of your choosing:
 	gofasta sam toMultiAlign -s aligned.sam --start 266 --end 29674 --pad -o aligned.fasta
 
-If input and output files are not specified, the behaviour is to read the sam file from stdin and write the
-fasta file to stdout, e.g.:
+If --samfile and --outfile are not given, the sam file is read from stdin and the alignment is written to
+stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta
 
 Usage:
