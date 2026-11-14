@@ -398,7 +398,9 @@ func CDSRegionfromGFF(fs []gff.Feature, refSeqDegapped string) (Region, error) {
 	if r.Strand == -1 {
 		refSeqFeat = alphabet.Complement(refSeqFeat)
 	}
-	r.Translation, err = alphabet.Translate(refSeqFeat, true)
+	// a codon that cannot be translated (an ambiguity code or N in the reference) is X, as in a GenBank
+	// /translation: no amino acid change is reported from it
+	r.Translation, err = alphabet.Translate(refSeqFeat, false)
 	if err != nil {
 		return r, err
 	}

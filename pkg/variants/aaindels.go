@@ -114,8 +114,10 @@ func indelWindows(slots []cdsSlot) []indelWindow {
 // next to them (aa:GENE:E156G). It returns those changes, the nucleotide changes in the codons the indels
 // touch that are not part of one of them, and the codons it has dealt with, which getAAsPair must skip.
 // Residues after a stop codon in the query are not reported. Indels are left alone (no amino acid change is reported for them, and their codons are not dealt with
-// here) if they shift the reading frame, come after one that does, run outside the CDS, touch a missing
-// stretch of the query (N, or uncovered ends), or touch the start codon (a first residue M) or the stop codon (a last residue *).
+// here) if they shift the reading frame, come after one that does, run outside the CDS (at its ends, or
+// from one of its parts into the bases between two parts: an intron, which removes the splice site, or a
+// base skipped by a +1 frameshift), touch a missing stretch of the query (N, or uncovered ends), or touch
+// the start codon (a first residue M) or the stop codon (a last residue *).
 func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]Variant, map[int]bool) {
 
 	buf := slotPool.Get().(*[]cdsSlot)
@@ -163,6 +165,26 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		return false
 	}
 
+	// deletedAt reports whether reference position p is deleted in the query
+	deletedAt := func(p int) bool {
+		return p >= 1 && p <= len(offsetRefCoord) && query[(p-1)+offsetRefCoord[p-1]] == 244
+	}
+	// crossesJunction reports whether a deletion in w runs from a part of the CDS into the reference bases
+	// between it and the next part (parts that follow each other directly, or read a base twice, have none)
+	crossesJunction := func(w indelWindow) bool {
+		for k := max(0, 3*w.first-1); k < min(3*w.last+3, len(slots)-1); k++ {
+			p, q := region.Positions[k], region.Positions[k+1]
+			if (q-p)*region.Strand <= 1 {
+				continue
+			}
+			if (slots[k].queBase == "" && !slots[k].missing && deletedAt(p+region.Strand)) ||
+				(slots[k+1].queBase == "" && !slots[k+1].missing && deletedAt(q-region.Strand)) {
+				return true
+			}
+		}
+		return false
+	}
+
 	frameshifted := false
 	for _, w := range indelWindows(slots) {
 		if w.last >= nCodons {
@@ -182,7 +204,7 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		if (inserted-deleted)%3 != 0 {
 			frameshifted = true
 		}
-		if frameshifted || missing || outside(w) ||
+		if frameshifted || missing || outside(w) || crossesJunction(w) ||
 			(w.first == 0 && refAA[0] == 'M') || (w.last == nCodons-1 && refAA[nCodons-1] == '*') {
 			continue
 		}
@@ -242,7 +264,8 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 			que := "-"
 			if i < paired {
 				que = string(qChanged[i])
-				if que == "X" || que == string(rChanged[i]) {
+				// (no substitution from or to an unknown residue; a deleted unknown residue is still reported)
+				if que == "X" || rChanged[i] == 'X' || que == string(rChanged[i]) {
 					continue
 				}
 			}
