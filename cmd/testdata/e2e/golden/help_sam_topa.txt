@@ -34,6 +34,6 @@ Flags:
       --end int            1-based last position (in reference coordinates) to keep in the output. Bases after it are omitted
   -w, --wrap int           Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.
       --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -t, --threads int        Number of threads (and CPUs) to use: 0, the default, for all of them
+  -t, --threads int        Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help               help for toPairAlign
 --- stderr

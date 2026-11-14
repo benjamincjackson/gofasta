@@ -60,6 +60,6 @@ Flags:
       --threshold-pair float32   Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison (default 0.1)
       --threshold-target int     A --target sequence can have at most this number of ambiguities to be considered (default 10000)
       --strict                   Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -t, --threads int              Number of threads (and CPUs) to use: 0, the default, for all of them
+  -t, --threads int              Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help                     help for topranking
 --- stderr

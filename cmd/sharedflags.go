@@ -17,7 +17,7 @@ type variantsOutputOptions struct {
 func addVariantsOutputFlags(c *cobra.Command, o *variantsOutputOptions) {
 	c.Flags().IntVar(&o.start, "start", -1, "Only report variants with a reference base at or after this position")
 	c.Flags().IntVar(&o.end, "end", -1, "Only report variants with a reference base at or before this position")
-	c.Flags().BoolVar(&o.aggregate, "aggregate", false, "Report the proportions of each change")
+	c.Flags().BoolVar(&o.aggregate, "aggregate", false, "Report the frequency of each change")
 	c.Flags().Float64Var(&o.threshold, "threshold", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	c.Flags().BoolVar(&o.appendSNP, "append-snps", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
 	c.Flags().BoolVar(&o.groupAA, "group-aa", false, "Report the amino acid changes from one indel as one entry (aa:S:HV69-- instead of aa:S:H69-|aa:S:V70-)")

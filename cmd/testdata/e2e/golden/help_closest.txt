@@ -44,6 +44,6 @@ Flags:
   -d, --max-dist string   Return all the --target sequences this distance or less from each query (inf for no limit)
       --table             Write a long-form table of the output
       --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
+  -t, --threads int       Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help              help for closest
 --- stderr

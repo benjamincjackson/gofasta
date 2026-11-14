@@ -99,7 +99,7 @@ func oneStdin(cmd *cobra.Command) error {
 }
 
 // threadsUsage is the description of every command's -t, --threads flag, whose default, 0, means all CPUs
-const threadsUsage = "Number of threads (and CPUs) to use: 0, the default, for all of them"
+const threadsUsage = "Number of threads (and CPUs) to use (the default, 0, uses all CPUs)"
 
 // addThreadsFlag adds -t, --threads to flags (a command's flags, or a parent's persistent flags), setting
 // *threads

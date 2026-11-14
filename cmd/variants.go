@@ -44,7 +44,7 @@ of the format.
 If --query and --outfile are not given, the alignment is read from stdin and the variants are written to
 stdout.
 
-You can use --aggregate to report the overall proportions of each mutation in the alignment, and --threshold
+You can use --aggregate to report the frequency of each mutation in the alignment, and --threshold
 to filter on frequency.
 
 ` + mutationFormatsHelp,
