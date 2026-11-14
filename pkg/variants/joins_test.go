@@ -127,7 +127,13 @@ func splicedCases() []joinCase {
 		{"SNP after the CDS", r, snp(r, 35, "A"), "nuc:G35A"},
 		{"in-frame deletion in exon 2", r, del(r, 21, 23), "aa:g:F4-(del:21:3)|del:21:3"},
 		{"deletion of intron bases only", r, del(r, 12, 14), "del:12:3"},
-		{"deletion from exon 1 into the intron (runs outside the CDS)", r, del(r, 7, 12), "del:7:6"},
+		{"deletion from exon 1 into the intron, two coding bases (a frameshift)", r, del(r, 7, 12), "del:7:6"},
+		// a deletion that removes a splice site gets no amino acid call, even if its coding bases are a
+		// whole number of codons
+		{"deletion from exon 1 into the intron, three coding bases", r, del(r, 6, 11), "del:6:6"},
+		{"deletion from the intron into exon 2, three coding bases", r, del(r, 17, 22), "del:17:6"},
+		// one that ends at the end of exon 1, leaving the splice site, does: ATG AA(T) TTT ... is M N F ...
+		{"deletion ending at the end of exon 1", r, del(r, 6, 8), "aa:g:K2N(del:6:3)|del:6:3|aa:g:A3-(del:6:3)"},
 		{"insertion inside the split codon's exon-2 side", insRef, insQue, "aa:g:3K(ins:20:3)|ins:20:3"},
 		{"insertion between two codons of exon 2", insRef2, insQue2, "aa:g:4K(ins:23:3)|ins:23:3"},
 		{"insertion at the junction (in the intron)", insRefIntron, insQueIntron, "ins:8:3"},
