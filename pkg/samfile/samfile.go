@@ -439,9 +439,10 @@ type Reference struct {
 	Length int
 }
 
-// Header holds what gofasta uses of a SAM header: its references, in order
+// Header holds what gofasta uses of a SAM header: its references, in order. Make one with ParseHeader.
 type Header struct {
-	Refs []Reference
+	Refs  []Reference
+	index map[string]int // the index in Refs of each reference, by its name (SN)
 }
 
 // refIndex returns the index of the reference named name, or -1 for "*"
@@ -449,10 +450,8 @@ func (h *Header) refIndex(name []byte) (int, error) {
 	if len(name) == 1 && name[0] == '*' {
 		return -1, nil
 	}
-	for i := range h.Refs {
-		if h.Refs[i].Name == string(name) {
-			return i, nil
-		}
+	if i, ok := h.index[string(name)]; ok {
+		return i, nil
 	}
 	return -1, fmt.Errorf("no reference with name %q", name)
 }
@@ -476,7 +475,7 @@ var (
 // one, is the first line, and has a VN of the form 1.6; @SQ has a valid SN and an LN from 1 to 2^31-1, and
 // no reference name (SN, or one of the AN names) is used twice; @RG and @PG have an ID not used before.
 func ParseHeader(text []byte) (*Header, error) {
-	h := &Header{}
+	h := &Header{index: map[string]int{}}
 	names := map[string]bool{} // the reference names (SN and AN) so far
 	groups, progs := map[string]bool{}, map[string]bool{}
 	first := true
@@ -592,6 +591,7 @@ func (h *Header) referenceLine(tags map[string][]byte, names map[string]bool) er
 		}
 		names[string(n)] = true
 	}
+	h.index[string(name)] = len(h.Refs)
 	h.Refs = append(h.Refs, Reference{Name: string(name), Length: length})
 	return nil
 }

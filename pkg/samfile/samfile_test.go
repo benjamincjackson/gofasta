@@ -386,3 +386,38 @@ func TestReader(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+// RNAME and RNEXT are looked up among the @SQ names: RNAME gives the reference's index (-1 for "*"), and a
+// name that is not an @SQ SN is an error.
+func TestReferenceLookup(t *testing.T) {
+	h, err := ParseHeader([]byte("@HD\tVN:1.6\n@SQ\tSN:a\tLN:10\n@SQ\tSN:b\tLN:10\n@SQ\tSN:c\tLN:10\tAN:alt\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		rname, rnext string
+		want         int
+		ok           bool
+	}{
+		{"a", "*", 0, true},
+		{"b", "=", 1, true},
+		{"c", "a", 2, true},
+		{"*", "*", -1, true},
+		{"d", "*", 0, false},
+		{"a", "d", 0, false},
+		{"alt", "*", 0, false}, // AN names are not looked up
+	} {
+		line := "q\t0\t" + tc.rname + "\t1\t60\t4M\t" + tc.rnext + "\t0\t0\tACGT\t*"
+		if tc.rname == "*" {
+			line = "q\t4\t*\t0\t0\t*\t*\t0\t0\tACGT\t*"
+		}
+		r, err := h.ParseRecord([]byte(line))
+		if (err == nil) != tc.ok {
+			t.Errorf("RNAME %s, RNEXT %s: got error %v, want ok = %v", tc.rname, tc.rnext, err, tc.ok)
+			continue
+		}
+		if tc.ok && r.Ref != tc.want {
+			t.Errorf("RNAME %s: got reference %d, want %d", tc.rname, r.Ref, tc.want)
+		}
+	}
+}
