@@ -3,6 +3,7 @@ package sam
 import (
 	"bytes"
 	"os"
+	"slices"
 	"strconv"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
@@ -64,9 +65,13 @@ func anyStrictlyInside(ivs []interval, c int) bool {
 }
 
 // resolveOverlaps makes the records that belong to one query (a primary alignment and its supplementary
-// alignments, in the order they were read) agree about who describes which stretch of the reference: where
-// records overlap on the reference, the FIRST record's alignment is used for the overlapping stretch and the
-// later records only contribute outside it.
+// alignments) agree about who describes which stretch of the reference. The records are taken in priority
+// order: the primary record first, then the supplementary records in the order they were read. Where
+// records overlap on the reference, the alignment of the record that comes first in that order is used
+// for the overlapping stretch and the later records only contribute outside it. (Overlaps come mostly from
+// repeats at the genome's ends, such as poxvirus ITRs or retroviral LTRs: an aligner can place the
+// query's copy at one end on the reference's copy at the other end too, and the primary alignment is
+// the one in genome order.)
 //
 // Records are merged column by column along the reference. That works for substitutions and deletions, but an
 // insertion has no reference column of its own, so nothing says that two records' insertions are the same
@@ -81,6 +86,9 @@ func anyStrictlyInside(ivs []interval, c int) bool {
 func resolveOverlaps(records []biogosam.Record) []biogosam.Record {
 	if len(records) < 2 {
 		return records
+	}
+	if i := slices.IndexFunc(records, func(r biogosam.Record) bool { return r.Flags&biogosam.Supplementary == 0 }); i > 0 {
+		records = slices.Concat(records[i:i+1], records[:i], records[i+1:])
 	}
 	out := []biogosam.Record{records[0]}
 	covered := []interval{recordSpan(records[0])}
