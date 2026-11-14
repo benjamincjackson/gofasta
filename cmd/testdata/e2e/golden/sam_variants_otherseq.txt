@@ -1,0 +1,9 @@
+args: sam variants -s aln_otherseq.sam -r ref.fasta -a ref.gb
+exit: 0
+--- stdout
+query,mutations
+s1,aa:geneA:I2V|aa:geneB:M8I
+o1,
+o2,
+--- stderr
+warning: 1 query had characters in SEQ that the SAM specification does not allow (it allows letters, '=' and '.'), read as N

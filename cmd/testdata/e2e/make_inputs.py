@@ -174,8 +174,8 @@ write("aln.sam", header + "\n".join(records) + "\n")
 bad = records[:4] + ["s9\t0\tref\t1\t60\t50M\t*\t0\t0\t" + ref[:40] + "\t*"] + records[4:]
 write("aln_badrecord.sam", header + "\n".join(bad) + "\n")
 # query names that give the same toPairAlign file name: a/b and a_b (/ becomes _), a/b again later, and two
-# long names (2-byte characters, cut to the same 248 bytes, at a character boundary)
-long = "\u00e9" * 150
+# long names (cut to the same 249 characters)
+long = "x" * 250
 clash = [rec(q, 0, 1, [(120, "M")], {14 + i: other(ref[13 + i])}) for i, q in enumerate(["a/b", "a_b", "c", "a/b", long + "1", long + "2"])]
 write("aln_clash.sam", header + "\n".join(clash) + "\n")
 two_sq = header.replace("@SQ\tSN:ref\tLN:120\n", "@SQ\tSN:ref\tLN:120\n@SQ\tSN:other\tLN:120\n")
@@ -187,6 +187,26 @@ write("aln_badquery.sam", header + "\n".join(records[:3] + [past_end] + records[
 # a blank line between records, and no newline at the end of the last record
 write("aln_untidy.sam", header + "\n".join(records[:2]) + "\n\n" + "\n".join(records[2:]))
 write("empty.sam", "")
+# "=" in SEQ (the reference base): over e1's first 30 bases and just after e2's deletion; in e3's insertion,
+# where there is no reference base, so e3 is unusable
+def equals(r, start, end):
+    f = r.split("\t")
+    f[9] = f[9][:start] + "=" * (end - start) + f[9][end:]
+    return "\t".join(f)
+
+
+eq = [
+    equals(rec("e1", 0, 1, [(120, "M")], {50: other(ref[49])}), 0, 30),
+    equals(rec("e2", 0, 1, [(30, "M"), (3, "D"), (87, "M")], {20: other(ref[19])}), 30, 40),
+    equals(rec("e3", 0, 1, [(44, "M"), (3, "I"), (76, "M")]), 44, 46),
+]
+write("aln_equals.sam", header + "\n".join(eq) + "\n")
+# characters the SAM specification does not allow in SEQ ("-" and "_", as aligners copy them from a FASTA
+# alignment), read as N
+odd = [records[0], rec("o1", 0, 1, [(120, "M")]), rec("o2", 0, 1, [(120, "M")])]
+odd[1] = odd[1][: odd[1].index("\t" + ref[:5])] + "\t" + ref[:10] + "-" * 5 + ref[15:59] + "_" + ref[60:] + "\t*"
+write("aln_otherseq.sam", header + "\n".join(odd) + "\n")
+
 
 # the annotations under names that don't say their format, for --genbank and --gff
 for src, dst in (("ref.gb", "annotation_gb.txt"), ("ref.gff", "annotation_gff.txt")):

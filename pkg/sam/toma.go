@@ -3,8 +3,10 @@ package sam
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
+	"sync/atomic"
 
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
@@ -20,17 +22,21 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 	if err != nil {
 		return err
 	}
-	refLen := src.header.Refs()[0].Len()
+	refLen := src.header.Refs[0].Length
 
 	trimstart, trimend, trim, err := checkArgs(refLen, trimstart, trimend)
 	if err != nil {
 		return err
 	}
 
+	var equals atomic.Int64 // queries whose SEQ had "=", written as N (there is no reference here)
 	work := func(group samRecords) (fasta.Record, error) {
-		group, err := prepareQuery(group, refLen)
+		group, err := src.prepareQuery(group, nil, refLen)
 		if err != nil {
 			return fasta.Record{}, err
+		}
+		if group.equals {
+			equals.Add(1)
 		}
 		rawseq, err := getSeqFromBlock(group.records, refLen, false)
 		if err != nil {
@@ -46,6 +52,10 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 		return err
 	}
 	src.writeTail()
+	if n := equals.Load(); n > 0 {
+		fmt.Fprintf(os.Stderr, "warning: %d %s had '=' in SEQ (the reference base), written as N: sam toPairAlign and sam variants, which have the reference, keep these bases\n",
+			n, map[bool]string{true: "query", false: "queries"}[n == 1])
+	}
 	return h.Finish()
 }
 

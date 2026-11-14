@@ -7,27 +7,26 @@ import (
 	"strconv"
 
 	"github.com/virus-evolution/gofasta/pkg/encoding"
-
-	biogosam "github.com/biogo/hts/sam"
+	"github.com/virus-evolution/gofasta/pkg/samfile"
 )
 
 // referenceView returns, for each reference position (0-based) from r.Pos onwards that r's alignment spans,
 // the base that r aligns there, '-' for a deletion, and 0 for a skipped region.
-func referenceView(r biogosam.Record) []byte {
-	seq := r.Seq.Expand()
+func referenceView(r samfile.Record) []byte {
+	seq := r.Seq
 	view := make([]byte, 0)
 	q := 0
 	for _, op := range r.Cigar {
 		n := op.Len()
 		switch op.Type() {
-		case biogosam.CigarMatch, biogosam.CigarEqual, biogosam.CigarMismatch:
+		case samfile.CigarMatch, samfile.CigarEqual, samfile.CigarMismatch:
 			view = append(view, seq[q:q+n]...)
 			q += n
-		case biogosam.CigarInsertion, biogosam.CigarSoftClipped:
+		case samfile.CigarInsertion, samfile.CigarSoftClipped:
 			q += n
-		case biogosam.CigarDeletion:
+		case samfile.CigarDeletion:
 			view = append(view, bytes.Repeat([]byte{'-'}, n)...)
-		case biogosam.CigarSkipped:
+		case samfile.CigarSkipped:
 			view = append(view, make([]byte, n)...)
 		}
 	}
@@ -38,8 +37,8 @@ func referenceView(r biogosam.Record) []byte {
 type interval struct{ start, end int }
 
 // recordSpan is the stretch of the reference that r's alignment spans
-func recordSpan(r biogosam.Record) interval {
-	ref, _ := r.Cigar.Lengths()
+func recordSpan(r samfile.Record) interval {
+	ref, _ := samfile.CigarLengths(r.Cigar)
 	return interval{r.Pos, r.Pos + ref}
 }
 
@@ -83,14 +82,14 @@ func anyStrictlyInside(ivs []interval, c int) bool {
 // query bases it aligned there, including any insertion inside them, are removed from its SEQ). A record
 // that is left with nothing to contribute is dropped. Disagreements between the records in the overlap are
 // reported on stderr.
-func resolveOverlaps(records []biogosam.Record) []biogosam.Record {
+func resolveOverlaps(records []samfile.Record) []samfile.Record {
 	if len(records) < 2 {
 		return records
 	}
-	if i := slices.IndexFunc(records, func(r biogosam.Record) bool { return r.Flags&biogosam.Supplementary == 0 }); i > 0 {
+	if i := slices.IndexFunc(records, func(r samfile.Record) bool { return r.Flags&samfile.FlagSupplementary == 0 }); i > 0 {
 		records = slices.Concat(records[i:i+1], records[:i], records[i+1:])
 	}
-	out := []biogosam.Record{records[0]}
+	out := []samfile.Record{records[0]}
 	covered := []interval{recordSpan(records[0])}
 
 	for k := 1; k < len(records); k++ {
@@ -122,7 +121,7 @@ func resolveOverlaps(records []biogosam.Record) []biogosam.Record {
 
 // countDisagreements counts the reference positions in the overlap of r with the earlier records where r and
 // the first earlier record to align that position certainly differ (different bases, or a base against a deletion).
-func countDisagreements(earlier []biogosam.Record, r biogosam.Record) int {
+func countDisagreements(earlier []samfile.Record, r samfile.Record) int {
 	enc := encoding.MakeEncodingArray()
 	type view struct {
 		start int
@@ -159,15 +158,15 @@ func countDisagreements(earlier []biogosam.Record, r biogosam.Record) int {
 
 // trimToUncovered rewrites r so that it no longer aligns anything in the covered intervals. It returns false
 // if nothing is left of it.
-func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bool) {
+func trimToUncovered(r samfile.Record, covered []interval) (samfile.Record, bool) {
 	type op struct {
-		t biogosam.CigarOpType
+		t samfile.CigarType
 		n int
 	}
-	seq := r.Seq.Expand()
+	seq := r.Seq
 	ops := make([]op, 0, len(r.Cigar))
 	newSeq := make([]byte, 0, len(seq))
-	push := func(t biogosam.CigarOpType, n int) {
+	push := func(t samfile.CigarType, n int) {
 		if n == 0 {
 			return
 		}
@@ -182,8 +181,8 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 	for _, o := range r.Cigar {
 		n, t := o.Len(), o.Type()
 		switch t {
-		case biogosam.CigarMatch, biogosam.CigarEqual, biogosam.CigarMismatch, biogosam.CigarDeletion:
-			hasQuery := t != biogosam.CigarDeletion
+		case samfile.CigarMatch, samfile.CigarEqual, samfile.CigarMismatch, samfile.CigarDeletion:
+			hasQuery := t != samfile.CigarDeletion
 			for i := 0; i < n; {
 				cov := anyContains(covered, ref+i)
 				j := i
@@ -191,7 +190,7 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 					j++
 				}
 				if cov {
-					push(biogosam.CigarSkipped, j-i)
+					push(samfile.CigarSkipped, j-i)
 				} else {
 					push(t, j-i)
 					if hasQuery {
@@ -204,16 +203,16 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 			if hasQuery {
 				q += n
 			}
-		case biogosam.CigarSkipped:
+		case samfile.CigarSkipped:
 			push(t, n)
 			ref += n
-		case biogosam.CigarInsertion:
+		case samfile.CigarInsertion:
 			if !anyStrictlyInside(covered, ref) {
 				push(t, n)
 				newSeq = append(newSeq, seq[q:q+n]...)
 			}
 			q += n
-		case biogosam.CigarSoftClipped:
+		case samfile.CigarSoftClipped:
 			push(t, n)
 			newSeq = append(newSeq, seq[q:q+n]...)
 			q += n
@@ -222,8 +221,8 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 		}
 	}
 
-	clip := func(t biogosam.CigarOpType) bool {
-		return t == biogosam.CigarHardClipped || t == biogosam.CigarSoftClipped || t == biogosam.CigarPadded
+	clip := func(t samfile.CigarType) bool {
+		return t == samfile.CigarHardClipped || t == samfile.CigarSoftClipped || t == samfile.CigarPadded
 	}
 	// a skipped region at either end is just a shorter alignment
 	pos := r.Pos
@@ -231,7 +230,7 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 		if clip(ops[i].t) {
 			continue
 		}
-		if ops[i].t == biogosam.CigarSkipped {
+		if ops[i].t == samfile.CigarSkipped {
 			pos += ops[i].n
 			ops = append(ops[:i], ops[i+1:]...)
 		}
@@ -241,7 +240,7 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 		if clip(ops[i].t) {
 			continue
 		}
-		if ops[i].t == biogosam.CigarSkipped {
+		if ops[i].t == samfile.CigarSkipped {
 			ops = append(ops[:i], ops[i+1:]...)
 		}
 		break
@@ -249,7 +248,7 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 
 	aligned := false
 	for _, o := range ops {
-		if o.t == biogosam.CigarMatch || o.t == biogosam.CigarEqual || o.t == biogosam.CigarMismatch {
+		if o.t == samfile.CigarMatch || o.t == samfile.CigarEqual || o.t == samfile.CigarMismatch {
 			aligned = true
 		}
 	}
@@ -257,13 +256,12 @@ func trimToUncovered(r biogosam.Record, covered []interval) (biogosam.Record, bo
 		return r, false
 	}
 
-	cigar := make(biogosam.Cigar, len(ops))
+	cigar := make([]samfile.CigarOp, len(ops))
 	for i, o := range ops {
-		cigar[i] = biogosam.NewCigarOp(o.t, o.n)
+		cigar[i] = samfile.NewCigarOp(o.t, o.n)
 	}
 	r.Pos = pos
 	r.Cigar = cigar
-	r.Seq = biogosam.NewSeq(newSeq)
-	r.Qual = nil
+	r.Seq = newSeq
 	return r, true
 }

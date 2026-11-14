@@ -16,8 +16,7 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
-
-	biogosam "github.com/biogo/hts/sam"
+	"github.com/virus-evolution/gofasta/pkg/samfile"
 )
 
 // alignPair is a struct for storing an aligned reference & query sequence pair
@@ -111,17 +110,17 @@ func padTo(rows [][]byte, n int) [][]byte {
 // blockToSeqPair merges the aligned rows of one query's sam records (refRows[i] and queRows[i] from
 // records[i], each with its own insertions) into one pairwise alignment between the reference and the
 // query, including the query's insertions relative to the reference
-func blockToSeqPair(refRows, queRows [][]byte, records []biogosam.Record, ref []byte) alignPair {
+func blockToSeqPair(refRows, queRows [][]byte, records []samfile.Record, ref []byte) alignPair {
 	// every insertion in every record. Each row already has its own insertions; the other rows must be
 	// gapped for them, in order, left-most first.
 	insertions := make([]insertionOccurence, 0)
 	for i, r := range records {
 		pos := r.Pos
 		for _, op := range r.Cigar {
-			if op.Type() == biogosam.CigarInsertion {
+			if op.Type() == samfile.CigarInsertion {
 				insertions = append(insertions, insertionOccurence{start: pos, length: op.Len(), rowNumber: i})
 			}
-			if op.Type().Consumes().Reference == 1 {
+			if _, r := op.Type().Consumes(); r == 1 {
 				pos += op.Len()
 			}
 		}
@@ -169,7 +168,7 @@ func blockToSeqPair(refRows, queRows [][]byte, records []biogosam.Record, ref []
 func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (alignPair, error) {
 
 	qname := group.records[0].Name
-	refname := string(group.records[0].Ref.Name())
+	refname := group.refName
 
 	if omitIns {
 		Q := make([][]byte, 0, len(group.records))
@@ -254,7 +253,8 @@ func writePair(w io.Writer, AP alignPair, wrapWidth int, omitRef bool) error {
 
 // pairFileName is the name of the file a query's alignment is written to: its name with '/' (not
 // allowed in file names) replaced by '_', cut to 249 bytes (at a character boundary) so that, with
-// ".fasta", it fits the usual 255-byte limit. It also reports whether the name was cut.
+// ".fasta", it fits the usual 255-byte limit. It also reports whether the name was cut. (A QNAME is
+// printable ASCII, so the character boundary matters only for names that do not come from a SAM file.)
 func pairFileName(queryname string) (string, bool) {
 	des := strings.ReplaceAll(queryname, "/", "_")
 	if len(des) <= 249 {
@@ -359,12 +359,13 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		write = func(AP alignPair) error { return writePairToFile(outpath, AP, wrap, omitRef) }
 	}
 
+	refBytes := []byte(refSeq) // shared by the workers, which only read it
 	work := func(group samRecords) (alignPair, error) {
-		group, err := prepareQuery(group, len(refSeq))
+		group, err := src.prepareQuery(group, refBytes, len(refBytes))
 		if err != nil {
 			return alignPair{}, err
 		}
-		pair, err := blockToPairwiseAlignment(group, []byte(refSeq), omitIns)
+		pair, err := blockToPairwiseAlignment(group, refBytes, omitIns)
 		if err != nil {
 			return alignPair{}, pipeline.Named(group.records[0].Name, err)
 		}

@@ -1,0 +1,11 @@
+args: sam toMultiAlign -s aln_equals.sam
+exit: 0
+--- stdout
+>e1
+NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNGGTGTGTATTGCGACTTGTCACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+>e2
+GACAGAAGCTATGATCTCAAAAATCCGATC---NNNNNNNNNNACTTGTTACATTCGTTAATGAATGCTTTAGTTACGACGAAGCATGATCTCCAGTGAACTCGGCATACAGTGCGCCAA
+--- stderr
+warning: skipping e3 (query 3): bad sam record: '=' in SEQ in an insertion or soft clip, where there is no reference base
+warning: 2 queries had '=' in SEQ (the reference base), written as N: sam toPairAlign and sam variants, which have the reference, keep these bases
+warning: skipped 1 of 3 queries

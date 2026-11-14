@@ -174,6 +174,8 @@ var e2eCases = []e2eCase{
 	{name: "sam_toma_twosq", args: []string{"sam", "toMultiAlign", "-s", "aln_twosq.sam"}},
 	{name: "sam_toma_headeronly", args: []string{"sam", "toMultiAlign", "-s", "aln_headeronly.sam"}},
 	{name: "sam_toma_empty", args: []string{"sam", "toMultiAlign", "-s", "empty.sam"}},
+	{name: "sam_toma_otherseq", args: []string{"sam", "toMultiAlign", "-s", "aln_otherseq.sam"}, threadsFlag: "-t"},
+	{name: "sam_toma_equals", args: []string{"sam", "toMultiAlign", "-s", "aln_equals.sam"}, threadsFlag: "-t"},
 
 	// sam toPairAlign
 	{name: "sam_topa_stdout", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta", "-o", "stdout"}, threadsFlag: "-t"},
@@ -185,6 +187,7 @@ var e2eCases = []e2eCase{
 	{name: "sam_topa_dir_clash_strict", args: []string{"sam", "toPairAlign", "-s", "aln_clash.sam", "-r", "ref.fasta", "-o", "pairs", "--strict"}},
 	{name: "sam_topa_badrecord", args: []string{"sam", "toPairAlign", "-s", "aln_badrecord.sam", "-r", "ref.fasta", "-o", "stdout"}},
 	{name: "sam_topa_empty", args: []string{"sam", "toPairAlign", "-s", "empty.sam", "-r", "ref.fasta", "-o", "stdout"}},
+	{name: "sam_topa_equals", args: []string{"sam", "toPairAlign", "-s", "aln_equals.sam", "-r", "ref.fasta", "-o", "stdout"}, threadsFlag: "-t"},
 	{name: "sam_topa_no_outpath", args: []string{"sam", "toPairAlign", "-s", "aln.sam", "-r", "ref.fasta"}},
 
 	// sam variants
@@ -198,6 +201,8 @@ var e2eCases = []e2eCase{
 	{name: "sam_topa_badquery_dir", args: []string{"sam", "toPairAlign", "-s", "aln_badquery.sam", "-r", "ref.fasta", "-o", "pairs"}},
 	{name: "sam_variants_twosq", args: []string{"sam", "variants", "-s", "aln_twosq.sam", "-r", "ref.fasta", "-a", "ref.gb"}},
 	{name: "sam_variants_empty", args: []string{"sam", "variants", "-s", "empty.sam", "-r", "ref.fasta", "-a", "ref.gb"}},
+	{name: "sam_variants_otherseq", args: []string{"sam", "variants", "-s", "aln_otherseq.sam", "-r", "ref.fasta", "-a", "ref.gb"}},
+	{name: "sam_variants_equals", args: []string{"sam", "variants", "-s", "aln_equals.sam", "-r", "ref.fasta", "-a", "ref.gb"}, threadsFlag: "-t"},
 }
 
 // runE2E runs one command line in a fresh copy of the inputs and renders the result.
