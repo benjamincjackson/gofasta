@@ -555,7 +555,7 @@ func indelInSpan(indels []Variant, start, stop int) bool {
 // outsideRange reports whether a variant has no reference base in start..end: the bases of its codon for
 // an amino acid change, the deleted bases for a deletion, and its position otherwise (for an insertion,
 // the base it follows). A bound that is not > 0 is not applied, so either bound can be used on its own.
-func outsideRange(v Variant, start, end int) bool {
+func outsideRange(v *Variant, start, end int) bool {
 	out := func(pos int) bool { return (start > 0 && pos < start) || (end > 0 && pos > end) }
 	switch v.Changetype {
 	case "aa":
@@ -632,25 +632,30 @@ func GetVariantsPair(ref, query []byte, refID, queryID string, idx int, cdsregio
 // FormatVariant returns a string representation of a single mutation, the format
 // of which varies given its type (aa/nuc/indel)
 func FormatVariant(v Variant, appendSNP bool) (string, error) {
-	var s string
+	b, err := appendVariant(nil, &v, appendSNP)
+	return string(b), err
+}
 
+// appendVariant appends FormatVariant's representation of *v to b
+func appendVariant(b []byte, v *Variant, appendSNP bool) ([]byte, error) {
 	switch v.Changetype {
-	case "del":
-		s = "del:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
-	case "ins":
-		s = "ins:" + strconv.Itoa(v.Position) + ":" + strconv.Itoa(v.Length)
+	case "del", "ins":
+		b = append(append(b, v.Changetype...), ':')
+		b = append(strconv.AppendInt(b, int64(v.Position), 10), ':')
+		b = strconv.AppendInt(b, int64(v.Length), 10)
 	case "nuc":
-		s = "nuc:" + v.RefAl + strconv.Itoa(v.Position) + v.QueAl
+		b = append(append(b, "nuc:"...), v.RefAl...)
+		b = append(strconv.AppendInt(b, int64(v.Position), 10), v.QueAl...)
 	case "aa":
-		s = "aa:" + v.Feature + ":" + v.RefAl + strconv.Itoa(v.Residue) + v.QueAl
+		b = append(append(append(append(b, "aa:"...), v.Feature...), ':'), v.RefAl...)
+		b = append(strconv.AppendInt(b, int64(v.Residue), 10), v.QueAl...)
 		if appendSNP {
-			s += "(" + v.SNPs + ")"
+			b = append(append(append(b, '('), v.SNPs...), ')')
 		}
 	default:
-		return "", errors.New("couldn't parse variant type")
+		return b, errors.New("couldn't parse variant type")
 	}
-
-	return s, nil
+	return b, nil
 }
 
 // LineWriter writes each query's mutations as one line of CSV.
@@ -659,6 +664,7 @@ type LineWriter struct {
 	start, end int
 	appendSNP  bool
 	refID      string
+	buf        []byte // the line being written, reused (Write is called from one goroutine at a time)
 }
 
 // NewLineWriter writes the CSV header to w and returns a LineWriter that writes to w. Only mutations
@@ -676,18 +682,24 @@ func (lw *LineWriter) Write(AS AnnoStructs) error {
 	if AS.Queryname == lw.refID {
 		return nil
 	}
-	sa := make([]string, 0, len(AS.Vs))
-	for _, v := range AS.Vs {
+	b := append(append(lw.buf[:0], AS.Queryname...), ',')
+	first := true
+	for i := range AS.Vs {
+		v := &AS.Vs[i]
 		if outsideRange(v, lw.start, lw.end) {
 			continue
 		}
-		newVar, err := FormatVariant(v, lw.appendSNP)
-		if err != nil {
+		if !first {
+			b = append(b, '|')
+		}
+		first = false
+		var err error
+		if b, err = appendVariant(b, v, lw.appendSNP); err != nil {
 			return err
 		}
-		sa = append(sa, newVar)
 	}
-	_, err := lw.w.Write([]byte(AS.Queryname + "," + strings.Join(sa, "|") + "\n"))
+	lw.buf = append(b, '\n')
+	_, err := lw.w.Write(lw.buf)
 	return err
 }
 
@@ -718,7 +730,7 @@ func (a *Aggregator) Add(AS AnnoStructs) error {
 	}
 	a.n++
 	for _, v := range AS.Vs {
-		if outsideRange(v, a.start, a.end) {
+		if outsideRange(&v, a.start, a.end) {
 			continue
 		}
 		rep, err := FormatVariant(v, a.appendSNP)

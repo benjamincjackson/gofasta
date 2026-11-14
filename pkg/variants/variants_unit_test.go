@@ -418,7 +418,7 @@ func TestOutsideRange(t *testing.T) {
 		{1, 2, 8, true},
 		{9, 2, 8, true},
 	} {
-		if got := outsideRange(Variant{Changetype: "nuc", Position: c.pos}, c.start, c.end); got != c.want {
+		if got := outsideRange(&Variant{Changetype: "nuc", Position: c.pos}, c.start, c.end); got != c.want {
 			t.Errorf("outsideRange(%d, %d, %d) = %v, want %v", c.pos, c.start, c.end, got, c.want)
 		}
 	}
@@ -453,7 +453,7 @@ func TestOutsideRangeCodonsAndDeletions(t *testing.T) {
 		{"insertion after --end", ins, -1, 99, true},
 		{"insertion at --end", ins, -1, 100, false},
 	} {
-		if got := outsideRange(c.v, c.start, c.end); got != c.want {
+		if got := outsideRange(&c.v, c.start, c.end); got != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, got, c.want)
 		}
 	}
