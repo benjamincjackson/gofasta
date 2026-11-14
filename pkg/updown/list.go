@@ -27,20 +27,6 @@ type updownLine struct {
 	ordered    bool  // snpsPos strictly ascending, ambs ascending non-overlapping tracts (see inOrder)
 }
 
-// writeLine writes one record's SNPs and ambiguities as a line of csv
-func writeLine(w io.Writer, udLine updownLine) error {
-	ambstrings := make([]string, 0)
-	for i := 0; i < len(udLine.ambs); i += 2 {
-		if udLine.ambs[i] == udLine.ambs[i+1] {
-			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
-		} else {
-			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
-		}
-	}
-	_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(len(udLine.snps)) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
-	return err
-}
-
 // List gets a list of ATGC SNPs with respect to reference + ambiguous sites for each query sequence in a fasta-format
 // alignment, and writes it to file. A record that can't be processed (an invalid character, or a different
 // length from the reference) is reported on stderr and skipped, unless strict, when it stops the run.
@@ -77,4 +63,18 @@ func List(reference, alignment io.Reader, out io.Writer, threads int, strict boo
 		return err
 	}
 	return h.Finish()
+}
+
+// writeLine writes one record's SNPs and ambiguities as a line of csv
+func writeLine(w io.Writer, udLine updownLine) error {
+	ambstrings := make([]string, 0)
+	for i := 0; i < len(udLine.ambs); i += 2 {
+		if udLine.ambs[i] == udLine.ambs[i+1] {
+			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i]))
+		} else {
+			ambstrings = append(ambstrings, strconv.Itoa(udLine.ambs[i])+"-"+strconv.Itoa(udLine.ambs[i+1]))
+		}
+	}
+	_, err := w.Write([]byte(udLine.id + "," + strings.Join(udLine.snps, "|") + "," + strings.Join(ambstrings, "|") + "," + strconv.Itoa(len(udLine.snps)) + "," + strconv.Itoa(udLine.ambCount) + "\n"))
+	return err
 }
