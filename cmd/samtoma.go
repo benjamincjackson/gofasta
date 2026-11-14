@@ -62,17 +62,17 @@ fasta file to stdout, e.g.:
 		},
 	}
 
-	addTrimFlags(c, &o.trimOptions, true)
-	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
-	addOutfileFlag(c, "the alignment")
-
-	addThreadsFlag(c.Flags(), &o.threads)
 	addSamfileFlag(c)
 	// toMultiAlign does not use a reference, but command lines that give one (as other sam commands need)
 	// still work: the flag is accepted, and hidden from the help
 	c.Flags().StringP("reference", "r", "", samReferenceUsage)
 	c.Flags().MarkHidden("reference")
+	addOutfileFlag(c, "the alignment")
+	addTrimFlags(c, &o.trimOptions, true)
+	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
+	addWrapFlag(c, &o.trimOptions)
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().SortFlags = false
 	return c
 }

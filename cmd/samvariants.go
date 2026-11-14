@@ -85,14 +85,13 @@ of the format.
 		},
 	}
 
+	addSamfileFlag(c)
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", samReferenceUsage)
 	addAnnotationFlags(c, &o.annotationOptions, true)
 	addOutfileFlag(c, "the variants")
 	addVariantsOutputFlags(c, &o.variantsOutputOptions)
-
-	addThreadsFlag(c.Flags(), &o.threads)
-	addSamfileFlag(c)
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", samReferenceUsage)
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().SortFlags = false
 
 	return c

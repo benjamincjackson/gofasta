@@ -107,16 +107,15 @@ between every pair.
 		},
 	}
 
-	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().String("query", "", "Alignment of sequences to find neighbours for, in fasta format")
 	c.Flags().String("target", "", "Alignment of sequences to search for neighbours in, in fasta format")
+	addOutfileFlag(c, "the closest targets to each query")
 	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
 	c.Flags().IntVarP(&o.n, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
 	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
-	addOutfileFlag(c, "the closest targets to each query")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
-
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	requireFlags(c, "query", "target")
 	c.Flags().SortFlags = false
 	return c

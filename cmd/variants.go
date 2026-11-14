@@ -102,9 +102,8 @@ to filter on frequency.
 	addAnnotationFlags(c, &o.annotationOptions, false)
 	addOutfileFlag(c, "the variants")
 	addVariantsOutputFlags(c, &o.variantsOutputOptions)
-	addThreadsFlag(c.Flags(), &o.threads)
-
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().SortFlags = false
 	return c
 }

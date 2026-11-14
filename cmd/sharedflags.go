@@ -56,8 +56,7 @@ type trimOptions struct {
 	wrap       int
 }
 
-// addTrimFlags adds --start, --end and --wrap to c (sam toMultiAlign, with --pad, and sam toPairAlign),
-// bound to o
+// addTrimFlags adds --start and --end to c (sam toMultiAlign, with --pad, and sam toPairAlign), bound to o
 func addTrimFlags(c *cobra.Command, o *trimOptions, withPad bool) {
 	pad := ""
 	if withPad {
@@ -65,8 +64,13 @@ func addTrimFlags(c *cobra.Command, o *trimOptions, withPad bool) {
 	}
 	c.Flags().IntVar(&o.start, "start", -1, "1-based first position (in reference coordinates) to keep in the output. Bases before it are omitted"+pad)
 	c.Flags().IntVar(&o.end, "end", -1, "1-based last position (in reference coordinates) to keep in the output. Bases after it are omitted"+pad)
+	hideDefault(c, "start", "end")
+}
+
+// addWrapFlag adds -w, --wrap to c (sam toMultiAlign and sam toPairAlign), bound to o
+func addWrapFlag(c *cobra.Command, o *trimOptions) {
 	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
-	hideDefault(c, "start", "end", "wrap")
+	hideDefault(c, "wrap")
 }
 
 // hideDefault stops the help from showing the named flags' defaults, which only mean "not given"

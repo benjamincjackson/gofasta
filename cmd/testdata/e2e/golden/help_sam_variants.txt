@@ -37,6 +37,8 @@ Usage:
   gofasta sam variants [flags]
 
 Flags:
+  -s, --samfile string      SAM file to read (default "stdin")
+  -r, --reference string    Reference fasta file used to generate the sam file
   -a, --annotation string   GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz) (required, unless --genbank or --gff)
       --genbank string      GenBank annotation file, whatever it is called (instead of --annotation)
       --gff string          GFF3 annotation file, whatever it is called (instead of --annotation)
@@ -47,9 +49,7 @@ Flags:
       --threshold float     If --aggregate, only report changes with a freq greater than or equal to this value
       --append-snps         Report the codon's SNPs in parenthesis after each amino acid mutation
       --group-aa            Report the amino acid changes from one indel as one entry (aa:S:HV69-- instead of aa:S:H69-|aa:S:V70-)
-  -t, --threads int         Number of threads (and CPUs) to use: 0, the default, for all of them
-  -s, --samfile string      SAM file to read (default "stdin")
-  -r, --reference string    Reference fasta file used to generate the sam file
       --strict              Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int         Number of threads (and CPUs) to use: 0, the default, for all of them
   -h, --help                help for variants
 --- stderr

@@ -153,30 +153,25 @@ distance (as long as you haven't also invoked --dist-push).
 
 	c.Flags().String("query", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	c.Flags().String("target", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
+	c.Flags().StringVar(&o.ignore, "ignore", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format (required if --query or --target is a fasta file)")
 	addOutfileFlag(c, "the closest neighbours, in CSV format")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format (required if --query or --target is a fasta file)")
-	c.Flags().StringVar(&o.ignore, "ignore", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
-
-	c.Flags().IntVar(&o.distAll, "dist-all", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
-	c.Flags().IntVar(&o.distUp, "dist-up", 0, "Maximum allowed SNP-distance from query for sequences in the parent bin")
-	c.Flags().IntVar(&o.distDown, "dist-down", 0, "Maximum allowed SNP-distance from query for sequences in the child bin")
-	c.Flags().IntVar(&o.distSide, "dist-side", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
-
 	c.Flags().IntVar(&o.sizeTotal, "size-total", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
 	c.Flags().IntVar(&o.sizeUp, "size-up", 0, "Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill")
 	c.Flags().IntVar(&o.sizeDown, "size-down", 0, "Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill")
 	c.Flags().IntVar(&o.sizeSide, "size-side", 0, "Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill")
 	c.Flags().IntVar(&o.sizeSame, "size-same", 0, "Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill")
-
+	c.Flags().BoolVar(&o.noFill, "no-fill", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
+	c.Flags().IntVar(&o.distAll, "dist-all", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
+	c.Flags().IntVar(&o.distUp, "dist-up", 0, "Maximum allowed SNP-distance from query for sequences in the parent bin")
+	c.Flags().IntVar(&o.distDown, "dist-down", 0, "Maximum allowed SNP-distance from query for sequences in the child bin")
+	c.Flags().IntVar(&o.distSide, "dist-side", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
+	c.Flags().IntVar(&o.distPush, "dist-push", 0, "Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible")
 	c.Flags().Float32Var(&o.thresholdPair, "threshold-pair", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
 	c.Flags().IntVar(&o.thresholdTarget, "threshold-target", 10000, "Target can have at most this number of ambiguities to be considered")
-
-	c.Flags().IntVar(&o.distPush, "dist-push", 0, "Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible")
-	c.Flags().BoolVar(&o.noFill, "no-fill", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
-
-	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	requireFlags(c, "query", "target")
 	c.Flags().SortFlags = false
 	return c

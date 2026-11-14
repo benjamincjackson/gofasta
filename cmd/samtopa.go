@@ -67,15 +67,15 @@ instead, use -o stdout, e.g.:
 		},
 	}
 
-	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout")
+	addSamfileFlag(c)
 	c.Flags().StringVarP(&o.reference, "reference", "r", "", samReferenceUsage+" (required)")
+	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout")
 	c.Flags().BoolVar(&o.omitReference, "omit-reference", false, "Omit the reference sequences from the output alignments")
 	c.Flags().BoolVar(&o.skipInsertions, "skip-insertions", false, "Skip insertions relative to the reference from the output alignments")
 	addTrimFlags(c, &o.trimOptions, false)
-
-	addThreadsFlag(c.Flags(), &o.threads)
-	addSamfileFlag(c)
+	addWrapFlag(c, &o.trimOptions)
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	requireFlags(c, "outpath")
 	c.Flags().SortFlags = false
 	return c
