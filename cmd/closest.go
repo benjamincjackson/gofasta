@@ -29,8 +29,8 @@ func newClosestCmd() *cobra.Command {
 		Long: `Find the closest sequence(s) to a query by genetic distance
 
 The usecase is imagined to be a small number of query sequences, whose nearest neighbours by genetic distance
-need to be found amongst a large number of target sequences. The query alignment is read into memory and the
-target alignment is streamed from disk and iterated over once, so it can be arbitrarily large.
+need to be found amongst a large number of target sequences. The --query alignment is read into memory and the
+--target alignment is streamed from disk and iterated over once, so it can be arbitrarily large.
 
 You can find the single closest neighbour like:
 
@@ -42,7 +42,7 @@ Or you can find the nearest n neighbours:
 
 	gofasta closest -t 2 -n 1000 --query query.fasta --target target.fasta -o closest.n1000.csv
 
-or you can find all the neighbours under a -d distance away:
+or you can find all the neighbours a -d distance or less away:
 
 	gofasta closest -t 2 --measure snp -d 5 --query query.fasta --target target.fasta -o closest.d5snps.csv
 
@@ -107,18 +107,16 @@ between every pair.
 		},
 	}
 
-	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().String("query", "", "Alignment of sequences to find neighbours for, in fasta format")
 	c.Flags().String("target", "", "Alignment of sequences to search for neighbours in, in fasta format")
+	addOutfileFlag(c, "the closest targets to each query")
 	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
-	c.Flags().IntVarP(&o.n, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
-	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
-	c.Flags().StringP("outfile", "o", "stdout", "The output file to write")
-	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
-
+	c.Flags().IntVarP(&o.n, "number", "n", 0, "Return the closest n --target sequences to each query (without --number or --max-dist, the single closest)")
+	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "Return all the --target sequences this distance or less from each query (inf for no limit)")
+	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output (with --number or --max-dist)")
 	addStrictFlag(c, &o.strict)
-	c.MarkFlagRequired("query")
-	c.MarkFlagRequired("target")
+	addThreadsFlag(c.Flags(), &o.threads)
+	requireFlags(c, "query", "target")
 	c.Flags().SortFlags = false
 	return c
 }

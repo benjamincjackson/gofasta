@@ -32,17 +32,123 @@ type resultsStruct struct {
 	snps         []string
 }
 
-// lessDistance reports whether distance a is strictly closer than distance b. An undefined
-// distance (NaN, e.g. no comparable sites) is treated as further than every defined distance,
-// and two undefined distances are never "less" than one another.
-func lessDistance(a, b float64) bool {
-	if math.IsNaN(a) {
-		return false
+// scoredTarget is one target with its distance to each query
+type scoredTarget struct {
+	target    fasta.EncodedRecord
+	distances []float64
+}
+
+// consider makes target the closest to query if it is closer than the current closest, or as close and
+// more complete. The first target considered always becomes the closest.
+func (closest *resultsStruct) consider(query, target fasta.EncodedRecord, distance float64, first bool, decoding [256]string) {
+	if first || lessDistance(distance, closest.distance) || (distance == closest.distance && target.Score > closest.completeness) {
+		*closest = resultsStruct{qname: query.ID, tname: target.ID, completeness: target.Score, distance: distance, snps: snpsBetween(query, target, decoding)}
 	}
-	if math.IsNaN(b) {
-		return true
+}
+
+// Closest finds the single closest sequence by genetic distance to a query/queries. It writes the results
+// to stdout or to file. Ties for distance are broken by genome completeness
+// threads is the number of goroutines that process records (fewer than 1 means 1).
+func Closest(query, target io.Reader, measure string, out io.Writer, threads int, strict bool) error {
+	queries, err := loadQueries(query, strict)
+	if err != nil {
+		return err
 	}
-	return a < b
+
+	QResultsArray := make([]resultsStruct, len(queries))
+	for i, q := range queries {
+		QResultsArray[i] = resultsStruct{qname: q.ID}
+	}
+
+	decoding := encoding.MakeDecodingArray()
+	first := true
+	err = scanTargets(queries, target, measure, threads, strict, func(st scoredTarget) {
+		for i, q := range queries {
+			QResultsArray[i].consider(q, st.target, st.distances[i], first, decoding)
+		}
+		first = false
+	})
+	if err != nil {
+		return err
+	}
+	return writeClosest(QResultsArray, measure, out)
+}
+
+// loadQueries reads and encodes the queries. A query that can't be used (an invalid character, or a
+// different width from the first usable query) is reported on stderr and left out, unless strict, when
+// it is an error. It writes the number of queries read to stderr.
+func loadQueries(query io.Reader, strict bool) ([]fasta.EncodedRecord, error) {
+	width := -1 // of the first usable query; only one worker, so the queries are seen in order
+	work := func(record fasta.Record) (fasta.EncodedRecord, error) {
+		q, err := fasta.EncodeRecord(record, false, true, false)
+		if err != nil {
+			return q, pipeline.Named(record.ID, err)
+		}
+		if width == -1 {
+			width = len(q.Seq)
+		} else if len(q.Seq) != width {
+			return q, pipeline.Named(record.ID, errors.New("not the same width as the first query"))
+		}
+		return q, nil
+	}
+	queries := make([]fasta.EncodedRecord, 0)
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "query", Many: "queries"}, func(q fasta.EncodedRecord) error {
+		queries = append(queries, q)
+		return nil
+	})
+	if err := pipeline.Run(context.Background(), 1, fasta.NewRecordSource(query), work, h.Sink); err != nil {
+		return nil, err
+	}
+	if err := h.Finish(); err != nil {
+		return nil, err
+	}
+	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", h.Total())
+	return queries, nil
+}
+
+// scanTargets reads the targets from an alignment, works out each one's distance to every query (on
+// threads goroutines), and passes the targets with their distances to visit in input order. A target
+// that can't be used (an invalid character, or a different width from the queries) is reported on
+// stderr and skipped, unless strict, when it is an error. It writes the number of targets read to stderr.
+func scanTargets(queries []fasta.EncodedRecord, target io.Reader, measure string, threads int, strict bool, visit func(scoredTarget)) error {
+	var distance func(query, target fasta.EncodedRecord) float64
+	switch measure {
+	case "raw":
+		distance = rawDistance
+	case "snp":
+		distance = snpDistance
+	case "tn93":
+		distance = tn93Distance
+	default:
+		return errors.New("unknown distance measure: " + measure)
+	}
+
+	work := func(record fasta.Record) (scoredTarget, error) {
+		t, err := fasta.EncodeRecord(record, false, true, true)
+		if err != nil {
+			return scoredTarget{}, pipeline.Named(record.ID, err)
+		}
+		if len(queries) > 0 && len(t.Seq) != len(queries[0].Seq) {
+			return scoredTarget{}, pipeline.Named(record.ID, errors.New("query and target alignments are not the same width"))
+		}
+		ds := make([]float64, len(queries))
+		for i, q := range queries {
+			ds[i] = distance(q, t)
+		}
+		return scoredTarget{target: t, distances: ds}, nil
+	}
+	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "target", Many: "targets"}, func(st scoredTarget) error {
+		visit(st)
+		return nil
+	})
+	if err := pipeline.Run(context.Background(), threads, fasta.NewRecordSource(target), work, h.Sink); err != nil {
+		return err
+	}
+	if err := h.Finish(); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", h.Total())
+	return nil
 }
 
 // The distance measures classify sites without branching (which bases differ is unpredictable, so
@@ -62,20 +168,6 @@ const (
 	allY = 0x3838383838383838 // C|T (56) in every lane
 )
 
-// zeroLanes sets the top bit of each byte of x that is 0
-func zeroLanes(x uint64) uint64 { return ^(((x & lo7) + lo7) | x) & hi1 }
-
-func disjointLanes(a, b uint64) uint64 { return zeroLanes(a & b & hiN) }
-
-func knownLanes(a uint64) uint64 { return (a & bit3) << 4 }
-
-// isZero, disjoint and known are the single-site tests, giving 0 or 1
-func isZero(x uint32) uint32 { return (x - 1) >> 31 }
-
-func disjoint(a, b byte) uint32 { return isZero(uint32(a&b) >> 4) }
-
-func known(a byte) uint32 { return uint32(a>>3) & 1 }
-
 // rawDistance is the number of sites where the bases certainly differ per site where they are certainly
 // different or certainly the same
 func rawDistance(query, target fasta.EncodedRecord) float64 {
@@ -94,6 +186,20 @@ func rawDistance(query, target fasta.EncodedRecord) float64 {
 	}
 	return float64(n) / float64(n+same)
 }
+
+// zeroLanes sets the top bit of each byte of x that is 0
+func zeroLanes(x uint64) uint64 { return ^(((x & lo7) + lo7) | x) & hi1 }
+
+func disjointLanes(a, b uint64) uint64 { return zeroLanes(a & b & hiN) }
+
+func knownLanes(a uint64) uint64 { return (a & bit3) << 4 }
+
+// isZero, disjoint and known are the single-site tests, giving 0 or 1
+func isZero(x uint32) uint32 { return (x - 1) >> 31 }
+
+func disjoint(a, b byte) uint32 { return isZero(uint32(a&b) >> 4) }
+
+func known(a byte) uint32 { return uint32(a>>3) & 1 }
 
 // snpDistance is the number of sites where the bases certainly differ
 func snpDistance(query, target fasta.EncodedRecord) float64 {
@@ -184,87 +290,17 @@ func tn93FromCounts(query, target fasta.EncodedRecord, count_L, count_d, count_P
 	return d
 }
 
-// scoredTarget is one target with its distance to each query
-type scoredTarget struct {
-	target    fasta.EncodedRecord
-	distances []float64
-}
-
-// loadQueries reads and encodes the queries. A query that can't be used (an invalid character, or a
-// different width from the first usable query) is reported on stderr and left out, unless strict, when
-// it is an error. It writes the number of queries read to stderr.
-func loadQueries(query io.Reader, strict bool) ([]fasta.EncodedRecord, error) {
-	width := -1 // of the first usable query; only one worker, so the queries are seen in order
-	work := func(record fasta.Record) (fasta.EncodedRecord, error) {
-		q, err := fasta.EncodeRecord(record, false, true, false)
-		if err != nil {
-			return q, pipeline.Named(record.ID, err)
-		}
-		if width == -1 {
-			width = len(q.Seq)
-		} else if len(q.Seq) != width {
-			return q, pipeline.Named(record.ID, errors.New("not the same width as the first query"))
-		}
-		return q, nil
+// lessDistance reports whether distance a is strictly closer than distance b. An undefined
+// distance (NaN, e.g. no comparable sites) is treated as further than every defined distance,
+// and two undefined distances are never "less" than one another.
+func lessDistance(a, b float64) bool {
+	if math.IsNaN(a) {
+		return false
 	}
-	queries := make([]fasta.EncodedRecord, 0)
-	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "query", Many: "queries"}, func(q fasta.EncodedRecord) error {
-		queries = append(queries, q)
-		return nil
-	})
-	if err := pipeline.Run(context.Background(), 1, fasta.NewRecordSource(query), work, h.Sink); err != nil {
-		return nil, err
+	if math.IsNaN(b) {
+		return true
 	}
-	if err := h.Finish(); err != nil {
-		return nil, err
-	}
-	fmt.Fprintf(os.Stderr, "number of sequences in query alignment: %d\n", h.Total())
-	return queries, nil
-}
-
-// scanTargets reads the targets from an alignment, works out each one's distance to every query (on
-// threads goroutines), and passes the targets with their distances to visit in input order. A target
-// that can't be used (an invalid character, or a different width from the queries) is reported on
-// stderr and skipped, unless strict, when it is an error. It writes the number of targets read to stderr.
-func scanTargets(queries []fasta.EncodedRecord, target io.Reader, measure string, threads int, strict bool, visit func(scoredTarget)) error {
-	var distance func(query, target fasta.EncodedRecord) float64
-	switch measure {
-	case "raw":
-		distance = rawDistance
-	case "snp":
-		distance = snpDistance
-	case "tn93":
-		distance = tn93Distance
-	default:
-		return errors.New("unknown distance measure: " + measure)
-	}
-
-	work := func(record fasta.Record) (scoredTarget, error) {
-		t, err := fasta.EncodeRecord(record, false, true, true)
-		if err != nil {
-			return scoredTarget{}, pipeline.Named(record.ID, err)
-		}
-		if len(queries) > 0 && len(t.Seq) != len(queries[0].Seq) {
-			return scoredTarget{}, pipeline.Named(record.ID, errors.New("query and target alignments are not the same width"))
-		}
-		ds := make([]float64, len(queries))
-		for i, q := range queries {
-			ds[i] = distance(q, t)
-		}
-		return scoredTarget{target: t, distances: ds}, nil
-	}
-	h := pipeline.NewHandler(strict, os.Stderr, pipeline.Noun{One: "target", Many: "targets"}, func(st scoredTarget) error {
-		visit(st)
-		return nil
-	})
-	if err := pipeline.Run(context.Background(), threads, fasta.NewRecordSource(target), work, h.Sink); err != nil {
-		return err
-	}
-	if err := h.Finish(); err != nil {
-		return err
-	}
-	fmt.Fprintf(os.Stderr, "number of sequences in target alignment: %d\n", h.Total())
-	return nil
+	return a < b
 }
 
 // snpsBetween lists the sites at which query and target certainly differ, as position, query base, target base
@@ -276,23 +312,6 @@ func snpsBetween(query, target fasta.EncodedRecord, decoding [256]string) []stri
 		}
 	}
 	return snps
-}
-
-// consider makes target the closest to query if it is closer than the current closest, or as close and
-// more complete. The first target considered always becomes the closest.
-func (closest *resultsStruct) consider(query, target fasta.EncodedRecord, distance float64, first bool, decoding [256]string) {
-	if first || lessDistance(distance, closest.distance) || (distance == closest.distance && target.Score > closest.completeness) {
-		*closest = resultsStruct{qname: query.ID, tname: target.ID, completeness: target.Score, distance: distance, snps: snpsBetween(query, target, decoding)}
-	}
-}
-
-// formatDistance writes a distance for output: a whole number for the snp measure, otherwise with nine
-// decimal places
-func formatDistance(d float64, measure string) string {
-	if measure == "snp" {
-		return strconv.Itoa(int(d))
-	}
-	return strconv.FormatFloat(d, 'f', 9, 64)
 }
 
 // writeClosest writes each query's closest target, the distance between them and the SNPs that distinguish them
@@ -308,30 +327,11 @@ func writeClosest(results []resultsStruct, measure string, w io.Writer) error {
 	return nil
 }
 
-// Closest finds the single closest sequence by genetic distance to a query/queries. It writes the results
-// to stdout or to file. Ties for distance are broken by genome completeness
-// threads is the number of goroutines that process records (fewer than 1 means 1).
-func Closest(query, target io.Reader, measure string, out io.Writer, threads int, strict bool) error {
-	queries, err := loadQueries(query, strict)
-	if err != nil {
-		return err
+// formatDistance writes a distance for output: a whole number for the snp measure, otherwise with nine
+// decimal places
+func formatDistance(d float64, measure string) string {
+	if measure == "snp" {
+		return strconv.Itoa(int(d))
 	}
-
-	QResultsArray := make([]resultsStruct, len(queries))
-	for i, q := range queries {
-		QResultsArray[i] = resultsStruct{qname: q.ID}
-	}
-
-	decoding := encoding.MakeDecodingArray()
-	first := true
-	err = scanTargets(queries, target, measure, threads, strict, func(st scoredTarget) {
-		for i, q := range queries {
-			QResultsArray[i].consider(q, st.target, st.distances[i], first, decoding)
-		}
-		first = false
-	})
-	if err != nil {
-		return err
-	}
-	return writeClosest(QResultsArray, measure, out)
+	return strconv.FormatFloat(d, 'f', 9, 64)
 }

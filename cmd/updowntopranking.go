@@ -14,6 +14,7 @@ import (
 
 // toprankingOptions holds the values of the flags of the command newToprankingCmd returns
 type toprankingOptions struct {
+	reference       string
 	threads         int
 	ignore          string
 	table           bool
@@ -33,8 +34,8 @@ type toprankingOptions struct {
 	strict          bool
 }
 
-// newToprankingCmd builds the updown topranking command; u holds the updown command's flags, which its subcommands share
-func newToprankingCmd(u *updownOptions) *cobra.Command {
+// newToprankingCmd builds the updown topranking command
+func newToprankingCmd() *cobra.Command {
 	var o toprankingOptions
 	c := &cobra.Command{
 		Use:   "topranking",
@@ -50,27 +51,28 @@ sequence. It does this by comparing SNPs relative to a common reference sequence
 root of the tree.
 
 --query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or
-one of each; which is worked out from their content, so they can be called anything, and either can be stdin.
-If either is an alignment, you must provide --reference, and this should be the same sequence that was used by
-gofasta updown list.
+one of each; which is worked out from their content, so they can be called anything, and either (but not both)
+can be stdin. If either is an alignment, you must provide --reference, and this should be the same sequence
+that was used by gofasta updown list.
 
-Use the --dist flags to filter on SNP-distances in each direction. As long as you haven't also used any --size
-flags, the program will return all the targets that are equal or less than the specified SNP-distance(s) away.
-If --dist-push is invoked with an integer (i) argument, the program will push the SNP-distance boundaries to
-cover the all sequences that are the closest i SNP-distances away, and then it will return all the neighbours
-at those distances in that bin.
+Use --dist-all, or --dist-up, --dist-down and --dist-side, to filter on SNP-distances in each direction. As
+long as you haven't also used any of the --size-* flags (--size-total, --size-up, --size-down, --size-side,
+--size-same), the program will return all the targets that are equal or less than the specified
+SNP-distance(s) away. If --dist-push is invoked with an integer (i) argument, the program will push the
+SNP-distance boundaries to cover all the sequences that are the closest i SNP-distances away, and then it will
+return all the neighbours at those distances in that bin.
 
 If you provide a number to --size-total, the output will try to include this many closest sequences to the
 query, split evenly between the four bins. If one or more bins has a shortfall, the sizes of the other bins
 will increase until --size-total is met, if possible, unless you use --no-fill.
 
-You can provide --size-up, -down, -side and -same, instead of --size-total, if you want different proportions
-for each bin. The program will aim to provide the sum of these numbers in total in the output, and will make
-up for a shortfall in one bin by increasing the count of the other bins where possible, unless --no-fill.
+You can provide --size-up, --size-down, --size-side and --size-same, instead of --size-total, if you want
+different proportions for each bin. The program will aim to provide the sum of these numbers in total in the
+output, and will make up for a shortfall in one bin by increasing the count of the other bins where possible,
+unless --no-fill.
 
-You can combine the two types of flag (size and dist), to return only the closest n sequences under a set
-distance (as long as you haven't also invoked --dist-push).
-`,
+You can combine the two types of flag (--size-* and --dist-*), to return only the closest n sequences under a
+set distance (as long as you haven't also invoked --dist-push).`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				intAtLeast(cmd, 0, "threads", "size-total", "size-up", "size-down", "size-side", "size-same",
@@ -126,7 +128,7 @@ distance (as long as you haven't also invoked --dist-push).
 
 			var ref io.ReadCloser // only read if a fasta file is given
 			if qtype == "fasta" || ttype == "fasta" {
-				if u.reference == "" {
+				if o.reference == "" {
 					return errors.New("--query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)")
 				}
 				ref, err = openIn(cmd, "reference")
@@ -152,32 +154,26 @@ distance (as long as you haven't also invoked --dist-push).
 
 	c.Flags().String("query", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	c.Flags().String("target", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
-	c.Flags().StringP("outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
+	c.Flags().StringVar(&o.ignore, "ignore", "", "Plain text file of IDs of --target sequences to ignore when searching for neighbours")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format (required if --query or --target is a fasta file)")
+	addOutfileFlag(c, "the closest neighbours, in CSV format")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
-	c.Flags().StringVarP(&u.reference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
-	c.Flags().StringVar(&o.ignore, "ignore", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
-
-	c.Flags().IntVar(&o.distAll, "dist-all", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
+	c.Flags().IntVar(&o.sizeTotal, "size-total", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
+	c.Flags().IntVar(&o.sizeUp, "size-up", 0, "Max number of closest parent sequences to find, if --size-total is not given. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeDown, "size-down", 0, "Max number of closest child sequences to find, if --size-total is not given. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeSide, "size-side", 0, "Max number of closest sibling sequences to find, if --size-total is not given. A soft limit unless --no-fill")
+	c.Flags().IntVar(&o.sizeSame, "size-same", 0, "Max number of identical sequences to find, if --size-total is not given. A soft limit unless --no-fill")
+	c.Flags().BoolVar(&o.noFill, "no-fill", false, "Don't make up for a shortfall in any of --size-up, --size-down, --size-side or --size-same by increasing the count for other bins")
+	c.Flags().IntVar(&o.distAll, "dist-all", 0, "Maximum allowed SNP-distance between a --query and a --target sequence in any direction. Overrides the settings below")
 	c.Flags().IntVar(&o.distUp, "dist-up", 0, "Maximum allowed SNP-distance from query for sequences in the parent bin")
 	c.Flags().IntVar(&o.distDown, "dist-down", 0, "Maximum allowed SNP-distance from query for sequences in the child bin")
 	c.Flags().IntVar(&o.distSide, "dist-side", 0, "Maximum allowed SNP-distance from query for sequences in the sibling bin")
-
-	c.Flags().IntVar(&o.sizeTotal, "size-total", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")
-	c.Flags().IntVar(&o.sizeUp, "size-up", 0, "Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	c.Flags().IntVar(&o.sizeDown, "size-down", 0, "Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	c.Flags().IntVar(&o.sizeSide, "size-side", 0, "Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill")
-	c.Flags().IntVar(&o.sizeSame, "size-same", 0, "Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill")
-
+	c.Flags().IntVar(&o.distPush, "dist-push", 0, "Push the --dist-all, --dist-up, --dist-down and --dist-side boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible")
 	c.Flags().Float32Var(&o.thresholdPair, "threshold-pair", 0.1, "Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison")
-	c.Flags().IntVar(&o.thresholdTarget, "threshold-target", 10000, "Target can have at most this number of ambiguities to be considered")
-
-	c.Flags().IntVar(&o.distPush, "dist-push", 0, "Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible")
-	c.Flags().BoolVar(&o.noFill, "no-fill", false, "Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins")
-
-	addThreadsFlag(c.Flags(), &o.threads)
+	c.Flags().IntVar(&o.thresholdTarget, "threshold-target", 10000, "A --target sequence can have at most this number of ambiguities to be considered")
 	addStrictFlag(c, &o.strict)
-	c.MarkFlagRequired("query")
-	c.MarkFlagRequired("target")
+	addThreadsFlag(c.Flags(), &o.threads)
+	requireFlags(c, "query", "target")
 	c.Flags().SortFlags = false
 	return c
 }

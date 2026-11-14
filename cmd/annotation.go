@@ -17,9 +17,14 @@ type annotationOptions struct {
 // annotationFlagNames are the names of the annotation flags, in the order they are described
 var annotationFlagNames = []string{"annotation", "genbank", "gff"}
 
-// addAnnotationFlags adds --annotation, --genbank and --gff to c, bound to a
-func addAnnotationFlags(c *cobra.Command, a *annotationOptions) {
-	c.Flags().StringVarP(&a.annotation, "annotation", "a", "", "GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz)")
+// addAnnotationFlags adds --annotation, --genbank and --gff to c, bound to a; required says whether one of
+// them must be given (checkAnnotationFlags checks it)
+func addAnnotationFlags(c *cobra.Command, a *annotationOptions, required bool) {
+	need := ""
+	if required {
+		need = " (required, unless --genbank or --gff)"
+	}
+	c.Flags().StringVarP(&a.annotation, "annotation", "a", "", "GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz)"+need)
 	c.Flags().StringVar(&a.genbank, "genbank", "", "GenBank annotation file, whatever it is called (instead of --annotation)")
 	c.Flags().StringVar(&a.gff, "gff", "", "GFF3 annotation file, whatever it is called (instead of --annotation)")
 }

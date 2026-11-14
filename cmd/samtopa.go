@@ -8,17 +8,17 @@ import (
 
 // toPairAlignOptions holds the values of the flags of the command newToPairAlignCmd returns
 type toPairAlignOptions struct {
+	threads        int
+	reference      string
 	outpath        string
 	omitReference  bool
 	skipInsertions bool
-	start          int
-	end            int
-	wrap           int
-	strict         bool
+	trimOptions
+	strict bool
 }
 
-// newToPairAlignCmd builds the sam toPairAlign command; s holds the sam command's flags, which its subcommands share
-func newToPairAlignCmd(s *samOptions) *cobra.Command {
+// newToPairAlignCmd builds the sam toPairAlign command
+func newToPairAlignCmd() *cobra.Command {
 	var o toPairAlignOptions
 	c := &cobra.Command{
 		Use:     "toPairAlign",
@@ -26,12 +26,13 @@ func newToPairAlignCmd(s *samOptions) *cobra.Command {
 		Short:   "Convert a SAM file to pairwise alignments in fasta format",
 		Long: `Convert a SAM file to pairwise alignments in fasta format
 
-Each query is written as a pairwise alignment with the reference: the reference sequence first, then the
-query. Unlike toMultiAlign, insertions relative to the reference are kept (unless you use --skip-insertions),
-so the output alignment can be longer than the reference. External alignment gaps are always written as N.
+Each query is written as a pairwise alignment with the reference: the reference sequence first (unless
+--omit-reference), then the query. Unlike toMultiAlign, insertions relative to the reference are kept (unless
+you use --skip-insertions), so the output alignment can be longer than the reference. External alignment gaps
+are always written as N.
 
---reference must be the fasta file that was used to generate the sam file, and its sequence must be the same
-length as the @SQ line in the sam header.
+--reference must be the fasta file that was used to make the --samfile alignment, and its sequence must be the
+same length as the @SQ line in the sam header.
 
 Example usage:
 	gofasta sam toPairAlign -s aligned.sam -r reference.fasta -o alignments
@@ -43,8 +44,10 @@ instead, use -o stdout, e.g.:
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				inheritedRequired(cmd, "reference"),
+				flagsGiven(cmd, "reference"),
 				intAtLeast(cmd, 0, "threads"),
+				startNotAfterEnd(cmd),
+				outputNotInput(cmd, "outpath", "samfile", "reference"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -61,19 +64,20 @@ instead, use -o stdout, e.g.:
 			}
 			defer ref.Close()
 
-			return sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(s.threads), o.strict)
+			return sam.ToPairAlign(samIn, ref, o.outpath, o.wrap, o.start, o.end, o.omitReference, o.skipInsertions, resolveThreads(o.threads), o.strict)
 		},
 	}
 
-	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout (required)")
+	addSamfileFlag(c)
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", samReferenceUsage+" (required)")
+	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout")
 	c.Flags().BoolVar(&o.omitReference, "omit-reference", false, "Omit the reference sequences from the output alignments")
 	c.Flags().BoolVar(&o.skipInsertions, "skip-insertions", false, "Skip insertions relative to the reference from the output alignments")
-	c.Flags().IntVar(&o.start, "start", -1, "1-based first nucleotide position (in reference coordinates) to retain in the output. Bases before this position are omitted")
-	c.Flags().IntVar(&o.end, "end", -1, "1-based last nucleotide position (in reference coordinates) to retain in the output. Bases after this position are omitted")
-	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
-
+	addTrimFlags(c, &o.trimOptions, false)
+	addWrapFlag(c, &o.trimOptions)
 	addStrictFlag(c, &o.strict)
-	c.MarkFlagRequired("outpath")
+	addThreadsFlag(c.Flags(), &o.threads)
+	requireFlags(c, "outpath")
 	c.Flags().SortFlags = false
 	return c
 }

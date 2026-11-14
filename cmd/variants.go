@@ -14,11 +14,7 @@ type variantsOptions struct {
 	referenceID string // a record of the query alignment
 	reference   string // a fasta file
 	threads     int
-	aggregate   bool
-	threshold   float64
-	appendSNP   bool
-	start       int
-	end         int
+	variantsOutputOptions
 	annotationOptions
 	strict bool
 }
@@ -36,11 +32,11 @@ Example usage:
 	gofasta variants -q alignment.fasta -a MN908947.gb --reference-id MN908947.3 > variants.csv
 	gofasta variants -q alignment.fasta -r MN908947.fasta > variants.csv
 
-The reference is a fasta file of its own, the same width as the alignment (--reference), or a record of the
-alignment (--reference-id; if the alignment is read from stdin, it must be the first record). Without either,
-the sequence in the annotation file is used, in which case the alignment must be in the same coordinates.
-Without an annotation, only nucleotide changes, deletions and insertions are reported, and a reference must be
-given.
+The reference is a fasta file of its own, the same width as the --query alignment (--reference), or a record
+of the --query alignment (--reference-id; if --query is stdin, it must be the first record). Without either,
+the sequence in the annotation file (--annotation, --genbank or --gff) is used, in which case the --query
+alignment must be in the same coordinates. Without an annotation, only nucleotide changes, deletions and
+insertions are reported, and --reference or --reference-id must be given.
 
 gff-format annotations must be valid version 3 files. See github.com/virus-evolution/gofasta for more details
 of the format.
@@ -48,27 +44,14 @@ of the format.
 If --query and --outfile are not given, the alignment is read from stdin and the variants are written to
 stdout.
 
-You can use --aggregate to report the overall proportions of each mutation in the alignment, and --threshold
+You can use --aggregate to report the frequency of each mutation in the alignment, and --threshold
 to filter on frequency.
 
-Mutations are annotated with ins (insertion), del (deletion), aa (amino acid change) or nuc (a nucleotide
-change that isn't in a codon that is represented by an amino acid change). The formats are:
-
-	ins:2028:3 - a 3-base insertion immediately after (1-based) position 2028 in reference coordinates
-	del:11288:9 - a 9-base deletion whose first missing nucleotide is at (1-based) position 11288 in reference coordinates
-	aa:S:D614G - the amino acid at (1-based) residue 614 in the S gene is a D in the reference and a G in this sequence
-	aa:S:H69- - the amino acid at (1-based) residue 69 in the S gene is an H in the reference and is deleted in this sequence
-	aa:S:214EPE - the amino acids EPE are inserted immediately after (1-based) residue 214 in the S gene in this sequence
-	nuc:C3037T - the nucleotide at (1-based) position 3037 in reference coordinates is a C in the reference and a T in this sequence
-
-Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids
-in the alignment.
-`,
+` + mutationFormatsHelp,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				intAtLeast(cmd, 0, "threads"),
-				floatAtLeast(cmd, 0, "threshold"),
-				startNotAfterEnd(cmd),
+				checkVariantsOutputFlags(cmd),
 				checkAnnotationFlags(cmd, false),
 				referenceFlags(cmd, o.annotationOptions.given(cmd)),
 				outputNotInput(cmd, "outfile", "query", "reference", "annotation", "genbank", "gff"),
@@ -109,23 +92,18 @@ in the alignment.
 			}
 			defer gfio.CloseOut(out, &err)
 
-			return variants.Variants(msa, stdin, o.referenceID, ref, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(o.threads), o.strict)
+			return variants.Variants(msa, stdin, o.referenceID, ref, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.groupAA, resolveThreads(o.threads), o.strict)
 		},
 	}
 
 	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of the sequences to annotate, in fasta format")
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the alignment")
-	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the alignment (instead of --reference)")
-	addAnnotationFlags(c, &o.annotationOptions)
-	c.Flags().StringP("outfile", "o", "stdout", "Name of the file of variants to write")
-	c.Flags().IntVar(&o.start, "start", -1, "Only report variants with a reference base at or after this position")
-	c.Flags().IntVar(&o.end, "end", -1, "Only report variants with a reference base at or before this position")
-	c.Flags().BoolVar(&o.aggregate, "aggregate", false, "Report the proportions of each change")
-	c.Flags().Float64Var(&o.threshold, "threshold", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
-	c.Flags().BoolVar(&o.appendSNP, "append-snps", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
-	addThreadsFlag(c.Flags(), &o.threads)
-
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the --query alignment (required without an annotation, unless --reference-id)")
+	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the --query alignment (instead of --reference)")
+	addAnnotationFlags(c, &o.annotationOptions, false)
+	addOutfileFlag(c, "the variants")
+	addVariantsOutputFlags(c, &o.variantsOutputOptions)
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().SortFlags = false
 	return c
 }

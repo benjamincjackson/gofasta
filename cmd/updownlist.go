@@ -34,7 +34,6 @@ for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to -
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				inheritedRequired(cmd, "reference"),
 				intAtLeast(cmd, 0, "threads"),
 				outputNotInput(cmd, "outfile", "query", "reference"),
 			)
@@ -64,10 +63,11 @@ for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to -
 	}
 
 	c.Flags().StringP("query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
-	c.Flags().StringP("outfile", "o", "stdout", "Output to write")
-
-	addThreadsFlag(c.Flags(), &o.threads)
+	c.Flags().StringP("reference", "r", "", "Reference sequence, in fasta format, which is treated as the root of the imaginary tree")
+	addOutfileFlag(c, "the list, in CSV format")
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
+	requireFlags(c, "reference")
 	c.Flags().SortFlags = false
 	return c
 }

@@ -47,6 +47,9 @@ type Variant struct {
 	Length         int    // for indels
 	SNPs           string // if this is an amino acid change, what are the snps
 	Representation string
+	// for an amino acid change from an indel window with several, the one entry that stands for all of
+	// them with --group-aa (shared by the window's entries)
+	Group *Variant
 }
 
 // AnnoStructs is for passing groups of Variant structs around with an index which is used to retain input
@@ -65,7 +68,7 @@ type AnnoStructs struct {
 // width from the reference) is reported on stderr and skipped, unless strict, when it stops the run with
 // an error.
 // threads is the number of goroutines that process records (fewer than 1 means 1).
-func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP bool, threads int, strict bool) error {
+func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn io.Reader, annoSuffix string, out io.Writer, start int, end int, aggregate bool, threshold float64, appendSNP, groupAA bool, threads int, strict bool) error {
 
 	var (
 		ref fasta.EncodedRecord
@@ -161,13 +164,13 @@ func Variants(msaIn io.Reader, stdin bool, refID string, refIn io.Reader, annoIn
 	var write func(AnnoStructs) error
 	var agg *Aggregator
 	if aggregate {
-		agg, err = NewAggregator(out, start, end, appendSNP, refID)
+		agg, err = NewAggregator(out, start, end, appendSNP, groupAA, refID)
 		if err != nil {
 			return err
 		}
 		write = agg.Add
 	} else {
-		lw, err := NewLineWriter(out, start, end, appendSNP, refID)
+		lw, err := NewLineWriter(out, start, end, appendSNP, groupAA, refID)
 		if err != nil {
 			return err
 		}
@@ -665,18 +668,22 @@ type LineWriter struct {
 	w          io.Writer
 	start, end int
 	appendSNP  bool
+	groupAA    bool
 	refID      string
-	buf        []byte // the line being written, reused (Write is called from one goroutine at a time)
+	buf        []byte     // the line being written, reused (Write is called from one goroutine at a time)
+	groups     []*Variant // the grouped entries to write on the line (any of their entries in range), reused
+	written    []*Variant // and those written so far, reused
 }
 
 // NewLineWriter writes the CSV header to w and returns a LineWriter that writes to w. Only mutations
 // within start..end (either may be -1 for no limit) are written, and the reference itself (the
-// record named refID) is not.
-func NewLineWriter(w io.Writer, start, end int, appendSNP bool, refID string) (*LineWriter, error) {
+// record named refID) is not. With groupAA, the amino acid changes from one indel window are written as one
+// entry (see Variant.Group).
+func NewLineWriter(w io.Writer, start, end int, appendSNP, groupAA bool, refID string) (*LineWriter, error) {
 	if _, err := w.Write([]byte("query,mutations\n")); err != nil {
 		return nil, err
 	}
-	return &LineWriter{w: w, start: start, end: end, appendSNP: appendSNP, refID: refID}, nil
+	return &LineWriter{w: w, start: start, end: end, appendSNP: appendSNP, groupAA: groupAA, refID: refID}, nil
 }
 
 // Write writes one query's mutations.
@@ -686,9 +693,24 @@ func (lw *LineWriter) Write(AS AnnoStructs) error {
 	}
 	b := append(append(lw.buf[:0], AS.Queryname...), ',')
 	first := true
+	// a grouped entry is written, at its first entry, if any of its entries is in range
+	lw.groups, lw.written = lw.groups[:0], lw.written[:0]
+	if lw.groupAA {
+		for i := range AS.Vs {
+			if g := AS.Vs[i].Group; g != nil && !outsideRange(&AS.Vs[i], lw.start, lw.end) && !slices.Contains(lw.groups, g) {
+				lw.groups = append(lw.groups, g)
+			}
+		}
+	}
 	for i := range AS.Vs {
 		v := &AS.Vs[i]
-		if outsideRange(v, lw.start, lw.end) {
+		if lw.groupAA && v.Group != nil {
+			if !slices.Contains(lw.groups, v.Group) || slices.Contains(lw.written, v.Group) {
+				continue
+			}
+			lw.written = append(lw.written, v.Group)
+			v = v.Group
+		} else if outsideRange(v, lw.start, lw.end) {
 			continue
 		}
 		if !first {
@@ -710,6 +732,7 @@ type Aggregator struct {
 	w          io.Writer
 	start, end int
 	appendSNP  bool
+	groupAA    bool
 	refID      string
 	counts     map[Variant]float64
 	n          float64
@@ -717,12 +740,13 @@ type Aggregator struct {
 
 // NewAggregator writes the CSV header to w and returns an Aggregator that will write to w. Only
 // mutations within start..end (either may be -1 for no limit) are counted, and the reference itself
-// (the record named refID) is not counted.
-func NewAggregator(w io.Writer, start, end int, appendSNP bool, refID string) (*Aggregator, error) {
+// (the record named refID) is not counted. With groupAA, the amino acid changes from one indel window
+// are counted as one entry (see Variant.Group).
+func NewAggregator(w io.Writer, start, end int, appendSNP, groupAA bool, refID string) (*Aggregator, error) {
 	if _, err := w.Write([]byte("mutation,frequency\n")); err != nil {
 		return nil, err
 	}
-	return &Aggregator{w: w, start: start, end: end, appendSNP: appendSNP, refID: refID, counts: make(map[Variant]float64)}, nil
+	return &Aggregator{w: w, start: start, end: end, appendSNP: appendSNP, groupAA: groupAA, refID: refID, counts: make(map[Variant]float64)}, nil
 }
 
 // Add counts one query's mutations.
@@ -731,9 +755,17 @@ func (a *Aggregator) Add(AS AnnoStructs) error {
 		return nil
 	}
 	a.n++
+	var groups []*Variant
 	for _, v := range AS.Vs {
 		if outsideRange(&v, a.start, a.end) {
 			continue
+		}
+		if a.groupAA && v.Group != nil {
+			if slices.Contains(groups, v.Group) {
+				continue
+			}
+			groups = append(groups, v.Group)
+			v = *v.Group
 		}
 		rep, err := FormatVariant(v, a.appendSNP)
 		if err != nil {

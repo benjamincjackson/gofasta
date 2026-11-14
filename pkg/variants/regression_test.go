@@ -82,7 +82,7 @@ func TestAggregateOutputOrderIsDeterministic(t *testing.T) {
 
 	for i := 0; i < 50; i++ {
 		out := new(bytes.Buffer)
-		agg, err := NewAggregator(out, -1, -1, false, "ref")
+		agg, err := NewAggregator(out, -1, -1, false, false, "ref")
 		if err != nil {
 			t.Fatal(err)
 		}

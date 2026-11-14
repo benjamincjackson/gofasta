@@ -109,12 +109,19 @@ func indelWindows(slots []cdsSlot) []indelWindow {
 	return windows
 }
 
+// restoreWithin is how far (in codons, from the last codon of one to the first of the next) a frameshifting
+// indel window is joined with the indels after it that restore the frame
+const restoreWithin = 3
+
 // getIndelAAsPair finds the amino acid changes caused by in-frame indels in one CDS: deleted residues
 // (aa:GENE:H69-), inserted residues (aa:GENE:214EPE, inserted after residue 214) and residues changed
 // next to them (aa:GENE:E156G). It returns those changes, the nucleotide changes in the codons the indels
 // touch that are not part of one of them, and the codons it has dealt with, which getAAsPair must skip.
-// Residues after a stop codon in the query are not reported. Indels are left alone (no amino acid change is reported for them, and their codons are not dealt with
-// here) if they shift the reading frame, come after one that does, run outside the CDS (at its ends, or
+// Residues after a stop codon in the query are not reported. Indels that shift the reading frame are taken together with the indels that follow within
+// restoreWithin codons, until the frame is restored; the codons from the first to the last are then one
+// window, translated as a whole. Indels are left alone (no amino acid change is reported for them, and
+// their codons are not dealt with here) if they shift the reading frame and it is not restored, come after
+// one that does, run outside the CDS (at its ends, or
 // from one of its parts into the bases between two parts: an intron, which removes the splice site, or a
 // base skipped by a +1 frameshift), touch a missing stretch of the query (N, or uncovered ends), or touch
 // the start codon (a first residue M) or the stop codon (a last residue *).
@@ -185,12 +192,8 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		return false
 	}
 
-	frameshifted := false
-	for _, w := range indelWindows(slots) {
-		if w.last >= nCodons {
-			continue
-		}
-		deleted, inserted, missing := 0, 0, false
+	// count returns the bases deleted and inserted in w, and whether it touches missing data
+	count := func(w indelWindow) (deleted, inserted int, missing bool) {
 		for k := 3 * w.first; k < 3*w.last+3; k++ {
 			if slots[k].missing {
 				missing = true
@@ -200,6 +203,25 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 			if k < 3*w.last+2 {
 				inserted += len(slots[k].inserted)
 			}
+		}
+		return deleted, inserted, missing
+	}
+
+	frameshifted := false
+	windows := indelWindows(slots)
+	for i := 0; i < len(windows); i++ {
+		w := windows[i]
+		if w.last >= nCodons {
+			continue
+		}
+		deleted, inserted, missing := count(w)
+		// a window that shifts the frame is joined with the next one while that starts within
+		// restoreWithin codons of it, until the frame is restored; if it is not, the frame stays shifted
+		for (inserted-deleted)%3 != 0 && i+1 < len(windows) && windows[i+1].first-w.last <= restoreWithin &&
+			windows[i+1].last < nCodons {
+			i++
+			w.last = windows[i].last
+			deleted, inserted, missing = count(w)
 		}
 		if (inserted-deleted)%3 != 0 {
 			frameshifted = true
@@ -315,9 +337,61 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		for i := range newVariants {
 			newVariants[i].SNPs = strings.Join(notes, ";")
 		}
+		groupWindow(newVariants, region, refAA, firstChanged, qChanged)
 		variants = append(variants, newVariants...)
 	}
 	return variants, handled
+}
+
+// groupWindow gives the entries of one indel window, if there are several, the grouped entry that stands
+// for them with --group-aa: the reference residues from the first changed residue to the last (an
+// unchanged one between them included), its number, and the query's residues over them ('-' for each
+// deleted one, the query's own residue for an unchanged one) followed by any inserted residues. A pure
+// insertion is a single entry. firstChanged and qChanged are the window's first changed codon and the
+// query residues paired with the reference from there.
+func groupWindow(entries []Variant, region Region, refAA string, firstChanged int, qChanged string) {
+	if len(entries) < 2 {
+		return
+	}
+	lo, hi := 0, 0 // residue numbers (1-based) of the first and last changed reference residues
+	var inserted *Variant
+	que := map[int]string{}
+	for i := range entries {
+		v := &entries[i]
+		if v.RefAl == "" {
+			inserted = v
+			continue
+		}
+		if lo == 0 || v.Residue < lo {
+			lo = v.Residue
+		}
+		hi = max(hi, v.Residue)
+		que[v.Residue] = v.QueAl
+	}
+	if lo == 0 {
+		return
+	}
+	var q strings.Builder
+	if inserted != nil {
+		hi = max(hi, inserted.Residue)
+	}
+	for r := lo; r <= hi; r++ {
+		if a, ok := que[r]; ok {
+			q.WriteString(a)
+		} else if i := r - 1 - firstChanged; i >= 0 && i < len(qChanged) {
+			q.WriteByte(qChanged[i])
+		} else {
+			q.WriteByte(refAA[r-1])
+		}
+	}
+	if inserted != nil {
+		q.WriteString(inserted.QueAl)
+	}
+	g := &Variant{Changetype: "aa", Feature: region.Name, RefAl: refAA[lo-1 : hi], QueAl: q.String(), Residue: lo,
+		Position: region.Positions[3*(lo-1)], Codon: codonPositions(region, lo-1), SNPs: entries[0].SNPs}
+	for i := range entries {
+		entries[i].Group = g
+	}
 }
 
 // codonPositions returns the reference positions of codon j (0-based) of a CDS, in CDS order

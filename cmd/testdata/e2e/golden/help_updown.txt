@@ -12,8 +12,7 @@ Available Commands:
   topranking  Get pseudo-tree-aware catchments for query sequences from alignments
 
 Flags:
-  -h, --help               help for updown
-  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+  -h, --help   help for updown
 
 Use "gofasta updown [command] --help" for more information about a command.
 --- stderr

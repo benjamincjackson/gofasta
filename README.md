@@ -51,14 +51,12 @@ Usage:
   gofasta updown list [flags]
 
 Flags:
-  -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
-  -o, --outfile string   Output to write (default "stdout")
-  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
-      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -h, --help             help for list
-
-Global Flags:
-  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+  -q, --query string       Alignment of sequences to parse, in fasta format (default "stdin")
+  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree (required)
+  -o, --outfile string     Where to write the list, in CSV format (default "stdout")
+      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int        Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
+  -h, --help               help for list
 ```
 </details>
 
@@ -144,15 +142,15 @@ Use `gofasta closest` to find the closest neighbours by traditional genetic dist
 ```
 ❯ gofasta closest --help | sed -n '/Flags/,$p'
 Flags:
-  -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
-      --query string      Alignment of sequences to find neighbours for, in fasta format
-      --target string     Alignment of sequences to search for neighbours in, in fasta format
+      --query string      Alignment of sequences to find neighbours for, in fasta format (required)
+      --target string     Alignment of sequences to search for neighbours in, in fasta format (required)
+  -o, --outfile string    Where to write the closest targets to each query (default "stdout")
   -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
-  -n, --number int        (Optional) the closest n sequences to each query will be returned
-  -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
-  -o, --outfile string    The output file to write (default "stdout")
-      --table             Write a long-form table of the output
+  -n, --number int        Return the closest n --target sequences to each query (without --number or --max-dist, the single closest)
+  -d, --max-dist string   Return all the --target sequences this distance or less from each query (inf for no limit)
+      --table             Write a long-form table of the output (with --number or --max-dist)
       --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int       Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help              help for closest
 ```
  The available distance measures are `raw` (the default) which is the number of nucleotide differences <i>per site</i> ; `snp`, which is the total number of nucleotide differences, and `tn93`, which is [Tamura and Nei's (1993) evolutionary distance](https://academic.oup.com/mbe/article/10/3/512/1016366).
@@ -175,28 +173,28 @@ Use `gofasta updown topranking` to find the closest neighbours by (directional) 
 ```
 ❯ gofasta updown topranking -h | sed -n '/Flags/,$p'
 Flags:
-  -q, --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -t, --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -o, --outfile string           CSV-format file of closest neighbours to write (default "stdout")
-      --table                    write a long-form table of the output
-      --ignore string            Optional plain text file of IDs to ignore in the target file when searching for neighbours
-      --dist-all int             Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below
+      --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format (required)
+      --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format (required)
+      --ignore string            Plain text file of IDs of --target sequences to ignore when searching for neighbours
+  -r, --reference string         Reference sequence, in fasta format (required if --query or --target is a fasta file)
+  -o, --outfile string           Where to write the closest neighbours, in CSV format (default "stdout")
+      --table                    Write a long-form table of the output
+      --size-total int           Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit
+      --size-up int              Max number of closest parent sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --size-down int            Max number of closest child sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --size-side int            Max number of closest sibling sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --size-same int            Max number of identical sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --no-fill                  Don't make up for a shortfall in any of --size-up, --size-down, --size-side or --size-same by increasing the count for other bins
+      --dist-all int             Maximum allowed SNP-distance between a --query and a --target sequence in any direction. Overrides the settings below
       --dist-up int              Maximum allowed SNP-distance from query for sequences in the parent bin
       --dist-down int            Maximum allowed SNP-distance from query for sequences in the child bin
       --dist-side int            Maximum allowed SNP-distance from query for sequences in the sibling bin
-      --size-total int           Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit
-      --size-up int              Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill
-      --size-down int            Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill
-      --size-side int            Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill
-      --size-same int            Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill
+      --dist-push int            Push the --dist-all, --dist-up, --dist-down and --dist-side boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible
       --threshold-pair float32   Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison (default 0.1)
-      --threshold-target int     Target can have at most this number of ambiguities to be considered (default 10000)
-      --dist-push int            Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible
-      --no-fill                  Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins
+      --threshold-target int     A --target sequence can have at most this number of ambiguities to be considered (default 10000)
+      --strict                   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int              Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help                     help for topranking
-
-Global Flags:
-  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
 ```
 
 This routine has the potential to be faster than traditional genetic distance measures. It uses patterns of derived mutations to make inferences about the likely phylogenetic relationships between closely related sequences. Briefly, sequences are compressed so that they are represented by only their ATGC nucleotide differences from a common reference sequence, which is treated like the root of an imaginary tree. SNPs can either be unique to the query sequence, unique to the target sequence, or present in the intersection of the two. SNPs present in the intersection are interpreted as representing shared ancestry between query and target, whereas an excess of SNPs in either the query or target set can be interpreted to give directionality relative to a root sequence. See [the Civet preprint](https://www.medrxiv.org/content/10.1101/2021.12.13.21267267v1) for a detailed explanation of the scheme (Figure 2 and Figure S1). 
@@ -271,7 +269,9 @@ Examples of the output formats:
 	aa:S:H69- - the amino acid at (1-based) residue 69 in the S gene is deleted in this sequence
 	aa:S:214EPE - the amino acids EPE are inserted after (1-based) residue 214 in the S gene in this sequence
 
-In-frame insertions and deletions in a CDS are also described at the amino acid level, residue by residue, in the coordinates of the reference protein: a deleted residue is written with `-`, inserted residues after the number of the residue they follow, and a residue changed next to an indel as a substitution. For example, the 6-base deletion at 22029 in the S gene of the SARS-CoV-2 Delta variant is `aa:S:E156G|del:22029:6|aa:S:F157-|aa:S:R158-`. The amino acid changes are worked out from the codons that the indel touches, as aligned, so they follow the alignment; an indel in a run of repeated residues is placed as far towards the C-terminus as possible. A change in the bases of those codons is part of the amino acid change rather than a separate `nuc` entry, and `--append-snps` lists the nucleotide indel (and any such changes) in the parentheses. Nothing after a stop codon is reported (an insertion that brings in a stop gives, e.g., `aa:N:Y87*`). Indels that shift the reading frame, come after one that does, run past the end of the CDS or from one of its parts into an intron (removing the splice site) or into a base that a frameshift skips, touch its start or stop codon, or touch missing data (`N`, or the uncovered ends of an alignment) are reported only as `ins` or `del`. Whether an indel shifts the reading frame of a CDS depends on its bases in that CDS: a deletion of 12 bases of which 2 are in an exon shifts the frame. (Single-base changes in a CDS are reported codon by codon, also after a frameshifting indel.)
+In-frame insertions and deletions in a CDS are also described at the amino acid level, residue by residue, in the coordinates of the reference protein: a deleted residue is written with `-`, inserted residues after the number of the residue they follow, and a residue changed next to an indel as a substitution. For example, the 6-base deletion at 22029 in the S gene of the SARS-CoV-2 Delta variant is `aa:S:E156G|del:22029:6|aa:S:F157-|aa:S:R158-`. The amino acid changes are worked out from the codons that the indel touches, as aligned, so they follow the alignment; an indel in a run of repeated residues is placed as far towards the C-terminus as possible. A change in the bases of those codons is part of the amino acid change rather than a separate `nuc` entry, and `--append-snps` lists the nucleotide indel (and any such changes) in the parentheses. Nothing after a stop codon is reported (an insertion that brings in a stop gives, e.g., `aa:N:Y87*`). Indels that shift the reading frame are taken together with the indels after them, as long as each starts within 3 codons of the last, until the frame is restored: the codons from the first to the last are then described together, in the same way (for example, a 1-base deletion and a 2-base deletion in the codons `CAG CCT` of residues 271 and 272 leave `AGC`: `Q271S` and `P272-`). Indels that shift the reading frame and do not restore it within that distance, come after one that does, run past the end of the CDS or from one of its parts into an intron (removing the splice site) or into a base that a frameshift skips, touch its start or stop codon, or touch missing data (`N`, or the uncovered ends of an alignment) are reported only as `ins` or `del`. Whether an indel shifts the reading frame of a CDS depends on its bases in that CDS: a deletion of 12 bases of which 2 are in an exon shifts the frame. (Single-base changes in a CDS are reported codon by codon, also after a frameshifting indel.)
+
+With `--group-aa`, the amino acid changes from one indel (or from indels taken together) are written as one entry: the reference residues from the first changed one to the last, the number of the first, and the query's residues over them, with `-` for each deleted residue and any inserted residues at the end. A residue that is unchanged between two changed ones is included, and repeated. For example, Delta's deletion is `aa:S:EFR156G--|del:22029:6`, and the 6-base deletion at 21765 in Alpha is `aa:S:HV69--|del:21765:6` instead of `aa:S:H69-|aa:S:V70-`. A single changed residue, and an insertion with no changed residue next to it, are written as without the flag. With `--aggregate`, each grouped entry is counted as one mutation.
 
 As without an annotation, the default mode writes a csv with one line per query sequence, and each sequence's mutations in the second column. Use `--aggregate` to get the overall frequencies of mutations in the alignment(s).
 

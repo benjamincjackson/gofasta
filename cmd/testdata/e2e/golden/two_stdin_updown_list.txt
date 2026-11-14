@@ -7,12 +7,10 @@ Usage:
   gofasta updown list [flags]
 
 Flags:
-  -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
-  -o, --outfile string   Output to write (default "stdout")
-  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
-      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -h, --help             help for list
-
-Global Flags:
-  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+  -q, --query string       Alignment of sequences to parse, in fasta format (default "stdin")
+  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree (required)
+  -o, --outfile string     Where to write the list, in CSV format (default "stdout")
+      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int        Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
+  -h, --help               help for list
 

@@ -6,14 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// samOptions holds the values of the flags of the command newSamCmd returns, which its subcommands share
-type samOptions struct {
-	threads   int
-	reference string
-}
-
 func newSamCmd() *cobra.Command {
-	var o samOptions
 	c := &cobra.Command{
 		Use:   "sam",
 		Short: "Do things with sam files",
@@ -26,9 +19,6 @@ func newSamCmd() *cobra.Command {
 		},
 	}
 
-	addThreadsFlag(c.PersistentFlags(), &o.threads)
-	c.PersistentFlags().StringP("samfile", "s", "stdin", "SAM file to read")
-	c.PersistentFlags().StringVarP(&o.reference, "reference", "r", "", "Reference fasta file used to generate the sam file")
-	c.AddCommand(newToMultiAlignCmd(&o), newToPairAlignCmd(&o), newSamVariantsCmd(&o))
+	c.AddCommand(newToMultiAlignCmd(), newToPairAlignCmd(), newSamVariantsCmd())
 	return c
 }

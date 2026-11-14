@@ -9,15 +9,14 @@ import (
 
 // toMultiAlignOptions holds the values of the flags of the command newToMultiAlignCmd returns
 type toMultiAlignOptions struct {
-	start  int
-	end    int
+	threads int
+	trimOptions
 	pad    bool
-	wrap   int
 	strict bool
 }
 
-// newToMultiAlignCmd builds the sam toMultiAlign command; s holds the sam command's flags, which its subcommands share
-func newToMultiAlignCmd(s *samOptions) *cobra.Command {
+// newToMultiAlignCmd builds the sam toMultiAlign command
+func newToMultiAlignCmd() *cobra.Command {
 	var o toMultiAlignOptions
 	c := &cobra.Command{
 		Use:     "toMultiAlign",
@@ -34,14 +33,15 @@ Example usage:
 If you want, you can trim (and optionally pad) the output alignment to coordinates of your choosing:
 	gofasta sam toMultiAlign -s aligned.sam --start 266 --end 29674 --pad -o aligned.fasta
 
-If input and output files are not specified, the behaviour is to read the sam file from stdin and write the
-fasta file to stdout, e.g.:
+If --samfile and --outfile are not given, the sam file is read from stdin and the alignment is written to
+stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				intAtLeast(cmd, 0, "threads"),
-				outputNotInput(cmd, "outfile", "samfile", "reference"),
+				startNotAfterEnd(cmd),
+				outputNotInput(cmd, "outfile", "samfile"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -58,17 +58,17 @@ fasta file to stdout, e.g.:
 			}
 			defer gfio.CloseOut(out, &err)
 
-			return sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(s.threads), o.strict)
+			return sam.ToMultiAlign(samIn, out, o.wrap, o.start, o.end, o.pad, resolveThreads(o.threads), o.strict)
 		},
 	}
 
-	c.Flags().IntVar(&o.start, "start", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
-	c.Flags().IntVar(&o.end, "end", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
+	addSamfileFlag(c)
+	addOutfileFlag(c, "the alignment")
+	addTrimFlags(c, &o.trimOptions, true)
 	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
-	c.Flags().StringP("outfile", "o", "stdout", "Where to write the alignment")
-	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
-
+	addWrapFlag(c, &o.trimOptions)
 	addStrictFlag(c, &o.strict)
+	addThreadsFlag(c.Flags(), &o.threads)
 	c.Flags().SortFlags = false
 	return c
 }
