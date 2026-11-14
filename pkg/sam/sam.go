@@ -13,10 +13,12 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
 )
@@ -28,8 +30,12 @@ type samRecords struct {
 	name    string // the query's name (QNAME)
 	records []samRecord
 	refName string // the name of the reference (the first @SQ) they are mapped to
-	idx     int
-	err     error // why one of the query's lines could not be parsed, if one could not
+	// the query's primary lines (FLAG & 0x900 == 0, counting lines skipped as unmapped or mapped to another
+	// reference): the SAM specification requires exactly one
+	primaries int
+	equals    bool // SEQ had "=" (the reference base), replaced by prepareQuery
+	idx       int
+	err       error // why one of the query's lines could not be parsed, if one could not
 }
 
 // RecordName returns the query's name (see pipeline.Namer)
@@ -163,14 +169,6 @@ func validateRecord(rec *samRecord, refLen int) error {
 		return bad("negative position")
 	}
 
-	for _, op := range rec.Cigar {
-		switch op.Type() {
-		case cigarMatch, cigarEqual, cigarMismatch, cigarInsertion, cigarSoftClipped, cigarDeletion, cigarSkipped,
-			cigarHardClipped, cigarPadded:
-		default:
-			return bad("unsupported CIGAR operation " + op.Type().String())
-		}
-	}
 	refSpan, queryLen := cigarLengths(rec.Cigar)
 	refEnd := rec.Pos + refSpan
 
@@ -194,6 +192,8 @@ type samSource struct {
 	mu    sync.Mutex
 	notes map[int][]string // by the index of the query being read when the line was skipped
 	tail  []string         // lines skipped after the last query
+
+	otherSeq atomic.Int64 // queries with a record whose SEQ had characters the specification does not allow
 }
 
 func (s *samSource) note(idx int, msg string) {
@@ -225,6 +225,10 @@ func (s *samSource) writeTail() {
 		os.Stderr.WriteString(m)
 	}
 	s.tail = nil
+	if n := s.otherSeq.Load(); n > 0 {
+		fmt.Fprintf(os.Stderr, "warning: %d %s had characters in SEQ that the SAM specification does not allow (it allows letters, '=' and '.'), read as N\n",
+			n, map[bool]string{true: "query", false: "queries"}[n == 1])
+	}
 }
 
 // errEmptySam is the error for a sam file with nothing in it
@@ -298,6 +302,10 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 		return counter
 	}
 
+	// the primary lines read for each QNAME since the current query started (a query's lines are
+	// consecutive, so only this query's and the next one's are needed)
+	primaries := map[string]int{}
+
 	// a parsed line: its QNAME, and the record or why it could not be parsed
 	type samLine struct {
 		name string
@@ -319,6 +327,9 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 			rec, err := h.parseRecord(line)
 			if err != nil {
 				return samLine{name: string(name), err: err}, nil
+			}
+			if rec.primary() {
+				primaries[rec.Name]++
 			}
 			// the third bit (== 4) in the sam flag is set if the read is unmapped
 			if rec.Flags&flagUnmapped != 0 {
@@ -345,6 +356,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 	next := func() (samRecords, error) {
 		group := samRecords{idx: counter, refName: h.refs[0].Name}
 		started = false
+		otherSeq := false
 		for !finished {
 			var l samLine
 			if pending != nil {
@@ -373,6 +385,20 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 				continue
 			}
 			group.records = append(group.records, l.rec)
+			otherSeq = otherSeq || l.rec.otherSeq
+		}
+		if otherSeq {
+			src.otherSeq.Add(1)
+		}
+		group.primaries = primaries[group.name]
+		// (the lines of the next query read so far, its first usable line included, stay counted)
+		next := 0
+		if pending != nil {
+			next = primaries[pending.name]
+		}
+		clear(primaries)
+		if next > 0 {
+			primaries[pending.name] = next
 		}
 		if !started {
 			src.mu.Lock()
@@ -397,16 +423,27 @@ func (s *samSource) checkRefLength(n int) error {
 	return nil
 }
 
-// prepareQuery checks the records for one query against a reference of length refLen and resolves the
-// overlaps between them. The error, if any, carries the query's name.
-func prepareQuery(group samRecords, refLen int) (samRecords, error) {
+// prepareQuery checks the records for one query against a reference of length refLen (its bases, ref, may be
+// nil), replaces each "=" in their SEQ by the reference base (or by N if ref is nil; group.equals says
+// whether there were any), and resolves the overlaps between them. The error, if any, carries the query's
+// name.
+func prepareQuery(group samRecords, ref []byte, refLen int) (samRecords, error) {
 	if group.err != nil {
 		return samRecords{}, pipeline.Named(group.name, group.err)
+	}
+	if group.primaries != 1 {
+		return samRecords{}, pipeline.Named(group.name, errors.New("bad sam records: the query has "+
+			strconv.Itoa(group.primaries)+" primary lines (FLAG & 0x900 == 0), and the SAM specification requires exactly one"))
 	}
 	for i := range group.records {
 		if err := validateRecord(&group.records[i], refLen); err != nil {
 			return samRecords{}, pipeline.Named(group.name, err)
 		}
+		had, err := group.records[i].resolveEquals(ref)
+		if err != nil {
+			return samRecords{}, pipeline.Named(group.name, err)
+		}
+		group.equals = group.equals || had
 	}
 	group.records = resolveOverlaps(group.records)
 	return group, nil

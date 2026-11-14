@@ -61,7 +61,7 @@ func Variants(samIn, refIn io.Reader, refFromFile bool, annoIn io.Reader, annoSu
 
 	EA := encoding.MakeEncodingArray()
 	work := func(group samRecords) (variants.AnnoStructs, error) {
-		group, err := prepareQuery(group, len(refSeq))
+		group, err := prepareQuery(group, []byte(refSeq), len(refSeq))
 		if err != nil {
 			return variants.AnnoStructs{}, err
 		}

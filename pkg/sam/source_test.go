@@ -104,7 +104,7 @@ func TestSamSourceParseErrorStaysWithItsQuery(t *testing.T) {
 	}
 
 	// the error makes prepareQuery fail with the query's name attached
-	_, err = prepareQuery(groups[1], 45)
+	_, err = prepareQuery(groups[1], nil, 45)
 	var recErr *pipeline.RecordError
 	if !errors.As(err, &recErr) || recErr.Name != "q2" {
 		t.Errorf("prepareQuery(q2): want a RecordError named q2, got %#v", err)

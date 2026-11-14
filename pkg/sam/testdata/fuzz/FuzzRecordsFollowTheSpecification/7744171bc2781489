@@ -1,0 +1,2 @@
+go test fuzz v1
+string("0\t0\tother\t0\t0\t2X1I0D0D1X\t*\t0\t0\tAAAA\t0000")

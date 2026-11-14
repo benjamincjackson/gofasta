@@ -1,0 +1,9 @@
+args: sam variants -s aln_equals.sam -r ref.fasta -a ref.gb
+exit: 0
+--- stdout
+query,mutations
+e1,aa:geneA:Y14H
+e2,aa:geneA:E4K|del:31:3|aa:geneA:V8-
+--- stderr
+warning: skipping e3 (query 3): bad sam record: '=' in SEQ in an insertion or soft clip, where there is no reference base
+warning: skipped 1 of 3 queries
