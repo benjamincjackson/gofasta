@@ -43,58 +43,77 @@ type insertionOccurence struct {
 // shift a later insertion to the wrong column.
 //
 // refRow and queRow are as returned by alignRecord (the reference row has a '-' for each base the
-// row has inserted), row is the index of this row in the block, insertions are all of the insertions in
-// the block (sorted by start, with this row's own in cigar order) and insertionsAt groups them by start.
-// Insertions that start after the end of the row are not added (the row is padded later).
-func gapRowForInsertions(refRow, queRow []byte, row int, insertions []insertionOccurence, insertionsAt map[int][]insertionOccurence) ([]byte, []byte) {
-
-	// split the row into columns that are reference bases, and chunks of its own inserted bases.
-	// ownAt[c] holds the chunks inserted after the c-th reference base, in order
-	baseRef := make([]byte, 0, len(refRow))
-	baseQue := make([]byte, 0, len(refRow))
-	ownAt := make(map[int][][]byte)
-
-	col := 0
-	shift := 0 // the number of this row's own inserted columns so far
+// row has inserted), row is the index of this row in the block, and insertions are all of the insertions
+// in the block, sorted by start (a stable sort of row order then cigar order, so this row's own are in
+// cigar order). Insertions that start after the end of the row are not added (the row is padded later).
+func gapRowForInsertions(refRow, queRow []byte, row int, insertions []insertionOccurence) ([]byte, []byte) {
+	extra := 0
 	for _, ins := range insertions {
 		if ins.rowNumber != row {
-			continue
+			extra += ins.length
 		}
-		insCol := ins.start + shift // the column of the first inserted base in this row
-		baseRef = append(baseRef, refRow[col:insCol]...)
-		baseQue = append(baseQue, queRow[col:insCol]...)
-		ownAt[ins.start] = append(ownAt[ins.start], queRow[insCol:insCol+ins.length])
-		col = insCol + ins.length
-		shift += ins.length
 	}
-	baseRef = append(baseRef, refRow[col:]...)
-	baseQue = append(baseQue, queRow[col:]...)
+	outRef := make([]byte, 0, len(refRow)+extra)
+	outQue := make([]byte, 0, len(queRow)+extra)
 
-	// put it back together, with a column for every insertion at each reference position
-	outRef := make([]byte, 0, len(refRow))
-	outQue := make([]byte, 0, len(queRow))
-	used := make(map[int]int) // how many of this row's own chunks at each position have been placed
+	// i is the next column of the row to copy, and c the number of reference bases copied so far; the
+	// row's own inserted columns sit after reference base ins.start, where the walk reaches them
+	i, c := 0, 0
+	bases := len(refRow) // the reference bases in the row: its columns less its own inserted ones
+	for _, ins := range insertions {
+		if ins.rowNumber == row {
+			bases -= ins.length
+		}
+	}
+	for _, ins := range insertions {
+		if ins.start > bases {
+			break
+		}
+		n := ins.start - c
+		outRef = append(outRef, refRow[i:i+n]...)
+		outQue = append(outQue, queRow[i:i+n]...)
+		i += n
+		c = ins.start
+		if ins.rowNumber == row {
+			outRef = appendGaps(outRef, ins.length)
+			outQue = append(outQue, queRow[i:i+ins.length]...)
+			i += ins.length
+		} else {
+			outRef = appendGaps(outRef, ins.length)
+			outQue = appendGaps(outQue, ins.length)
+		}
+	}
+	outRef = append(outRef, refRow[i:]...)
+	outQue = append(outQue, queRow[i:]...)
+	return outRef, outQue
+}
 
-	for c := 0; c <= len(baseRef); c++ {
-		for _, ins := range insertionsAt[c] {
-			if ins.rowNumber == row {
-				chunk := ownAt[c][used[c]]
-				used[c]++
-				outRef = append(outRef, bytes.Repeat([]byte{'-'}, len(chunk))...)
-				outQue = append(outQue, chunk...)
-			} else {
-				gaps := bytes.Repeat([]byte{'-'}, ins.length)
-				outRef = append(outRef, gaps...)
-				outQue = append(outQue, gaps...)
+// appendGaps appends n '-' to b
+func appendGaps(b []byte, n int) []byte {
+	for ; n > 0; n-- {
+		b = append(b, '-')
+	}
+	return b
+}
+
+// blockInsertions returns every insertion in records, sorted by the reference position it follows. The
+// sort is stable, so insertions at the same position stay in the order they were found (row order, then
+// cigar order), which is the order their columns are laid out in.
+func blockInsertions(records []samfile.Record) []insertionOccurence {
+	var insertions []insertionOccurence
+	for i, r := range records {
+		pos := r.Pos
+		for _, op := range r.Cigar {
+			if op.Type() == samfile.CigarInsertion {
+				insertions = append(insertions, insertionOccurence{start: pos, length: op.Len(), rowNumber: i})
+			}
+			if _, r := op.Type().Consumes(); r == 1 {
+				pos += op.Len()
 			}
 		}
-		if c < len(baseRef) {
-			outRef = append(outRef, baseRef[c])
-			outQue = append(outQue, baseQue[c])
-		}
 	}
-
-	return outRef, outQue
+	sort.SliceStable(insertions, func(i, j int) bool { return insertions[i].start < insertions[j].start })
+	return insertions
 }
 
 // padTo pads each row to length n with '*' (positions it does not cover)
@@ -111,35 +130,13 @@ func padTo(rows [][]byte, n int) [][]byte {
 // records[i], each with its own insertions) into one pairwise alignment between the reference and the
 // query, including the query's insertions relative to the reference
 func blockToSeqPair(refRows, queRows [][]byte, records []samfile.Record, ref []byte) alignPair {
-	// every insertion in every record. Each row already has its own insertions; the other rows must be
-	// gapped for them, in order, left-most first.
-	insertions := make([]insertionOccurence, 0)
-	for i, r := range records {
-		pos := r.Pos
-		for _, op := range r.Cigar {
-			if op.Type() == samfile.CigarInsertion {
-				insertions = append(insertions, insertionOccurence{start: pos, length: op.Len(), rowNumber: i})
-			}
-			if _, r := op.Type().Consumes(); r == 1 {
-				pos += op.Len()
-			}
-		}
-	}
-
-	// if there are insertions, every row has to be rebuilt so that they all share the same columns
-	if len(insertions) > 0 {
-		// A stable sort keeps insertions that start at the same reference position in the order they
-		// were found (row order, then cigar order), which is the order their columns are laid out in.
-		sort.SliceStable(insertions, func(i, j int) bool { return insertions[i].start < insertions[j].start })
-
-		// insertions grouped by the reference position they follow
-		insertionsAt := make(map[int][]insertionOccurence)
-		for _, insertion := range insertions {
-			insertionsAt[insertion.start] = append(insertionsAt[insertion.start], insertion)
-		}
-
+	// Each row already has its own insertions; the other rows must be gapped for them, in order, left-most
+	// first. If there are insertions and several rows, every row has to be rebuilt so that they all share
+	// the same columns (a single row already has its own insertions in place).
+	insertions := blockInsertions(records)
+	if len(insertions) > 0 && len(refRows) > 1 {
 		for j := range refRows {
-			refRows[j], queRows[j] = gapRowForInsertions(refRows[j], queRows[j], j, insertions, insertionsAt)
+			refRows[j], queRows[j] = gapRowForInsertions(refRows[j], queRows[j], j, insertions)
 		}
 	}
 

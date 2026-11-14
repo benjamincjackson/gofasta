@@ -8,6 +8,7 @@ It was written to process pairwise alignments between assembled SARS-CoV-2 genom
 package sam
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -89,6 +90,10 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 	site := make([]byte, len(block))
 
 	for j := range block[0] {
+		if b, ok := agreedNuc(block, j); ok {
+			seq[j] = b
+			continue
+		}
 		for i := range block {
 			site[i] = block[i][j]
 		}
@@ -96,6 +101,27 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 	}
 
 	return seq
+}
+
+// agreedNuc returns what getNucFromSite would for column j of block when every row has the same byte
+// there, or '*' (not covered): that byte, or the larger of it and '*' where some rows have '*'. It
+// reports false if two rows have different bytes other than '*', for getNucFromSite to settle.
+func agreedNuc(block [][]byte, j int) (byte, bool) {
+	v, star := byte('*'), false
+	for _, row := range block {
+		switch b := row[j]; {
+		case b == '*':
+			star = true
+		case v == '*':
+			v = b
+		case b != v:
+			return 0, false
+		}
+	}
+	if star {
+		v = max(v, '*')
+	}
+	return v, true
 }
 
 // getSeqFromBlock gets the aligned sequence of one query from its SAM records, flattening them into one
@@ -122,33 +148,35 @@ func swapInNs(seq []byte) []byte {
 	return seq
 }
 
-// swapInGapsNs replaces internal unmapped positions with Ns and external
-// unmapped positions with '-'s
+// swapInGapsNs replaces internal unmapped positions ('*' between the first and last letters) with Ns and
+// external unmapped positions (before the first letter or after the last) with '-'s. Only the ends are
+// scanned position by position; the '*'s in between are found with bytes.IndexByte.
 func swapInGapsNs(seq []byte) []byte {
-	// with no letters, every position is before the first letter and after the last one
-	firstLetterIndx := len(seq)
-	lastLetterIndx := -1
-
-	for i, L := range seq {
-		if isLetter(L) {
-			if firstLetterIndx == len(seq) {
-				firstLetterIndx = i
-			}
-			lastLetterIndx = i
+	first := 0
+	for first < len(seq) && !isLetter(seq[first]) {
+		if seq[first] == '*' {
+			seq[first] = '-'
 		}
+		first++
 	}
-
-	for i, L := range seq {
-		if L != '*' {
-			continue
-		}
-		if i > firstLetterIndx && i < lastLetterIndx {
-			seq[i] = 'N'
-		} else {
-			seq[i] = '-'
-		}
+	if first == len(seq) {
+		return seq // no letters: every position was an end
 	}
-
+	last := len(seq) - 1
+	for !isLetter(seq[last]) {
+		if seq[last] == '*' {
+			seq[last] = '-'
+		}
+		last--
+	}
+	for mid := seq[first:last]; ; {
+		i := bytes.IndexByte(mid, '*')
+		if i < 0 {
+			break
+		}
+		mid[i] = 'N'
+		mid = mid[i+1:]
+	}
 	return seq
 }
 
