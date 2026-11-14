@@ -387,8 +387,8 @@ func TestReader(t *testing.T) {
 	}
 }
 
-// RNAME and RNEXT are looked up among the @SQ names: RNAME gives the reference's index (-1 for "*"), and a
-// name that is not an @SQ SN is an error.
+// RNAME and RNEXT are looked up among the @SQ names, SN and AN: RNAME gives the reference's index (-1 for
+// "*"), and a name that is neither an SN nor an AN is an error.
 func TestReferenceLookup(t *testing.T) {
 	h, err := ParseHeader([]byte("@HD\tVN:1.6\n@SQ\tSN:a\tLN:10\n@SQ\tSN:b\tLN:10\n@SQ\tSN:c\tLN:10\tAN:alt\n"))
 	if err != nil {
@@ -405,7 +405,8 @@ func TestReferenceLookup(t *testing.T) {
 		{"*", "*", -1, true},
 		{"d", "*", 0, false},
 		{"a", "d", 0, false},
-		{"alt", "*", 0, false}, // AN names are not looked up
+		{"alt", "*", 2, true}, // an AN name of the third @SQ
+		{"b", "alt", 1, true},
 	} {
 		line := "q\t0\t" + tc.rname + "\t1\t60\t4M\t" + tc.rnext + "\t0\t0\tACGT\t*"
 		if tc.rname == "*" {

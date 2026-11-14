@@ -442,10 +442,10 @@ type Reference struct {
 // Header holds what gofasta uses of a SAM header: its references, in order. Make one with ParseHeader.
 type Header struct {
 	Refs  []Reference
-	index map[string]int // the index in Refs of each reference, by its name (SN)
+	index map[string]int // the index in Refs of each reference, by its name (SN) and its AN names
 }
 
-// refIndex returns the index of the reference named name, or -1 for "*"
+// refIndex returns the index of the reference named name (its SN or one of its AN names), or -1 for "*"
 func (h *Header) refIndex(name []byte) (int, error) {
 	if len(name) == 1 && name[0] == '*' {
 		return -1, nil
@@ -476,7 +476,6 @@ var (
 // no reference name (SN, or one of the AN names) is used twice; @RG and @PG have an ID not used before.
 func ParseHeader(text []byte) (*Header, error) {
 	h := &Header{index: map[string]int{}}
-	names := map[string]bool{} // the reference names (SN and AN) so far
 	groups, progs := map[string]bool{}, map[string]bool{}
 	first := true
 	for i, l := range bytes.Split(text, []byte{'\n'}) {
@@ -506,7 +505,7 @@ func ParseHeader(text []byte) (*Header, error) {
 				return nil, wrap(errBadVersion)
 			}
 		case "SQ":
-			err = h.referenceLine(tags, names)
+			err = h.referenceLine(tags)
 		case "RG":
 			err = idLine(tags, groups, errDupReadGroup)
 		case "PG":
@@ -562,7 +561,7 @@ func isVersion(v []byte) bool {
 
 // referenceLine reads an @SQ line: SN and LN are needed, the name and any alternative names (AN, comma
 // separated) must be valid reference names not used before, and LN must be from 1 to 2^31-1
-func (h *Header) referenceLine(tags map[string][]byte, names map[string]bool) error {
+func (h *Header) referenceLine(tags map[string][]byte) error {
 	name, hasName := tags["SN"]
 	ln, hasLen := tags["LN"]
 	if !hasName || !hasLen {
@@ -586,12 +585,11 @@ func (h *Header) referenceLine(tags map[string][]byte, names map[string]bool) er
 		if !isRefName(n) {
 			return errBadRefName
 		}
-		if names[string(n)] {
+		if _, dup := h.index[string(n)]; dup {
 			return errDupReference
 		}
-		names[string(n)] = true
+		h.index[string(n)] = len(h.Refs)
 	}
-	h.index[string(name)] = len(h.Refs)
 	h.Refs = append(h.Refs, Reference{Name: string(name), Length: length})
 	return nil
 }
