@@ -73,6 +73,9 @@ func TestFlagValidation(t *testing.T) {
 		{"sam variants", map[string]string{"reference": f, "outfile": f, "annotation": "a.gb"}},
 		{"sam toMultiAlign", map[string]string{"samfile": f, "outfile": f}},
 		{"sam toPairAlign", map[string]string{"threads": "-1"}},
+		{"sam toMultiAlign", map[string]string{"start": "9", "end": "5"}},
+		{"sam toPairAlign", map[string]string{"start": "9", "end": "5", "reference": "r.fa"}},
+		{"sam toPairAlign", map[string]string{"samfile": f, "outpath": f, "reference": "r.fa"}},
 		{"updown topranking", map[string]string{"size-up": "-2"}},
 		{"updown topranking", map[string]string{"dist-push": "-1"}},
 		{"updown topranking", map[string]string{"threshold-pair": "-0.1"}},
@@ -98,6 +101,8 @@ func TestFlagValidation(t *testing.T) {
 		{"closest", map[string]string{}},
 		{"closest", map[string]string{"threads": "0"}},
 		{"closest", map[string]string{"number": "5", "table": "true"}},
+		{"sam toMultiAlign", map[string]string{"start": "5", "end": "5"}},
+		{"sam toPairAlign", map[string]string{"start": "5", "end": "5", "reference": "r.fa", "outpath": "stdout"}},
 		{"closest", map[string]string{"table": "true"}}, // ignored without -n/-d
 		{"closest", map[string]string{"max-dist": "0"}},
 		{"closest", map[string]string{"max-dist": "inf"}},

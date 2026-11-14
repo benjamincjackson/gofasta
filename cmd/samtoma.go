@@ -39,6 +39,7 @@ fasta file to stdout, e.g.:
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				intAtLeast(cmd, 0, "threads"),
+				startNotAfterEnd(cmd),
 				outputNotInput(cmd, "outfile", "samfile", "reference"),
 			)
 		},

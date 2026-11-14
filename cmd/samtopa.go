@@ -43,6 +43,8 @@ instead, use -o stdout, e.g.:
 			return firstError(
 				inheritedRequired(cmd, "reference"),
 				intAtLeast(cmd, 0, "threads"),
+				startNotAfterEnd(cmd),
+				outputNotInput(cmd, "outpath", "samfile", "reference"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
