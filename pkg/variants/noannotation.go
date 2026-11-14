@@ -2,7 +2,8 @@ package variants
 
 import (
 	"encoding/binary"
-	"sort"
+	"slices"
+	"strings"
 )
 
 // getVariantsNoAnnotation finds the changes in query relative to ref (an aligned pair, encoded) when
@@ -11,9 +12,35 @@ import (
 // the reference, are skipped eight columns at a time, which makes this about as fast as comparing the
 // two sequences.
 func getVariantsNoAnnotation(ref, query []byte) []Variant {
+	// counted first, so that the slice is made once at its final size (a query far from the reference
+	// can have thousands of changes)
+	n := 0
+	scanNoAnnotation(ref, query, func(Variant) { n++ })
+	variants := make([]Variant, 0, n)
+	scanNoAnnotation(ref, query, func(v Variant) { variants = append(variants, v) })
+
+	// the order GetVariantsPair gives: by position, then type. The variants are found in that order except
+	// that an insertion after a SNP's position is found after the SNP, so they are rarely out of order.
+	cmp := func(a, b Variant) int {
+		if a.Position != b.Position {
+			return a.Position - b.Position
+		}
+		return strings.Compare(a.Changetype, b.Changetype)
+	}
+	for i := 1; i < len(variants); i++ {
+		if a, b := &variants[i-1], &variants[i]; b.Position < a.Position || (b.Position == a.Position && b.Changetype < a.Changetype) {
+			slices.SortStableFunc(variants, cmp)
+			break
+		}
+	}
+	return variants
+}
+
+// scanNoAnnotation passes each change in query relative to ref to add, in the order found (see
+// getVariantsNoAnnotation)
+func scanNoAnnotation(ref, query []byte, add func(Variant)) {
 	const gaps = 0xf4f4f4f4f4f4f4f4 // a gap (244) in every byte
-	variants := make([]Variant, 0)
-	refPos := 0 // the number of reference bases so far: the reference coordinate of the last one
+	refPos := 0                     // the number of reference bases so far: the reference coordinate of the last one
 	insLen, insAt := 0, 0
 	delLen, delStart := 0, 0
 	for i := 0; i < len(query); {
@@ -37,7 +64,7 @@ func getVariantsNoAnnotation(ref, query []byte) []Variant {
 			continue
 		}
 		if insLen > 0 {
-			variants = append(variants, Variant{Changetype: "ins", Position: insAt, Length: insLen})
+			add(Variant{Changetype: "ins", Position: insAt, Length: insLen})
 			insLen = 0
 		}
 		refPos++
@@ -51,22 +78,17 @@ func getVariantsNoAnnotation(ref, query []byte) []Variant {
 		if delLen > 0 {
 			// a deletion at the start of the alignment is not reported (and one at the end is not closed)
 			if delStart > 1 {
-				variants = append(variants, Variant{Changetype: "del", Position: delStart, Length: delLen})
+				add(Variant{Changetype: "del", Position: delStart, Length: delLen})
 			}
 			delLen = 0
 		}
 		if (q & r) < 16 {
-			variants = append(variants, Variant{Changetype: "nuc", RefAl: decodingArray[r], QueAl: decodingArray[q], Position: refPos})
+			add(Variant{Changetype: "nuc", RefAl: decodingArray[r], QueAl: decodingArray[q], Position: refPos})
 		}
 	}
 	if insLen > 0 {
-		variants = append(variants, Variant{Changetype: "ins", Position: insAt, Length: insLen})
+		add(Variant{Changetype: "ins", Position: insAt, Length: insLen})
 	}
-	// the order GetVariantsPair gives: by position, then type
-	sort.SliceStable(variants, func(i, j int) bool {
-		return variants[i].Position < variants[j].Position || (variants[i].Position == variants[j].Position && variants[i].Changetype < variants[j].Changetype)
-	})
-	return variants
 }
 
 // zeroBytes sets the top bit of each byte of x that is 0
