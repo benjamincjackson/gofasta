@@ -107,19 +107,37 @@ func (g *gzipFile) Seek(offset int64, whence int) (int64, error) {
 	return 0, nil
 }
 
-// OpenOut creates path for writing, or returns stdout if path is "stdout" or "-".
-func OpenOut(path string) (*os.File, error) {
-	if IsStdout(path) {
-		return os.Stdout, nil
+// Out is an output file written through a 64 KiB buffer, so that many small writes (a line per record)
+// do not each become a system call. Close it with CloseOut, which writes what is left in the buffer.
+type Out struct {
+	*bufio.Writer
+	f *os.File
+}
+
+// OpenOut creates path for writing, or uses stdout if path is "stdout" or "-".
+func OpenOut(path string) (*Out, error) {
+	f := os.Stdout
+	if !IsStdout(path) {
+		var err error
+		if f, err = os.Create(path); err != nil {
+			return nil, err
+		}
 	}
-	return os.Create(path)
+	return &Out{Writer: bufio.NewWriterSize(f, 64<<10), f: f}, nil
 }
 
 // CloseOut closes an output file and, if the close fails (the final flush of buffered data to a full disk,
 // for example, is only reported by Close), stores the error in *err unless an error is already there.
 // Use it as: defer gfio.CloseOut(out, &err), with err a named return value.
-func CloseOut(f *os.File, err *error) {
-	if cerr := f.Close(); cerr != nil && *err == nil {
-		*err = cerr
+func CloseOut(o *Out, err *error) {
+	// the buffer is written even after an error, so that what was written before it still reaches the file
+	ferr := o.Flush()
+	cerr := o.f.Close()
+	if *err == nil {
+		if ferr != nil {
+			*err = ferr
+		} else {
+			*err = cerr
+		}
 	}
 }

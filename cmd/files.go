@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -25,6 +24,6 @@ func openIn(cmd *cobra.Command, name string) (io.ReadCloser, error) {
 }
 
 // openOut creates the file given by the named flag ("stdout" for stdout)
-func openOut(cmd *cobra.Command, name string) (*os.File, error) {
+func openOut(cmd *cobra.Command, name string) (*gfio.Out, error) {
 	return gfio.OpenOut(cmd.Flag(name).Value.String())
 }
