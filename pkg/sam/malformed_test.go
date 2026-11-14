@@ -39,7 +39,7 @@ func TestMalformedSamGivesError(t *testing.T) {
 			check("toPairAlign", ToPairAlign(strings.NewReader(in), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2, true))
 		})
 		runWithTimeout(t, func() {
-			check("variants", Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2, true))
+			check("variants", Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, false, 2, true))
 		})
 	}
 }
@@ -51,7 +51,7 @@ func TestReferenceLengthMustMatchSamHeader(t *testing.T) {
 		if err := ToPairAlign(strings.NewReader(in), strings.NewReader(">r\n"+fuzzRef+"\n"), "stdout", 60, -1, -1, false, false, 2, true); err == nil {
 			t.Errorf("toPairAlign: expected an error for a reference of the wrong length")
 		}
-		if err := Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2, true); err == nil {
+		if err := Variants(strings.NewReader(in), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, false, 2, true); err == nil {
 			t.Errorf("variants: expected an error for a reference of the wrong length")
 		}
 	})

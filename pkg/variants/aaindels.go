@@ -337,9 +337,61 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		for i := range newVariants {
 			newVariants[i].SNPs = strings.Join(notes, ";")
 		}
+		groupWindow(newVariants, region, refAA, firstChanged, qChanged)
 		variants = append(variants, newVariants...)
 	}
 	return variants, handled
+}
+
+// groupWindow gives the entries of one indel window, if there are several, the grouped entry that stands
+// for them with --group-aa: the reference residues from the first changed residue to the last (an
+// unchanged one between them included), its number, and the query's residues over them ('-' for each
+// deleted one, the query's own residue for an unchanged one) followed by any inserted residues. A pure
+// insertion is a single entry. firstChanged and qChanged are the window's first changed codon and the
+// query residues paired with the reference from there.
+func groupWindow(entries []Variant, region Region, refAA string, firstChanged int, qChanged string) {
+	if len(entries) < 2 {
+		return
+	}
+	lo, hi := 0, 0 // residue numbers (1-based) of the first and last changed reference residues
+	var inserted *Variant
+	que := map[int]string{}
+	for i := range entries {
+		v := &entries[i]
+		if v.RefAl == "" {
+			inserted = v
+			continue
+		}
+		if lo == 0 || v.Residue < lo {
+			lo = v.Residue
+		}
+		hi = max(hi, v.Residue)
+		que[v.Residue] = v.QueAl
+	}
+	if lo == 0 {
+		return
+	}
+	var q strings.Builder
+	if inserted != nil {
+		hi = max(hi, inserted.Residue)
+	}
+	for r := lo; r <= hi; r++ {
+		if a, ok := que[r]; ok {
+			q.WriteString(a)
+		} else if i := r - 1 - firstChanged; i >= 0 && i < len(qChanged) {
+			q.WriteByte(qChanged[i])
+		} else {
+			q.WriteByte(refAA[r-1])
+		}
+	}
+	if inserted != nil {
+		q.WriteString(inserted.QueAl)
+	}
+	g := &Variant{Changetype: "aa", Feature: region.Name, RefAl: refAA[lo-1 : hi], QueAl: q.String(), Residue: lo,
+		Position: region.Positions[3*(lo-1)], Codon: codonPositions(region, lo-1), SNPs: entries[0].SNPs}
+	for i := range entries {
+		entries[i].Group = g
+	}
 }
 
 // codonPositions returns the reference positions of codon j (0-based) of a CDS, in CDS order

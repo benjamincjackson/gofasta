@@ -102,6 +102,8 @@ var e2eCases = []e2eCase{
 	{name: "help_snps_stub", args: []string{"snps", "--help"}},
 	{name: "variants_gb_two_records", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref_tworecords.gb"}},
 	{name: "variants_append_snps", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--append-snps"}},
+	{name: "variants_group_aa", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--group-aa", "--append-snps"}, threadsFlag: "-t"},
+	{name: "variants_group_aa_aggregate", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--group-aa", "--aggregate"}},
 	{name: "variants_aggregate", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--aggregate"}, threadsFlag: "-t"},
 	{name: "variants_aggregate_threshold", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--aggregate", "--threshold", "0.2", "--append-snps"}},
 	{name: "variants_start_end", args: []string{"variants", "-q", "msa.fasta", "--reference-id", "ref", "-a", "ref.gb", "--start", "10", "--end", "90"}},
@@ -193,6 +195,8 @@ var e2eCases = []e2eCase{
 	// sam variants
 	{name: "sam_variants_gb", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb"}, threadsFlag: "-t"},
 	{name: "sam_variants_gff", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gff"}, threadsFlag: "-t"},
+	{name: "sam_variants_group_aa", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb", "--group-aa"}, threadsFlag: "-t"},
+	{name: "sam_variants_group_aa_aggregate", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb", "--group-aa", "--aggregate"}},
 	{name: "sam_variants_aggregate", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb", "--aggregate", "--append-snps"}, threadsFlag: "-t"},
 	{name: "sam_variants_ref_from_annotation", args: []string{"sam", "variants", "-s", "aln.sam", "-a", "ref.gb"}},
 	{name: "sam_variants_start_end", args: []string{"sam", "variants", "-s", "aln.sam", "-r", "ref.fasta", "-a", "ref.gb", "--start", "20", "--end", "90"}},

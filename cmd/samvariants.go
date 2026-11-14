@@ -14,6 +14,7 @@ type samVariantsOptions struct {
 	aggregate bool
 	threshold float64
 	appendSNP bool
+	groupAA   bool
 	start     int
 	end       int
 	annotationOptions
@@ -96,7 +97,7 @@ in the alignment.
 			}
 			defer gfio.CloseOut(out, &err)
 
-			return sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, resolveThreads(s.threads), o.strict)
+			return sam.Variants(samIn, ref, refFromFile, anno, annoSuffix, out, o.start, o.end, o.aggregate, o.threshold, o.appendSNP, o.groupAA, resolveThreads(s.threads), o.strict)
 		},
 	}
 
@@ -107,6 +108,7 @@ in the alignment.
 	c.Flags().BoolVar(&o.aggregate, "aggregate", false, "Report the proportions of each change")
 	c.Flags().Float64Var(&o.threshold, "threshold", 0.0, "If --aggregate, only report changes with a freq greater than or equal to this value")
 	c.Flags().BoolVar(&o.appendSNP, "append-snps", false, "Report the codon's SNPs in parenthesis after each amino acid mutation")
+	c.Flags().BoolVar(&o.groupAA, "group-aa", false, "Report the amino acid changes from one indel as one entry (aa:S:HV69-- instead of aa:S:H69-|aa:S:V70-)")
 
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false

@@ -105,7 +105,7 @@ func FuzzVariants(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		quietStderr(t)
 		runWithTimeout(t, func() {
-			_ = Variants(bytes.NewReader(data), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, 2, false)
+			_ = Variants(bytes.NewReader(data), nil, false, strings.NewReader(fuzzGenbank), "gb", io.Discard, -1, -1, false, 0, false, false, 2, false)
 		})
 	})
 }
