@@ -41,7 +41,7 @@ stdout, e.g.:
 			return firstError(
 				intAtLeast(cmd, 0, "threads"),
 				startNotAfterEnd(cmd),
-				outputNotInput(cmd, "outfile", "samfile", "reference"),
+				outputNotInput(cmd, "outfile", "samfile"),
 			)
 		},
 		RunE: func(cmd *cobra.Command, args []string) (err error) {
@@ -63,10 +63,6 @@ stdout, e.g.:
 	}
 
 	addSamfileFlag(c)
-	// toMultiAlign does not use a reference, but command lines that give one (as other sam commands need)
-	// still work: the flag is accepted, and hidden from the help
-	c.Flags().StringP("reference", "r", "", samReferenceUsage)
-	c.Flags().MarkHidden("reference")
 	addOutfileFlag(c, "the alignment")
 	addTrimFlags(c, &o.trimOptions, true)
 	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
