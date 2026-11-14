@@ -12,7 +12,7 @@ Flags:
   -a, --annotation string     GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz)
       --genbank string        GenBank annotation file, whatever it is called (instead of --annotation)
       --gff string            GFF3 annotation file, whatever it is called (instead of --annotation)
-  -o, --outfile string        Name of the file of variants to write (default "stdout")
+  -o, --outfile string        Where to write the variants (default "stdout")
       --start int             Only report variants with a reference base at or after this position (default -1)
       --end int               Only report variants with a reference base at or before this position (default -1)
       --aggregate             Report the proportions of each change

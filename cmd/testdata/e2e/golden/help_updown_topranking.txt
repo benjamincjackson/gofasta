@@ -39,7 +39,7 @@ Usage:
 Flags:
       --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
       --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -o, --outfile string           CSV-format file of closest neighbours to write (default "stdout")
+  -o, --outfile string           Where to write the closest neighbours, in CSV format (default "stdout")
       --table                    Write a long-form table of the output
   -r, --reference string         Reference sequence, in fasta format - only required if --query and --target are fasta files
       --ignore string            Optional plain text file of IDs to ignore in the target file when searching for neighbours

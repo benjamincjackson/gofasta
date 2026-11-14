@@ -9,10 +9,8 @@ import (
 
 // toMultiAlignOptions holds the values of the flags of the command newToMultiAlignCmd returns
 type toMultiAlignOptions struct {
-	start  int
-	end    int
+	trimOptions
 	pad    bool
-	wrap   int
 	strict bool
 }
 
@@ -62,11 +60,9 @@ fasta file to stdout, e.g.:
 		},
 	}
 
-	c.Flags().IntVar(&o.start, "start", -1, "1-based first nucleotide position to retain in the output. Bases before this position are omitted, or are replaced with N if --pad")
-	c.Flags().IntVar(&o.end, "end", -1, "1-based last nucleotide position to retain in the output. Bases after this position are omitted, or are replaced with N if --pad")
+	addTrimFlags(c, &o.trimOptions, true)
 	c.Flags().BoolVar(&o.pad, "pad", false, "If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns")
-	c.Flags().StringP("outfile", "o", "stdout", "Where to write the alignment")
-	c.Flags().IntVarP(&o.wrap, "wrap", "w", -1, "Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.")
+	addOutfileFlag(c, "the alignment")
 
 	addStrictFlag(c, &o.strict)
 	c.Flags().SortFlags = false

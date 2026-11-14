@@ -64,7 +64,7 @@ for each sequence in --query. SNPs is a "|"-delimited list of SNPs relative to -
 	}
 
 	c.Flags().StringP("query", "q", "stdin", "Alignment of sequences to parse, in fasta format")
-	c.Flags().StringP("outfile", "o", "stdout", "Output to write")
+	addOutfileFlag(c, "the list, in CSV format")
 
 	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)

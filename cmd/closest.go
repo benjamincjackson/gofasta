@@ -113,7 +113,7 @@ between every pair.
 	c.Flags().StringVarP(&o.measure, "measure", "m", "raw", "Which distance measure to use (raw, snp or tn93)")
 	c.Flags().IntVarP(&o.n, "number", "n", 0, "(Optional) the closest n sequences to each query will be returned")
 	c.Flags().StringVarP(&o.dist, "max-dist", "d", "", "(Optional) return all sequences less than or equal to this distance away (inf for no limit)")
-	c.Flags().StringP("outfile", "o", "stdout", "The output file to write")
+	addOutfileFlag(c, "the closest targets to each query")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
 
 	addStrictFlag(c, &o.strict)

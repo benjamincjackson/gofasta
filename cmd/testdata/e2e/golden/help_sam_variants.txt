@@ -27,8 +27,11 @@ change that isn't in a codon that is represented by an amino acid change). The f
 	aa:S:214EPE - the amino acids EPE are inserted immediately after (1-based) residue 214 in the S gene in this sequence
 	nuc:C3037T - the nucleotide at (1-based) position 3037 in reference coordinates is a C in the reference and a T in this sequence
 
-Frame-shifting mutations in coding sequence are reported as indels but are ignored for subsequent amino-acids
-in the alignment.
+With --group-aa, the amino acid changes from one indel are one entry: aa:S:HV69-- for aa:S:H69-|aa:S:V70-.
+
+An indel that shifts the reading frame of a coding sequence is reported only as an indel, as are the indels
+after it in that coding sequence, unless indels within 3 codons of it restore the frame. Changes of single
+bases are still reported codon by codon.
 
 Usage:
   gofasta sam variants [flags]

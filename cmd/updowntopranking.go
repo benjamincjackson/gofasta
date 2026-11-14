@@ -152,7 +152,7 @@ distance (as long as you haven't also invoked --dist-push).
 
 	c.Flags().String("query", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	c.Flags().String("target", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
-	c.Flags().StringP("outfile", "o", "stdout", "CSV-format file of closest neighbours to write")
+	addOutfileFlag(c, "the closest neighbours, in CSV format")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
 	c.Flags().StringVarP(&u.reference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
 	c.Flags().StringVar(&o.ignore, "ignore", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
