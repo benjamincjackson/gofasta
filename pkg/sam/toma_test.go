@@ -3871,3 +3871,41 @@ func TestSwapInGapsNs(t *testing.T) {
 		}
 	}
 }
+
+// swapInGapsNs gives the same result as the rule stated directly (every '*' strictly between the first and
+// last letters becomes N, every other '*' '-') for every sequence of up to seven positions over '*', '-',
+// an upper- and a lower-case letter
+func TestSwapInGapsNsMatchesTheRule(t *testing.T) {
+	alphabet := []byte{'*', '-', 'A', 'c'}
+	for n := 0; n <= 7; n++ {
+		count := 1
+		for range n {
+			count *= len(alphabet)
+		}
+		for k := 0; k < count; k++ {
+			in := make([]byte, n)
+			for i, x := 0, k; i < n; i, x = i+1, x/len(alphabet) {
+				in[i] = alphabet[x%len(alphabet)]
+			}
+			first, last := n, -1
+			for i, c := range in {
+				if isLetter(c) {
+					first, last = min(first, i), i
+				}
+			}
+			want := []byte(string(in))
+			for i, c := range want {
+				if c == '*' {
+					if i > first && i < last {
+						want[i] = 'N'
+					} else {
+						want[i] = '-'
+					}
+				}
+			}
+			if got := swapInGapsNs([]byte(string(in))); string(got) != string(want) {
+				t.Errorf("swapInGapsNs(%q) = %q, want %q", in, got, want)
+			}
+		}
+	}
+}

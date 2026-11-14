@@ -8,6 +8,7 @@ It was written to process pairwise alignments between assembled SARS-CoV-2 genom
 package sam
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -147,33 +148,35 @@ func swapInNs(seq []byte) []byte {
 	return seq
 }
 
-// swapInGapsNs replaces internal unmapped positions with Ns and external
-// unmapped positions with '-'s
+// swapInGapsNs replaces internal unmapped positions ('*' between the first and last letters) with Ns and
+// external unmapped positions (before the first letter or after the last) with '-'s. Only the ends are
+// scanned position by position; the '*'s in between are found with bytes.IndexByte.
 func swapInGapsNs(seq []byte) []byte {
-	// with no letters, every position is before the first letter and after the last one
-	firstLetterIndx := len(seq)
-	lastLetterIndx := -1
-
-	for i, L := range seq {
-		if isLetter(L) {
-			if firstLetterIndx == len(seq) {
-				firstLetterIndx = i
-			}
-			lastLetterIndx = i
+	first := 0
+	for first < len(seq) && !isLetter(seq[first]) {
+		if seq[first] == '*' {
+			seq[first] = '-'
 		}
+		first++
 	}
-
-	for i, L := range seq {
-		if L != '*' {
-			continue
-		}
-		if i > firstLetterIndx && i < lastLetterIndx {
-			seq[i] = 'N'
-		} else {
-			seq[i] = '-'
-		}
+	if first == len(seq) {
+		return seq // no letters: every position was an end
 	}
-
+	last := len(seq) - 1
+	for !isLetter(seq[last]) {
+		if seq[last] == '*' {
+			seq[last] = '-'
+		}
+		last--
+	}
+	for mid := seq[first:last]; ; {
+		i := bytes.IndexByte(mid, '*')
+		if i < 0 {
+			break
+		}
+		mid[i] = 'N'
+		mid = mid[i+1:]
+	}
 	return seq
 }
 
