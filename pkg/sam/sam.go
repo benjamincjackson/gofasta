@@ -31,6 +31,7 @@ type samRecords struct {
 	// reference): the SAM specification requires exactly one
 	primaries int
 	equals    bool // SEQ had "=" (the reference base), replaced by prepareQuery
+	otherSeq  bool // SEQ had characters the specification does not allow, read as N
 	idx       int
 	err       error // why one of the query's lines could not be parsed, if one could not
 }
@@ -190,7 +191,9 @@ type samSource struct {
 	notes map[int][]string // by the index of the query being read when the line was skipped
 	tail  []string         // lines skipped after the last query
 
-	otherSeq atomic.Int64 // queries with a record whose SEQ had characters the specification does not allow
+	// queries that prepareQuery accepted with a record whose SEQ had characters the specification does not
+	// allow
+	otherSeq atomic.Int64
 }
 
 func (s *samSource) note(idx int, msg string) {
@@ -307,7 +310,6 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 	next := func() (samRecords, error) {
 		group := samRecords{idx: counter, refName: h.Refs[0].Name}
 		started = false
-		otherSeq := false
 		for !finished {
 			var l samLine
 			if pending != nil {
@@ -336,10 +338,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 				continue
 			}
 			group.records = append(group.records, l.rec)
-			otherSeq = otherSeq || l.rec.OtherSeq
-		}
-		if otherSeq {
-			src.otherSeq.Add(1)
+			group.otherSeq = group.otherSeq || l.rec.OtherSeq
 		}
 		group.primaries = primaries[group.name]
 		// (the lines of the next query read so far, its first usable line included, stay counted)
@@ -377,8 +376,9 @@ func (s *samSource) checkRefLength(n int) error {
 // prepareQuery checks the records for one query against a reference of length refLen (its bases, ref, may be
 // nil), replaces each "=" in their SEQ by the reference base (or by N if ref is nil; group.equals says
 // whether there were any), and resolves the overlaps between them. The error, if any, carries the query's
-// name.
-func prepareQuery(group samRecords, ref []byte, refLen int) (samRecords, error) {
+// name. A query it accepts whose SEQ had characters the specification does not allow is counted for the
+// warning written by writeTail.
+func (s *samSource) prepareQuery(group samRecords, ref []byte, refLen int) (samRecords, error) {
 	if group.err != nil {
 		return samRecords{}, pipeline.Named(group.name, group.err)
 	}
@@ -397,6 +397,9 @@ func prepareQuery(group samRecords, ref []byte, refLen int) (samRecords, error) 
 		group.equals = group.equals || had
 	}
 	group.records = resolveOverlaps(group.records)
+	if group.otherSeq {
+		s.otherSeq.Add(1)
+	}
 	return group, nil
 }
 

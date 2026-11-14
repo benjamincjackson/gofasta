@@ -359,7 +359,7 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 	}
 
 	work := func(group samRecords) (alignPair, error) {
-		group, err := prepareQuery(group, []byte(refSeq), len(refSeq))
+		group, err := src.prepareQuery(group, []byte(refSeq), len(refSeq))
 		if err != nil {
 			return alignPair{}, err
 		}

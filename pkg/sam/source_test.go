@@ -105,7 +105,7 @@ func TestSamSourceParseErrorStaysWithItsQuery(t *testing.T) {
 	}
 
 	// the error makes prepareQuery fail with the query's name attached
-	_, err = prepareQuery(groups[1], nil, 45)
+	_, err = src.prepareQuery(groups[1], nil, 45)
 	var recErr *pipeline.RecordError
 	if !errors.As(err, &recErr) || recErr.Name != "q2" {
 		t.Errorf("prepareQuery(q2): want a RecordError named q2, got %#v", err)
@@ -208,7 +208,7 @@ func TestPrimaryLines(t *testing.T) {
 		if err != nil {
 			break
 		}
-		_, err = prepareQuery(g, nil, 100)
+		_, err = src.prepareQuery(g, nil, 100)
 		if (err == nil) != want[g.name] {
 			t.Errorf("%s: got error %v, want ok = %v", g.name, err, want[g.name])
 		}
@@ -216,5 +216,32 @@ func TestPrimaryLines(t *testing.T) {
 	}
 	if len(want) != 0 {
 		t.Errorf("queries not read: %v", want)
+	}
+}
+
+// Only the queries that prepareQuery accepts are counted for the warning about characters in SEQ that the
+// specification does not allow: a query skipped as bad is not.
+func TestOtherSeqCountsAcceptedQueries(t *testing.T) {
+	text := "@HD\tVN:1.6\n@SQ\tSN:ref\tLN:100\n" +
+		"good\t0\tref\t1\t60\t4M\t*\t0\t0\tAC-T\t*\n" +
+		"bad\t0\tref\t1\t60\t5M\t*\t0\t0\tAC-T\t*\n" + // the CIGAR is longer than SEQ
+		"plain\t0\tref\t1\t60\t4M\t*\t0\t0\tACGT\t*\n"
+	src, err := newSamSource(strings.NewReader(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]bool{"good": true, "bad": false, "plain": true}
+	for {
+		g, err := src.next()
+		if err != nil {
+			break
+		}
+		_, err = src.prepareQuery(g, nil, 100)
+		if (err == nil) != want[g.name] {
+			t.Errorf("%s: got error %v, want ok = %v", g.name, err, want[g.name])
+		}
+	}
+	if n := src.otherSeq.Load(); n != 1 {
+		t.Errorf("got %d queries counted, want 1 (only good)", n)
 	}
 }

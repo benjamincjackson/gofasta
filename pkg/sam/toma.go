@@ -31,7 +31,7 @@ func ToMultiAlign(samIn io.Reader, out io.Writer, wrap int, trimstart int, trime
 
 	var equals atomic.Int64 // queries whose SEQ had "=", written as N (there is no reference here)
 	work := func(group samRecords) (fasta.Record, error) {
-		group, err := prepareQuery(group, nil, refLen)
+		group, err := src.prepareQuery(group, nil, refLen)
 		if err != nil {
 			return fasta.Record{}, err
 		}
