@@ -83,7 +83,7 @@ of the format.
 		},
 	}
 
-	addAnnotationFlags(c, &o.annotationOptions)
+	addAnnotationFlags(c, &o.annotationOptions, true)
 	addOutfileFlag(c, "the variants")
 	addVariantsOutputFlags(c, &o.variantsOutputOptions)
 

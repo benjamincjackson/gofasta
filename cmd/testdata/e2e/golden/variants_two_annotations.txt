@@ -7,7 +7,7 @@ Usage:
 
 Flags:
   -q, --query string          Alignment of the sequences to annotate, in fasta format (default "stdin")
-  -r, --reference string      Reference sequence, in a fasta file of its own, the same width as the alignment
+  -r, --reference string      Reference sequence, in a fasta file of its own, the same width as the alignment (required without an annotation, unless --reference-id)
       --reference-id string   ID of the reference record in the alignment (instead of --reference)
   -a, --annotation string     GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz)
       --genbank string        GenBank annotation file, whatever it is called (instead of --annotation)

@@ -97,9 +97,9 @@ to filter on frequency.
 	}
 
 	c.Flags().StringVarP(&o.query, "query", "q", "stdin", "Alignment of the sequences to annotate, in fasta format")
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the alignment")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in a fasta file of its own, the same width as the alignment (required without an annotation, unless --reference-id)")
 	c.Flags().StringVar(&o.referenceID, "reference-id", "", "ID of the reference record in the alignment (instead of --reference)")
-	addAnnotationFlags(c, &o.annotationOptions)
+	addAnnotationFlags(c, &o.annotationOptions, false)
 	addOutfileFlag(c, "the variants")
 	addVariantsOutputFlags(c, &o.variantsOutputOptions)
 	addThreadsFlag(c.Flags(), &o.threads)

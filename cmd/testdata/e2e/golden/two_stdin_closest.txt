@@ -8,8 +8,8 @@ Usage:
 
 Flags:
   -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
-      --query string      Alignment of sequences to find neighbours for, in fasta format
-      --target string     Alignment of sequences to search for neighbours in, in fasta format
+      --query string      Alignment of sequences to find neighbours for, in fasta format (required)
+      --target string     Alignment of sequences to search for neighbours in, in fasta format (required)
   -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
   -n, --number int        (Optional) the closest n sequences to each query will be returned
   -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)

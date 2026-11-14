@@ -6,13 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// updownOptions holds the values of the flags of the command newUpdownCmd returns, which its subcommands share
-type updownOptions struct {
-	reference string
-}
-
 func newUpdownCmd() *cobra.Command {
-	var o updownOptions
 	c := &cobra.Command{
 		Use:   "updown",
 		Short: "Get pseudo-tree-aware catchments for query sequences from alignments",
@@ -25,7 +19,6 @@ func newUpdownCmd() *cobra.Command {
 		},
 	}
 
-	c.PersistentFlags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format, which is treated as the root of the imaginary tree")
-	c.AddCommand(newUpdownListCmd(), newToprankingCmd(&o))
+	c.AddCommand(newUpdownListCmd(), newToprankingCmd())
 	return c
 }

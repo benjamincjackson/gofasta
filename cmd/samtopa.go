@@ -41,7 +41,7 @@ instead, use -o stdout, e.g.:
 
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
-				inheritedRequired(cmd, "reference"),
+				flagsGiven(cmd, "reference"),
 				intAtLeast(cmd, 0, "threads"),
 				startNotAfterEnd(cmd),
 				outputNotInput(cmd, "outpath", "samfile", "reference"),
@@ -65,13 +65,15 @@ instead, use -o stdout, e.g.:
 		},
 	}
 
-	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout (required)")
+	c.Flags().StringVarP(&o.outpath, "outpath", "o", "", "Directory to write one fasta file per query to, or stdout to write all the alignments to stdout")
+	// (sam's own --reference is optional for its other commands; this one shadows it, to say it is required)
+	c.Flags().StringVarP(&s.reference, "reference", "r", "", "Reference fasta file used to generate the sam file (required)")
 	c.Flags().BoolVar(&o.omitReference, "omit-reference", false, "Omit the reference sequences from the output alignments")
 	c.Flags().BoolVar(&o.skipInsertions, "skip-insertions", false, "Skip insertions relative to the reference from the output alignments")
 	addTrimFlags(c, &o.trimOptions, false)
 
 	addStrictFlag(c, &o.strict)
-	c.MarkFlagRequired("outpath")
+	requireFlags(c, "outpath")
 	c.Flags().SortFlags = false
 	return c
 }

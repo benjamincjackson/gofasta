@@ -14,6 +14,7 @@ import (
 
 // toprankingOptions holds the values of the flags of the command newToprankingCmd returns
 type toprankingOptions struct {
+	reference       string
 	threads         int
 	ignore          string
 	table           bool
@@ -33,8 +34,8 @@ type toprankingOptions struct {
 	strict          bool
 }
 
-// newToprankingCmd builds the updown topranking command; u holds the updown command's flags, which its subcommands share
-func newToprankingCmd(u *updownOptions) *cobra.Command {
+// newToprankingCmd builds the updown topranking command
+func newToprankingCmd() *cobra.Command {
 	var o toprankingOptions
 	c := &cobra.Command{
 		Use:   "topranking",
@@ -126,7 +127,7 @@ distance (as long as you haven't also invoked --dist-push).
 
 			var ref io.ReadCloser // only read if a fasta file is given
 			if qtype == "fasta" || ttype == "fasta" {
-				if u.reference == "" {
+				if o.reference == "" {
 					return errors.New("--query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)")
 				}
 				ref, err = openIn(cmd, "reference")
@@ -154,7 +155,7 @@ distance (as long as you haven't also invoked --dist-push).
 	c.Flags().String("target", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	addOutfileFlag(c, "the closest neighbours, in CSV format")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
-	c.Flags().StringVarP(&u.reference, "reference", "r", "", "Reference sequence, in fasta format - only required if --query and --target are fasta files")
+	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format (required if --query or --target is a fasta file)")
 	c.Flags().StringVar(&o.ignore, "ignore", "", "Optional plain text file of IDs to ignore in the target file when searching for neighbours")
 
 	c.Flags().IntVar(&o.distAll, "dist-all", 0, "Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below")
@@ -176,8 +177,7 @@ distance (as long as you haven't also invoked --dist-push).
 
 	addThreadsFlag(c.Flags(), &o.threads)
 	addStrictFlag(c, &o.strict)
-	c.MarkFlagRequired("query")
-	c.MarkFlagRequired("target")
+	requireFlags(c, "query", "target")
 	c.Flags().SortFlags = false
 	return c
 }

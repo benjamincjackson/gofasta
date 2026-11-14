@@ -76,6 +76,15 @@ func hideDefault(c *cobra.Command, names ...string) {
 	}
 }
 
+// requireFlags marks the named flags of c required, and says so in their help
+func requireFlags(c *cobra.Command, names ...string) {
+	for _, n := range names {
+		c.MarkFlagRequired(n)
+		f := c.Flags().Lookup(n)
+		f.Usage += " (required)"
+	}
+}
+
 // addOutfileFlag adds --outfile (-o, default stdout) to c, for writing what (e.g. "the variants")
 func addOutfileFlag(c *cobra.Command, what string) {
 	c.Flags().StringP("outfile", "o", "stdout", "Where to write "+what)

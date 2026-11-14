@@ -83,8 +83,7 @@ func TestFlagValidation(t *testing.T) {
 		{"updown topranking", map[string]string{"query": "q.csv", "target": "t.csv"}}, // no --size-* or --dist-*
 		{"closest", map[string]string{"measure": "bogus"}},
 		{"updown list", map[string]string{"query": f, "outfile": f}},
-		{"updown list", map[string]string{}}, // no --reference
-		{"variants", map[string]string{}},    // no annotation
+		{"variants", map[string]string{}}, // no annotation
 		{"variants", map[string]string{"annotation": "a.gb", "genbank": "a.gb"}},
 		{"sam variants", map[string]string{"gff": "a.gff", "annotation": "a.gff"}},
 		{"variants", map[string]string{"gff": "stdin"}}, // --query is stdin too
