@@ -23,9 +23,9 @@ Aliases:
   toMultiAlign, tomultialign, toma
 
 Flags:
-      --start int        1-based first position (in reference coordinates) to keep in the output. Bases before it are omitted, or replaced with N if --pad (default -1)
-      --end int          1-based last position (in reference coordinates) to keep in the output. Bases after it are omitted, or replaced with N if --pad (default -1)
-  -w, --wrap int         Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output. (default -1)
+      --start int        1-based first position (in reference coordinates) to keep in the output. Bases before it are omitted, or replaced with N if --pad
+      --end int          1-based last position (in reference coordinates) to keep in the output. Bases after it are omitted, or replaced with N if --pad
+  -w, --wrap int         Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.
       --pad              If --start and/or --end, replace the trimmed-out regions with Ns, else replace external deletions with Ns
   -o, --outfile string   Where to write the alignment (default "stdout")
       --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
