@@ -1,6 +1,7 @@
 package sam
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -281,7 +282,11 @@ func writePairToFile(p string, AP alignPair, wrapWidth int, omitRef bool) (err e
 			err = cerr
 		}
 	}()
-	return writePair(f, AP, wrapWidth, omitRef)
+	w := bufio.NewWriter(f)
+	if err := writePair(w, AP, wrapWidth, omitRef); err != nil {
+		return err
+	}
+	return w.Flush()
 }
 
 // oneFilePerName passes results to sink, but makes a query whose file name (see pairFileName) is that of
@@ -315,7 +320,7 @@ func oneFilePerName(sink func(pipeline.Result[alignPair]) error) func(pipeline.R
 // case, names that differ only in case are not caught, and the later query's file replaces the earlier one's.
 // A query whose records can't be used is reported on stderr and skipped, unless strict, when it stops the run.
 // threads is the number of goroutines that process records (fewer than 1 means 1).
-func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int, strict bool) error {
+func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, trimEnd int, omitRef bool, omitIns bool, threads int, strict bool) (err error) {
 
 	refs, err := fasta.LoadEncodeAlignment(ref, false, false, false)
 	if err != nil {
@@ -339,7 +344,14 @@ func ToPairAlign(samIn, ref io.Reader, outpath string, wrap int, trimStart int, 
 		return err
 	}
 
-	write := func(AP alignPair) error { return writePair(os.Stdout, AP, wrap, omitRef) }
+	stdout := bufio.NewWriterSize(os.Stdout, 64<<10)
+	defer func() {
+		// written even after an error, so that what was written before it still reaches stdout
+		if ferr := stdout.Flush(); err == nil {
+			err = ferr
+		}
+	}()
+	write := func(AP alignPair) error { return writePair(stdout, AP, wrap, omitRef) }
 	if !gfio.IsStdout(outpath) {
 		if err := os.MkdirAll(outpath, 0755); err != nil {
 			return err

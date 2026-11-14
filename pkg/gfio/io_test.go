@@ -1,6 +1,7 @@
 package gfio
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"errors"
@@ -88,28 +89,51 @@ func TestOpenInBadGzip(t *testing.T) {
 }
 
 func TestOpenOutStdout(t *testing.T) {
-	if f, err := OpenOut("stdout"); err != nil || f != os.Stdout {
-		t.Errorf("stdout: got %v, %v", f, err)
+	if o, err := OpenOut("stdout"); err != nil || o.f != os.Stdout {
+		t.Errorf("stdout: got %v, %v", o, err)
 	}
 }
 
-func TestCloseOutReportsCloseError(t *testing.T) {
+func TestCloseOutWritesTheBuffer(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "out.txt")
+	o, err := OpenOut(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := o.WriteString("written\n"); err != nil {
+		t.Fatal(err)
+	}
+	// even after an error, what was written reaches the file, and the error is kept
+	first := errors.New("first")
+	got := first
+	CloseOut(o, &got)
+	if got != first {
+		t.Errorf("an existing error must not be overwritten: got %v", got)
+	}
+	if b, err := os.ReadFile(path); err != nil || string(b) != "written\n" {
+		t.Errorf("file holds %q, %v; want the buffered text", b, err)
+	}
+}
+
+func TestCloseOutReportsWriteError(t *testing.T) {
 	f, err := os.CreateTemp(t.TempDir(), "x")
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.Close() // already closed, so the next Close fails
-
+	f.Close() // already closed, so writing the buffer (and closing) fails
+	o := &Out{Writer: bufio.NewWriter(f), f: f}
+	o.WriteString("lost")
 	var got error
-	CloseOut(f, &got)
+	CloseOut(o, &got)
 	if got == nil {
-		t.Errorf("expected the close error")
+		t.Errorf("expected the error from writing the buffer")
 	}
 
-	first := errors.New("first")
-	got = first
-	CloseOut(f, &got)
-	if got != first {
-		t.Errorf("an existing error must not be overwritten")
+	// with nothing buffered, the close error is reported
+	o = &Out{Writer: bufio.NewWriter(f), f: f}
+	got = nil
+	CloseOut(o, &got)
+	if got == nil {
+		t.Errorf("expected the close error")
 	}
 }
