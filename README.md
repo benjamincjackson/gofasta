@@ -51,14 +51,12 @@ Usage:
   gofasta updown list [flags]
 
 Flags:
-  -q, --query string     Alignment of sequences to parse, in fasta format (default "stdin")
-  -o, --outfile string   Output to write (default "stdout")
-  -t, --threads int      Number of threads (and CPUs) to use: 0, the default, for all of them
-      --strict           Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -h, --help             help for list
-
-Global Flags:
-  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
+  -q, --query string       Alignment of sequences to parse, in fasta format (default "stdin")
+  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree (required)
+  -o, --outfile string     Where to write the list, in CSV format (default "stdout")
+      --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int        Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
+  -h, --help               help for list
 ```
 </details>
 
@@ -144,15 +142,15 @@ Use `gofasta closest` to find the closest neighbours by traditional genetic dist
 ```
 ❯ gofasta closest --help | sed -n '/Flags/,$p'
 Flags:
-  -t, --threads int       Number of threads (and CPUs) to use: 0, the default, for all of them
-      --query string      Alignment of sequences to find neighbours for, in fasta format
-      --target string     Alignment of sequences to search for neighbours in, in fasta format
+      --query string      Alignment of sequences to find neighbours for, in fasta format (required)
+      --target string     Alignment of sequences to search for neighbours in, in fasta format (required)
+  -o, --outfile string    Where to write the closest targets to each query (default "stdout")
   -m, --measure string    Which distance measure to use (raw, snp or tn93) (default "raw")
-  -n, --number int        (Optional) the closest n sequences to each query will be returned
-  -d, --max-dist string   (Optional) return all sequences less than or equal to this distance away (inf for no limit)
-  -o, --outfile string    The output file to write (default "stdout")
+  -n, --number int        Return the closest n --target sequences to each query (without --number or --max-dist, the single closest)
+  -d, --max-dist string   Return all the --target sequences this distance or less from each query (inf for no limit)
       --table             Write a long-form table of the output
       --strict            Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int       Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help              help for closest
 ```
  The available distance measures are `raw` (the default) which is the number of nucleotide differences <i>per site</i> ; `snp`, which is the total number of nucleotide differences, and `tn93`, which is [Tamura and Nei's (1993) evolutionary distance](https://academic.oup.com/mbe/article/10/3/512/1016366).
@@ -175,28 +173,28 @@ Use `gofasta updown topranking` to find the closest neighbours by (directional) 
 ```
 ❯ gofasta updown topranking -h | sed -n '/Flags/,$p'
 Flags:
-  -q, --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -t, --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format
-  -o, --outfile string           CSV-format file of closest neighbours to write (default "stdout")
-      --table                    write a long-form table of the output
-      --ignore string            Optional plain text file of IDs to ignore in the target file when searching for neighbours
-      --dist-all int             Maximum allowed SNP-distance between target and query sequence in any direction. Overrides the settings below
+      --query string             File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format (required)
+      --target string            File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format (required)
+      --ignore string            Plain text file of IDs of --target sequences to ignore when searching for neighbours
+  -r, --reference string         Reference sequence, in fasta format (required if --query or --target is a fasta file)
+  -o, --outfile string           Where to write the closest neighbours, in CSV format (default "stdout")
+      --table                    Write a long-form table of the output
+      --size-total int           Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit
+      --size-up int              Max number of closest parent sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --size-down int            Max number of closest child sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --size-side int            Max number of closest sibling sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --size-same int            Max number of identical sequences to find, if --size-total is not given. A soft limit unless --no-fill
+      --no-fill                  Don't make up for a shortfall in any of --size-up, --size-down, --size-side or --size-same by increasing the count for other bins
+      --dist-all int             Maximum allowed SNP-distance between a --query and a --target sequence in any direction. Overrides the settings below
       --dist-up int              Maximum allowed SNP-distance from query for sequences in the parent bin
       --dist-down int            Maximum allowed SNP-distance from query for sequences in the child bin
       --dist-side int            Maximum allowed SNP-distance from query for sequences in the sibling bin
-      --size-total int           Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit
-      --size-up int              Max number of closest parent sequences to find, if size-total not specified. A soft limit unless --no-fill
-      --size-down int            Max number of closest child sequences to find, if size-total not specified. A soft limit unless --no-fill
-      --size-side int            Max number of closest sibling sequences to find, if size-total not specified. A soft limit unless --no-fill
-      --size-same int            Max number of identical sequences to find, if size-total not specified. A soft limit unless --no-fill
+      --dist-push int            Push the --dist-all, --dist-up, --dist-down and --dist-side boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible
       --threshold-pair float32   Up to this proportion of consequential sites is allowed to be ambiguous in either sequence for each pairwise comparison (default 0.1)
-      --threshold-target int     Target can have at most this number of ambiguities to be considered (default 10000)
-      --dist-push int            Push the --dist boundaries outwards so that bins have at least these many closest SNP-distances for which there are neighbours, where possible
-      --no-fill                  Don't make up for a shortfall in any of --size-up, -down, -side or -same by increasing the count for other bins
+      --threshold-target int     A --target sequence can have at most this number of ambiguities to be considered (default 10000)
+      --strict                   Stop with an error at the first record that can't be processed, instead of warning and skipping it
+  -t, --threads int              Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
   -h, --help                     help for topranking
-
-Global Flags:
-  -r, --reference string   Reference sequence, in fasta format, which is treated as the root of the imaginary tree
 ```
 
 This routine has the potential to be faster than traditional genetic distance measures. It uses patterns of derived mutations to make inferences about the likely phylogenetic relationships between closely related sequences. Briefly, sequences are compressed so that they are represented by only their ATGC nucleotide differences from a common reference sequence, which is treated like the root of an imaginary tree. SNPs can either be unique to the query sequence, unique to the target sequence, or present in the intersection of the two. SNPs present in the intersection are interpreted as representing shared ancestry between query and target, whereas an excess of SNPs in either the query or target set can be interpreted to give directionality relative to a root sequence. See [the Civet preprint](https://www.medrxiv.org/content/10.1101/2021.12.13.21267267v1) for a detailed explanation of the scheme (Figure 2 and Figure S1). 
