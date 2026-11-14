@@ -109,12 +109,19 @@ func indelWindows(slots []cdsSlot) []indelWindow {
 	return windows
 }
 
+// restoreWithin is how far (in codons, from the last codon of one to the first of the next) a frameshifting
+// indel window is joined with the indels after it that restore the frame
+const restoreWithin = 3
+
 // getIndelAAsPair finds the amino acid changes caused by in-frame indels in one CDS: deleted residues
 // (aa:GENE:H69-), inserted residues (aa:GENE:214EPE, inserted after residue 214) and residues changed
 // next to them (aa:GENE:E156G). It returns those changes, the nucleotide changes in the codons the indels
 // touch that are not part of one of them, and the codons it has dealt with, which getAAsPair must skip.
-// Residues after a stop codon in the query are not reported. Indels are left alone (no amino acid change is reported for them, and their codons are not dealt with
-// here) if they shift the reading frame, come after one that does, run outside the CDS (at its ends, or
+// Residues after a stop codon in the query are not reported. Indels that shift the reading frame are taken together with the indels that follow within
+// restoreWithin codons, until the frame is restored; the codons from the first to the last are then one
+// window, translated as a whole. Indels are left alone (no amino acid change is reported for them, and
+// their codons are not dealt with here) if they shift the reading frame and it is not restored, come after
+// one that does, run outside the CDS (at its ends, or
 // from one of its parts into the bases between two parts: an intron, which removes the splice site, or a
 // base skipped by a +1 frameshift), touch a missing stretch of the query (N, or uncovered ends), or touch
 // the start codon (a first residue M) or the stop codon (a last residue *).
@@ -185,12 +192,8 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 		return false
 	}
 
-	frameshifted := false
-	for _, w := range indelWindows(slots) {
-		if w.last >= nCodons {
-			continue
-		}
-		deleted, inserted, missing := 0, 0, false
+	// count returns the bases deleted and inserted in w, and whether it touches missing data
+	count := func(w indelWindow) (deleted, inserted int, missing bool) {
 		for k := 3 * w.first; k < 3*w.last+3; k++ {
 			if slots[k].missing {
 				missing = true
@@ -200,6 +203,25 @@ func getIndelAAsPair(ref, query []byte, region Region, offsetRefCoord []int) ([]
 			if k < 3*w.last+2 {
 				inserted += len(slots[k].inserted)
 			}
+		}
+		return deleted, inserted, missing
+	}
+
+	frameshifted := false
+	windows := indelWindows(slots)
+	for i := 0; i < len(windows); i++ {
+		w := windows[i]
+		if w.last >= nCodons {
+			continue
+		}
+		deleted, inserted, missing := count(w)
+		// a window that shifts the frame is joined with the next one while that starts within
+		// restoreWithin codons of it, until the frame is restored; if it is not, the frame stays shifted
+		for (inserted-deleted)%3 != 0 && i+1 < len(windows) && windows[i+1].first-w.last <= restoreWithin &&
+			windows[i+1].last < nCodons {
+			i++
+			w.last = windows[i].last
+			deleted, inserted, missing = count(w)
 		}
 		if (inserted-deleted)%3 != 0 {
 			frameshifted = true

@@ -82,6 +82,9 @@ func TestInFrameIndelAAsPlusStrand(t *testing.T) {
 	repRef, repQue := ins(ref, 12, "CAT")
 	stopRef, stopQue := ins(ref, 11, "CTG")
 	stopCodonRef, stopCodonQue := ins(ref, 12, "TAA")
+	// a 1-base deletion at 7 and a 1-base insertion after 11 (the row is unchanged in length by del)
+	restoreRef, _ := ins(ref, 11, "G")
+	_, restoreQue := ins(del(ref, 7, 7), 11, "G")
 	for _, tc := range []struct {
 		name, refRow, queRow, want string
 	}{
@@ -95,6 +98,12 @@ func TestInFrameIndelAAsPlusStrand(t *testing.T) {
 		{"inserted stop codon: nothing after it", stopCodonRef, stopCodonQue, "ins:12:3|aa:g:H5*"},
 		{"frameshift: no amino acid call", ref, del(ref, 7, 7), "del:7:1"},
 		{"after a frameshift: no amino acid call", ref, del(del(ref, 7, 7), 13, 15), "del:7:1|del:13:3"},
+		{"frame restored in the next codon", ref, del(del(ref, 7, 7), 11, 12), "aa:g:F3S|del:7:1|aa:g:R4-|del:11:2"},
+		{"frame restored 3 codons on", ref, del(del(ref, 7, 7), 17, 18), "aa:g:F3S|del:7:1|aa:g:R4D|aa:g:H5I|aa:g:H6-|del:17:2"},
+		{"frame restored 4 codons on: still a frameshift", ref, del(del(ref, 7, 7), 20, 21), "del:7:1|del:20:2"},
+		{"frame restored by three 1-base deletions", ref, del(del(del(ref, 7, 7), 11, 11), 14, 14), "aa:g:F3S|del:7:1|aa:g:R4T|del:11:1|aa:g:H5-|del:14:1"},
+		{"indel after a restored frame is called", ref, del(del(del(ref, 7, 7), 11, 12), 16, 18), "aa:g:F3S|del:7:1|aa:g:R4-|del:11:2|del:16:3|aa:g:H7-"},
+		{"insertion restores a deletion's frame", restoreRef, restoreQue, "aa:g:F3S|del:7:1|aa:g:R4G|ins:11:1"},
 		{"touches the stop codon", ref, del(ref, 22, 27), "del:22:6"},
 		{"touches the start codon", ref, del(ref, 2, 4), "del:2:3"},
 		{"SNP in the window is part of the call", ref, snp(del(ref, 5, 10), 4, "T"), "aa:g:E2*|del:5:6|aa:g:F3-|aa:g:R4-"},
@@ -135,6 +144,7 @@ func TestInFrameIndelAAsMinusStrand(t *testing.T) {
 		{"deletion across codons changes a residue", ref, del(ref, 21, 26), "aa:g:R4-|del:21:6|aa:g:F3-|aa:g:E2G"},
 		{"deletion in a repeat is placed 3'", ref, del(ref, 16, 18), "aa:g:H7-|del:16:3"},
 		{"codon insertion", insRef, insQue, "ins:18:3|aa:g:4A"},
+		{"frame restored in the next codon", ref, del(del(ref, 24, 24), 19, 20), "del:19:2|aa:g:R4-|aa:g:F3S|del:24:1"},
 	} {
 		if got := callPair(t, tc.refRow, tc.queRow, r, false); got != tc.want {
 			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
