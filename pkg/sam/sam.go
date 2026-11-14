@@ -89,6 +89,10 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 	site := make([]byte, len(block))
 
 	for j := range block[0] {
+		if b, ok := agreedNuc(block, j); ok {
+			seq[j] = b
+			continue
+		}
 		for i := range block {
 			site[i] = block[i][j]
 		}
@@ -96,6 +100,27 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 	}
 
 	return seq
+}
+
+// agreedNuc returns what getNucFromSite would for column j of block when every row has the same byte
+// there, or '*' (not covered): that byte, or the larger of it and '*' where some rows have '*'. It
+// reports false if two rows have different bytes other than '*', for getNucFromSite to settle.
+func agreedNuc(block [][]byte, j int) (byte, bool) {
+	v, star := byte('*'), false
+	for _, row := range block {
+		switch b := row[j]; {
+		case b == '*':
+			star = true
+		case v == '*':
+			v = b
+		case b != v:
+			return 0, false
+		}
+	}
+	if star {
+		v = max(v, '*')
+	}
+	return v, true
 }
 
 // getSeqFromBlock gets the aligned sequence of one query from its SAM records, flattening them into one
