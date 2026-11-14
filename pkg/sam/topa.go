@@ -253,7 +253,8 @@ func writePair(w io.Writer, AP alignPair, wrapWidth int, omitRef bool) error {
 
 // pairFileName is the name of the file a query's alignment is written to: its name with '/' (not
 // allowed in file names) replaced by '_', cut to 249 bytes (at a character boundary) so that, with
-// ".fasta", it fits the usual 255-byte limit. It also reports whether the name was cut.
+// ".fasta", it fits the usual 255-byte limit. It also reports whether the name was cut. (A QNAME is
+// printable ASCII, so the character boundary matters only for names that do not come from a SAM file.)
 func pairFileName(queryname string) (string, bool) {
 	des := strings.ReplaceAll(queryname, "/", "_")
 	if len(des) <= 249 {
