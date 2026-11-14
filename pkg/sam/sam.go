@@ -13,13 +13,11 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
 	"sync"
 
-	biogosam "github.com/biogo/hts/sam"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
 )
 
@@ -28,7 +26,8 @@ import (
 // the order of the input when we parallelise
 type samRecords struct {
 	name    string // the query's name (QNAME)
-	records []biogosam.Record
+	records []samRecord
+	refName string // the name of the reference (the first @SQ) they are mapped to
 	idx     int
 	err     error // why one of the query's lines could not be parsed, if one could not
 }
@@ -97,7 +96,7 @@ func checkAndGetFlattenedSeq(block [][]byte, qname string) []byte {
 
 // getSeqFromBlock gets the aligned sequence of one query from its SAM records, flattening them into one
 // sequence if there is more than one
-func getSeqFromBlock(records []biogosam.Record, refLen int, includeInsertions bool) ([]byte, error) {
+func getSeqFromBlock(records []samRecord, refLen int, includeInsertions bool) ([]byte, error) {
 	block := make([][]byte, len(records))
 	for i, line := range records {
 		row, _, err := alignRecord(line, nil, refLen, includeInsertions)
@@ -149,44 +148,15 @@ func swapInGapsNs(seq []byte) []byte {
 	return seq
 }
 
-// parseSamHeader parses the header lines of a sam file. The biogo sam parser panics on some malformed
-// input (as well as returning errors), so panics are turned into errors.
-func parseSamHeader(text []byte) (h *biogosam.Header, err error) {
-	defer func() {
-		if p := recover(); p != nil {
-			err = fmt.Errorf("error parsing the sam header: %v", p)
-		}
-	}()
-	h, err = biogosam.NewHeader(nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	if err := h.UnmarshalText(text); err != nil {
-		return nil, err
-	}
-	return h, nil
-}
-
-// parseSamRecord parses one alignment line of a sam file, turning panics in the biogo parser into errors
-func parseSamRecord(h *biogosam.Header, line []byte) (rec biogosam.Record, err error) {
-	defer func() {
-		if p := recover(); p != nil {
-			err = fmt.Errorf("error parsing a sam record: %v", p)
-		}
-	}()
-	err = rec.UnmarshalSAM(h, line)
-	return rec, err
-}
-
 // validateRecord checks that a mapped sam record is internally consistent and fits the reference, so that
 // the code that builds alignments from CIGAR strings can index its sequence without going out of range.
-func validateRecord(rec *biogosam.Record, refLen int) error {
+func validateRecord(rec *samRecord, refLen int) error {
 
 	bad := func(msg string) error {
 		return errors.New("bad sam record: " + msg)
 	}
 
-	if rec.Ref == nil {
+	if rec.Ref < 0 {
 		return bad("no reference sequence (RNAME is *) but not flagged as unmapped")
 	}
 	if rec.Pos < 0 {
@@ -195,18 +165,17 @@ func validateRecord(rec *biogosam.Record, refLen int) error {
 
 	for _, op := range rec.Cigar {
 		switch op.Type() {
-		case biogosam.CigarMatch, biogosam.CigarEqual, biogosam.CigarMismatch, biogosam.CigarInsertion,
-			biogosam.CigarSoftClipped, biogosam.CigarDeletion, biogosam.CigarSkipped, biogosam.CigarHardClipped,
-			biogosam.CigarPadded:
+		case cigarMatch, cigarEqual, cigarMismatch, cigarInsertion, cigarSoftClipped, cigarDeletion, cigarSkipped,
+			cigarHardClipped, cigarPadded:
 		default:
 			return bad("unsupported CIGAR operation " + op.Type().String())
 		}
 	}
-	refSpan, queryLen := rec.Cigar.Lengths()
+	refSpan, queryLen := cigarLengths(rec.Cigar)
 	refEnd := rec.Pos + refSpan
 
-	if queryLen != rec.Seq.Length {
-		return bad("the CIGAR string describes " + strconv.Itoa(queryLen) + " query bases but SEQ has " + strconv.Itoa(rec.Seq.Length))
+	if queryLen != len(rec.Seq) {
+		return bad("the CIGAR string describes " + strconv.Itoa(queryLen) + " query bases but SEQ has " + strconv.Itoa(len(rec.Seq)))
 	}
 	if refEnd > refLen {
 		return bad("the alignment extends beyond the end of the reference (" + strconv.Itoa(refEnd) + " > " + strconv.Itoa(refLen) + ")")
@@ -219,7 +188,7 @@ func validateRecord(rec *biogosam.Record, refLen int) error {
 // kept with the query they were read with, so that they can be written in input order with the
 // pipeline's own warnings (see withNotes).
 type samSource struct {
-	header biogosam.Header
+	header samHeader
 	next   func() (samRecords, error)
 
 	mu    sync.Mutex
@@ -313,7 +282,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(h.Refs()) == 0 {
+	if len(h.refs) == 0 {
 		return nil, errors.New("no reference sequence (@SQ line) in the sam header")
 	}
 
@@ -332,7 +301,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 	// a parsed line: its QNAME, and the record or why it could not be parsed
 	type samLine struct {
 		name string
-		rec  biogosam.Record
+		rec  samRecord
 		err  error
 	}
 
@@ -347,23 +316,23 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 				continue
 			}
 			name, _, _ := bytes.Cut(line, []byte{'\t'})
-			rec, err := parseSamRecord(h, line)
+			rec, err := h.parseRecord(line)
 			if err != nil {
 				return samLine{name: string(name), err: err}, nil
 			}
 			// the third bit (== 4) in the sam flag is set if the read is unmapped
-			if ((rec.Flags >> 2) & 1) == 1 {
+			if rec.Flags&flagUnmapped != 0 {
 				src.note(noteIdx(), "skipping unmapped read: "+rec.Name+"\n")
 				continue
 			}
 			// the 9th bit (== 256) in the sam flag is set if the mapping is secondary
-			if ((rec.Flags >> 8) & 1) == 1 {
+			if rec.Flags&flagSecondary != 0 {
 				src.note(noteIdx(), "ignoring secondary mapping: "+rec.Name+"\n")
 				continue
 			}
 			// only one reference sequence is supported: records mapped to any other @SQ are skipped
-			if rec.Ref != nil && rec.Ref.ID() != 0 {
-				src.note(noteIdx(), "skipping record mapped to a reference other than the first @SQ ("+rec.Ref.Name()+"): "+rec.Name+"\n")
+			if rec.Ref > 0 {
+				src.note(noteIdx(), "skipping record mapped to a reference other than the first @SQ ("+h.refs[rec.Ref].Name+"): "+rec.Name+"\n")
 				continue
 			}
 			return samLine{name: string(name), rec: rec}, nil
@@ -374,7 +343,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 	finished := false
 
 	next := func() (samRecords, error) {
-		group := samRecords{idx: counter}
+		group := samRecords{idx: counter, refName: h.refs[0].Name}
 		started = false
 		for !finished {
 			var l samLine
@@ -422,7 +391,7 @@ func newSamSource(sam io.Reader) (*samSource, error) {
 
 // checkRefLength checks that a reference sequence of length n is as long as the sam header's (first) @SQ
 func (s *samSource) checkRefLength(n int) error {
-	if l := s.header.Refs()[0].Len(); l != n {
+	if l := s.header.refs[0].Length; l != n {
 		return errors.New("the length of the reference sequence (" + strconv.Itoa(n) + ") does not match the length in the sam header (" + strconv.Itoa(l) + ")")
 	}
 	return nil

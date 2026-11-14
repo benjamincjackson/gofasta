@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	biogosam "github.com/biogo/hts/sam"
 )
 
 // pairAlignFromSam runs one query's SAM records through the same steps as toPairAlign (grouping the records
@@ -30,18 +28,8 @@ func pairAlignFromSamUnresolved(t *testing.T, samText string, ref string) alignP
 func pairAlignFromSamWith(t *testing.T, samText string, ref string, resolve bool) alignPair {
 	t.Helper()
 
-	r, err := biogosam.NewReader(strings.NewReader(samText))
-	if err != nil {
-		t.Fatal(err)
-	}
-	group := samRecords{}
-	for {
-		rec, err := r.Read()
-		if err != nil {
-			break
-		}
-		group.records = append(group.records, *rec)
-	}
+	h, recs := readTestSam(t, samText)
+	group := samRecords{records: recs, refName: h.refs[0].Name}
 	if resolve {
 		group.records = resolveOverlaps(group.records)
 	}
@@ -242,4 +230,31 @@ func TestBlockToSeqPairRandomisedConsistency(t *testing.T) {
 			}
 		}
 	}
+}
+
+// readTestSam parses SAM text (header lines, then records) with the package's parser
+func readTestSam(t *testing.T, text string) (*samHeader, []samRecord) {
+	t.Helper()
+	var header []byte
+	var lines []string
+	for _, l := range strings.Split(strings.TrimRight(text, "\n"), "\n") {
+		if strings.HasPrefix(l, "@") {
+			header = append(append(header, l...), '\n')
+		} else if l != "" {
+			lines = append(lines, l)
+		}
+	}
+	h, err := parseSamHeader(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recs []samRecord
+	for _, l := range lines {
+		r, err := h.parseRecord([]byte(l))
+		if err != nil {
+			t.Fatalf("%v\n%s", err, l)
+		}
+		recs = append(recs, r)
+	}
+	return h, recs
 }

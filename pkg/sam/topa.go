@@ -16,8 +16,6 @@ import (
 	"github.com/virus-evolution/gofasta/pkg/fasta"
 	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"github.com/virus-evolution/gofasta/pkg/pipeline"
-
-	biogosam "github.com/biogo/hts/sam"
 )
 
 // alignPair is a struct for storing an aligned reference & query sequence pair
@@ -111,17 +109,17 @@ func padTo(rows [][]byte, n int) [][]byte {
 // blockToSeqPair merges the aligned rows of one query's sam records (refRows[i] and queRows[i] from
 // records[i], each with its own insertions) into one pairwise alignment between the reference and the
 // query, including the query's insertions relative to the reference
-func blockToSeqPair(refRows, queRows [][]byte, records []biogosam.Record, ref []byte) alignPair {
+func blockToSeqPair(refRows, queRows [][]byte, records []samRecord, ref []byte) alignPair {
 	// every insertion in every record. Each row already has its own insertions; the other rows must be
 	// gapped for them, in order, left-most first.
 	insertions := make([]insertionOccurence, 0)
 	for i, r := range records {
 		pos := r.Pos
 		for _, op := range r.Cigar {
-			if op.Type() == biogosam.CigarInsertion {
+			if op.Type() == cigarInsertion {
 				insertions = append(insertions, insertionOccurence{start: pos, length: op.Len(), rowNumber: i})
 			}
-			if op.Type().Consumes().Reference == 1 {
+			if _, r := op.Type().consumes(); r == 1 {
 				pos += op.Len()
 			}
 		}
@@ -169,7 +167,7 @@ func blockToSeqPair(refRows, queRows [][]byte, records []biogosam.Record, ref []
 func blockToPairwiseAlignment(group samRecords, ref []byte, omitIns bool) (alignPair, error) {
 
 	qname := group.records[0].Name
-	refname := string(group.records[0].Ref.Name())
+	refname := group.refName
 
 	if omitIns {
 		Q := make([][]byte, 0, len(group.records))

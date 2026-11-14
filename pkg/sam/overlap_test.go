@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	biogosam "github.com/biogo/hts/sam"
 )
 
 // Where the records of one query overlap in reference coordinates, the alignment of the record that comes
@@ -148,7 +146,7 @@ func TestResolveOverlapsRandomised(t *testing.T) {
 		for i := range ref {
 			ref[i] = "ACGT"[rng.Intn(4)]
 		}
-		var recs []biogosam.Record
+		var recs []samRecord
 		for k := 0; k < 1+rng.Intn(4); k++ {
 			pos := rng.Intn(L - 20)
 			var cigar []string
@@ -185,21 +183,14 @@ func TestResolveOverlapsRandomised(t *testing.T) {
 			}
 			text := "@SQ\tSN:ref\tLN:" + strconv.Itoa(L) + "\n" +
 				fmt.Sprintf("q\t%d\tref\t%d\t60\t%s\t*\t0\t0\t%s\t*\n", 0, pos+1, strings.Join(cigar, ""), seq)
-			r, err := biogosam.NewReader(strings.NewReader(text))
-			if err != nil {
-				t.Fatal(err)
-			}
-			rr, err := r.Read()
-			if err != nil {
-				t.Fatalf("%v\n%s", err, text)
-			}
-			recs = append(recs, *rr)
+			_, rr := readTestSam(t, text)
+			recs = append(recs, rr...)
 		}
 		if len(recs) == 0 {
 			continue
 		}
 
-		out := resolveOverlaps(append([]biogosam.Record(nil), recs...))
+		out := resolveOverlaps(append([]samRecord(nil), recs...))
 
 		// the owner of every reference position, from the original records
 		owner := make([]byte, L)
@@ -213,15 +204,15 @@ func TestResolveOverlapsRandomised(t *testing.T) {
 		}
 		got := make([]byte, L)
 		for _, r := range out {
-			_, qlen := r.Cigar.Lengths()
+			_, qlen := cigarLengths(r.Cigar)
 			hard := 0
 			for _, op := range r.Cigar {
-				if op.Type() == biogosam.CigarHardClipped {
+				if op.Type() == cigarHardClipped {
 					hard += op.Len()
 				}
 			}
-			if qlen-hard != len(r.Seq.Expand()) {
-				t.Fatalf("iteration %d: CIGAR %v and SEQ (%d) disagree", iter, r.Cigar, len(r.Seq.Expand()))
+			if qlen-hard != len(r.Seq) {
+				t.Fatalf("iteration %d: CIGAR %v and SEQ (%d) disagree", iter, r.Cigar, len(r.Seq))
 			}
 			for i, b := range referenceView(r) {
 				if b == 0 {

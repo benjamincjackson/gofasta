@@ -1,0 +1,2 @@
+go test fuzz v1
+string("@HD\tVN:0\n@HD\t00:")
