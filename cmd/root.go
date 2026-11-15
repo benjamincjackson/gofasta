@@ -7,8 +7,9 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/virus-evolution/gofasta/pkg/gfio"
 	"os"
+
+	"github.com/virus-evolution/gofasta/pkg/gfio"
 
 	"github.com/spf13/cobra"
 )
@@ -28,7 +29,7 @@ If you use gofasta in your work, please cite:
 
 Jackson B (2022). gofasta: command-line utilities for genomic epidemiology research. Bioinformatics 38 (16), 4033-4035
 https://doi.org/10.1093/bioinformatics/btac424`,
-		Version: "1.2.3",
+		Version: "2.0.0pre",
 	}
 	root.AddCommand(newClosestCmd(), newSNPsCmd(), newVariantsCmd(), newSamCmd(), newUpdownCmd(), newLicencesCmd())
 	requiredFlagsFirst(root)
