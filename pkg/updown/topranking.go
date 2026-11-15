@@ -226,7 +226,7 @@ func (t targetIn) RecordName() string {
 // of which should be returned in the output. Targets are split into bins depending on whether they are likely direct ancestors of,
 // direct descendants of, polyphyletic with, or exactly the same as, the query
 // threads is the number of goroutines that process records (fewer than 1 means 1).
-func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
+func TopRanking(query, target, root io.Reader, out io.Writer, table bool,
 	q_in_type, t_in_type string, ignoreArray []string,
 	sizetotal int, sizeup int, sizedown int, sizeside int, sizesame int,
 	distall int, distup int, distdown int, distside int,
@@ -237,16 +237,16 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		return err
 	}
 
-	var refSeq []byte
+	var rootSeq []byte
 	if q_in_type == "fasta" || t_in_type == "fasta" {
-		temp, err := fasta.LoadEncodeAlignment(reference, false, false, false)
+		temp, err := fasta.LoadEncodeAlignment(root, false, false, false)
 		if err != nil {
 			return err
 		}
 		if len(temp) > 1 {
-			return errors.New("More than one record in --reference")
+			return errMoreThanOneRootRecord
 		}
-		refSeq = temp[0].Seq
+		rootSeq = temp[0].Seq
 	}
 
 	var queries []updownLine
@@ -258,7 +258,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 			return err
 		}
 	case "fasta":
-		queries, err = fastaToUDLList(query, refSeq, threads, strict)
+		queries, err = fastaToUDLList(query, rootSeq, threads, strict)
 		if err != nil {
 			return err
 		}
@@ -303,7 +303,7 @@ func TopRanking(query, target, reference io.Reader, out io.Writer, table bool,
 		var t updownLine
 		var err error
 		if in.record != nil {
-			t, err = lineFromRecord(refSeq, *in.record, DA)
+			t, err = lineFromRecord(rootSeq, *in.record, DA)
 		} else {
 			t, err = parseCSVRow(in.row)
 		}

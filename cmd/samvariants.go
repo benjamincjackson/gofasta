@@ -23,14 +23,14 @@ func newSamVariantsCmd() *cobra.Command {
 	var o samVariantsOptions
 	c := &cobra.Command{
 		Use:   "variants",
-		Short: "Annotate mutations relative to a reference from an alignment in sam format",
-		Long: `Annotate mutations relative to a reference from an alignment in sam format
+		Short: "Annotate mutations relative to a reference from alignments in SAM format",
+		Long: `Annotate mutations relative to a reference from alignments in SAM format
 
 Example usage:
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gb -o variants.csv
 	gofasta sam variants -s aligned.sam -r reference.fasta -a annotation.gff -o variants.csv
 
-If --samfile and --outfile are not given, the sam file is read from stdin and the variants are written to
+If --samfile and --outfile are not given, the SAM file is read from stdin and the variants are written to
 stdout.
 
 --reference should be the same sequence that was used to make the --samfile alignment, and should be in the

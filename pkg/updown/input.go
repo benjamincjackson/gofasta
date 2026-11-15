@@ -150,29 +150,29 @@ func readCSVToUDLList(in io.Reader, threads int, strict bool) ([]updownLine, err
 }
 
 // fastaToUDLList converts a fasta format alignment to an array of updownLine
-// structs, given a reference sequence, each of which contains the snps and
+// structs, given a root sequence, each of which contains the snps and
 // ambiguous positions for one query or target sequence
-func fastaToUDLList(in io.Reader, refSeq []byte, threads int, strict bool) ([]updownLine, error) {
+func fastaToUDLList(in io.Reader, rootSeq []byte, threads int, strict bool) ([]updownLine, error) {
 	DA := encoding.MakeDecodingArray()
-	work := func(record fasta.Record) (updownLine, error) { return lineFromRecord(refSeq, record, DA) }
+	work := func(record fasta.Record) (updownLine, error) { return lineFromRecord(rootSeq, record, DA) }
 	return collectQueries(fasta.NewRecordSource(in), work, threads, strict)
 }
 
 // lineFromRecord encodes a fasta record and gets its mutation and ambiguity lists
-func lineFromRecord(refSeq []byte, record fasta.Record, DA [256]string) (updownLine, error) {
+func lineFromRecord(rootSeq []byte, record fasta.Record, DA [256]string) (updownLine, error) {
 	FR, err := record.Encode()
 	if err != nil {
 		return updownLine{}, pipeline.Named(record.ID, err)
 	}
-	udL, err := getLine(refSeq, FR, DA)
+	udL, err := getLine(rootSeq, FR, DA)
 	return udL, pipeline.Named(record.ID, err)
 }
 
-// getLine gets the mutation and ambiguity lists between the reference and one fasta record
-func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine, error) {
+// getLine gets the mutation and ambiguity lists between the root and one fasta record
+func getLine(rootSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine, error) {
 
-	if len(FR.Seq) != len(refSeq) {
-		return updownLine{}, errors.New("alignment and reference are not the same width")
+	if len(FR.Seq) != len(rootSeq) {
+		return updownLine{}, errors.New("alignment and root are not the same width")
 	}
 
 	var (
@@ -187,11 +187,11 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 
 	const known = 0x0808080808080808 // bit 3 (a known base) in every byte
 	for i := 0; i < len(FR.Seq); i++ {
-		// skip eight sites at a time where the query is the reference, every base known, outside a
+		// skip eight sites at a time where the query is the root, every base known, outside a
 		// tract of ambiguities
 		for !cont && i+8 <= len(FR.Seq) {
 			q := binary.LittleEndian.Uint64(FR.Seq[i:])
-			if q != binary.LittleEndian.Uint64(refSeq[i:]) || q&known != known {
+			if q != binary.LittleEndian.Uint64(rootSeq[i:]) || q&known != known {
 				break
 			}
 			i += 8
@@ -203,9 +203,9 @@ func getLine(refSeq []byte, FR fasta.EncodedRecord, DA [256]string) (updownLine,
 
 		// if query nucleotide is a known base
 		if que_nuc&8 == 8 {
-			// if it is different from the reference:
-			if (refSeq[i] & que_nuc) < 16 {
-				snps = append(snps, DA[refSeq[i]]+strconv.Itoa(i+1)+DA[que_nuc])
+			// if it is different from the root:
+			if (rootSeq[i] & que_nuc) < 16 {
+				snps = append(snps, DA[rootSeq[i]]+strconv.Itoa(i+1)+DA[que_nuc])
 				snpPos = append(snpPos, i+1)
 			}
 			// also need to finalise any previous ambiguity tract

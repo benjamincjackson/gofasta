@@ -9,8 +9,8 @@ import (
 func newUpdownCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "updown",
-		Short: "Get pseudo-tree-aware catchments for query sequences from alignments",
-		Long:  `Get pseudo-tree-aware catchments for query sequences from alignments`,
+		Short: updownHelpShort,
+		Long:  updownHelpShort,
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Args is MinimumNArgs(1), so there is always an argument here, and it is not a subcommand
@@ -22,3 +22,5 @@ func newUpdownCmd() *cobra.Command {
 	c.AddCommand(newUpdownListCmd(), newToprankingCmd())
 	return c
 }
+
+const updownHelpShort = "Get pseudo-phylogenetic-tree-aware neighbours by genetic distance from alignments"

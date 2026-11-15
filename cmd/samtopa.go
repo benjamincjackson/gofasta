@@ -23,16 +23,16 @@ func newToPairAlignCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:     "toPairAlign",
 		Aliases: []string{"topairalign", "topa"},
-		Short:   "Convert a SAM file to pairwise alignments in fasta format",
-		Long: `Convert a SAM file to pairwise alignments in fasta format
+		Short:   "Convert pairwise alignments in SAM format to fasta format",
+		Long: `Convert pairwise alignments in SAM format to fasta format
 
 Each query is written as a pairwise alignment with the reference: the reference sequence first (unless
 --omit-reference), then the query. Unlike toMultiAlign, insertions relative to the reference are kept (unless
-you use --skip-insertions), so the output alignment can be longer than the reference. External alignment gaps
+--skip-insertions), so the output alignment can be longer than the reference. External alignment gaps
 are always written as N.
 
 --reference must be the fasta file that was used to make the --samfile alignment, and its sequence must be the
-same length as the @SQ line in the sam header.
+same length as the @SQ line in the SAM header.
 
 Example usage:
 	gofasta sam toPairAlign -s aligned.sam -r reference.fasta -o alignments

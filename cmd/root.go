@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"runtime"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -32,6 +31,7 @@ https://doi.org/10.1093/bioinformatics/btac424`,
 		Version: "2.0.0pre",
 	}
 	root.AddCommand(newClosestCmd(), newSNPsCmd(), newVariantsCmd(), newSamCmd(), newUpdownCmd(), newLicencesCmd())
+	root.CompletionOptions.DisableDefaultCmd = true
 	requiredFlagsFirst(root)
 	silenceUsageOnceRunning(root)
 	return root
@@ -98,32 +98,6 @@ func oneStdin(cmd *cobra.Command) error {
 		return errors.New("only one input can be read from stdin, but " + strings.Join(stdin[:len(stdin)-1], ", ") + " and " + stdin[len(stdin)-1] + " are all stdin")
 	}
 	return nil
-}
-
-// threadsUsage is the description of every command's -t, --threads flag, whose default, 0, means all CPUs
-const threadsUsage = "Number of threads (and CPUs) to use (the default, 0, uses all CPUs)"
-
-// addThreadsFlag adds -t, --threads to flags (a command's flags, or a parent's persistent flags), setting
-// *threads
-func addThreadsFlag(flags *pflag.FlagSet, threads *int) {
-	flags.IntVarP(threads, "threads", "t", 0, threadsUsage)
-}
-
-// resolveThreads returns the number of threads to use for -t threads (0 for all CPUs), and limits the
-// CPUs gofasta uses to it, so that -t also limits the CPUs used (e.g. -t 1 on a shared machine)
-func resolveThreads(threads int) int {
-	n := runtime.NumCPU()
-	if threads > 0 && threads < n {
-		runtime.GOMAXPROCS(threads)
-		return threads
-	}
-	return n
-}
-
-// addStrictFlag adds the --strict flag, which each command that skips records it can't process has, to c,
-// setting *strict
-func addStrictFlag(c *cobra.Command, strict *bool) {
-	c.Flags().BoolVar(strict, "strict", false, "Stop with an error at the first record that can't be processed, instead of warning and skipping it")
 }
 
 // Execute builds the gofasta command and runs it with the program's arguments.

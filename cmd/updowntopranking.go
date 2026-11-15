@@ -14,7 +14,7 @@ import (
 
 // toprankingOptions holds the values of the flags of the command newToprankingCmd returns
 type toprankingOptions struct {
-	reference       string
+	root            string
 	threads         int
 	ignore          string
 	table           bool
@@ -39,21 +39,21 @@ func newToprankingCmd() *cobra.Command {
 	var o toprankingOptions
 	c := &cobra.Command{
 		Use:   "topranking",
-		Short: "Get pseudo-tree-aware catchments for query sequences from alignments",
-		Long: `Get pseudo-tree-aware catchments for query sequences from alignments
+		Short: updownHelpShort,
+		Long: updownHelpShort + `
 
 Example usage:
 	gofasta updown topranking --query smallquery.fasta -r WH04.fasta --target mutationlist.csv --size-total 1000 -o catchment.csv
 
 For each sequence in --query, this routine finds the closest sequences by SNP-distance in --target, binned
-according to whether they are likely children, parents, or siblings of, or on a polytomy with, the query
-sequence. It does this by comparing SNPs relative to a common reference sequence which is imagined to be the
+according to whether they are likely children, parents, siblings of, or on a polytomy with, the query
+sequence. It does this by comparing SNPs relative to a common sequence which is imagined to be the
 root of the tree.
 
 --query and --target can either be alignments in fasta format, or the CSV output of gofasta updown list, or
 one of each; which is worked out from their content, so they can be called anything, and either (but not both)
-can be stdin. If either is an alignment, you must provide --reference, and this should be the same sequence
-that was used by gofasta updown list.
+can be stdin. If either is an alignment, you must provide --root. If only one is an alignment, --root must be
+the same sequence that was used by gofasta updown list to generate the other file.
 
 Use --dist-all, or --dist-up, --dist-down and --dist-side, to filter on SNP-distances in each direction. As
 long as you haven't also used any of the --size-* flags (--size-total, --size-up, --size-down, --size-side,
@@ -78,7 +78,7 @@ set distance (as long as you haven't also invoked --dist-push).`,
 				intAtLeast(cmd, 0, "threads", "size-total", "size-up", "size-down", "size-side", "size-same",
 					"dist-all", "dist-up", "dist-down", "dist-side", "dist-push", "threshold-target"),
 				floatAtLeast(cmd, 0, "threshold-pair"),
-				outputNotInput(cmd, "outfile", "query", "target", "reference", "ignore"),
+				outputNotInput(cmd, "outfile", "query", "target", "root", "ignore"),
 				updown.CheckTopRankingArgs(o.sizeTotal, o.sizeUp, o.sizeDown, o.sizeSide, o.sizeSame,
 					o.distAll, o.distUp, o.distDown, o.distSide, o.distPush),
 			)
@@ -126,16 +126,16 @@ set distance (as long as you haven't also invoked --dist-push).`,
 				return errors.New("couldn't read --target: " + err.Error())
 			}
 
-			var ref io.ReadCloser // only read if a fasta file is given
+			var root io.ReadCloser // only read if a fasta file is given
 			if qtype == "fasta" || ttype == "fasta" {
-				if o.reference == "" {
-					return errors.New("--query or --target is a fasta file, so --reference must be given (the sequence used by gofasta updown list)")
+				if o.root == "" {
+					return errors.New("--query or --target is a fasta file, so --root must be given (the sequence used by gofasta updown list)")
 				}
-				ref, err = openIn(cmd, "reference")
+				root, err = openIn(cmd, "root")
 				if err != nil {
 					return err
 				}
-				defer ref.Close()
+				defer root.Close()
 			}
 
 			out, err := openOut(cmd, "outfile")
@@ -144,7 +144,7 @@ set distance (as long as you haven't also invoked --dist-push).`,
 			}
 			defer gfio.CloseOut(out, &err)
 
-			return updown.TopRanking(query, target, ref, out, o.table,
+			return updown.TopRanking(query, target, root, out, o.table,
 				qtype, ttype, ignoreArray,
 				o.sizeTotal, o.sizeUp, o.sizeDown, o.sizeSide, o.sizeSame,
 				o.distAll, o.distUp, o.distDown, o.distSide,
@@ -155,7 +155,7 @@ set distance (as long as you haven't also invoked --dist-push).`,
 	c.Flags().String("query", "", "File with sequences to find neighbours for. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	c.Flags().String("target", "", "File of sequences to look for neighbours in. Either the CSV output of gofasta updown list, or an alignment in fasta format")
 	c.Flags().StringVar(&o.ignore, "ignore", "", "Plain text file of IDs of --target sequences to ignore when searching for neighbours")
-	c.Flags().StringVarP(&o.reference, "reference", "r", "", "Reference sequence, in fasta format (required if --query or --target is a fasta file)")
+	c.Flags().StringVarP(&o.root, "root", "r", "", "Root sequence, in fasta format (required if --query or --target is a fasta file)")
 	addOutfileFlag(c, "the closest neighbours, in CSV format")
 	c.Flags().BoolVar(&o.table, "table", false, "Write a long-form table of the output")
 	c.Flags().IntVar(&o.sizeTotal, "size-total", 0, "Max number of neighbours to find (attempts to split equally between same/up/down/side). A hard limit")

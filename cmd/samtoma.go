@@ -21,8 +21,8 @@ func newToMultiAlignCmd() *cobra.Command {
 	c := &cobra.Command{
 		Use:     "toMultiAlign",
 		Aliases: []string{"tomultialign", "toma"},
-		Short:   "Convert a SAM file to a multiple alignment in fasta format",
-		Long: `Convert a SAM file to a multiple alignment in fasta format
+		Short:   "Convert pairwise alignments in SAM format to a single alignment in fasta format",
+		Long: `Convert pairwise alignments in SAM format to a single alignment in fasta format
 
 Insertions relative to the reference are omitted, so all sequences in the output are the same ( = reference)
 length.
@@ -33,7 +33,7 @@ Example usage:
 If you want, you can trim (and optionally pad) the output alignment to coordinates of your choosing:
 	gofasta sam toMultiAlign -s aligned.sam --start 266 --end 29674 --pad -o aligned.fasta
 
-If --samfile and --outfile are not given, the sam file is read from stdin and the alignment is written to
+If --samfile and --outfile are not given, the SAM file is read from stdin and the alignment is written to
 stdout, e.g.:
 	minimap2 -a -x asm20 --score-N=0 reference.fasta unaligned.fasta | gofasta sam toMultiAlign > aligned.fasta`,
 

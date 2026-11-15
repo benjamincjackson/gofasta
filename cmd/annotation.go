@@ -24,9 +24,9 @@ func addAnnotationFlags(c *cobra.Command, a *annotationOptions, required bool) {
 	if required {
 		need = " (required, unless --genbank or --gff)"
 	}
-	c.Flags().StringVarP(&a.annotation, "annotation", "a", "", "GenBank or GFF3 annotation file, its format taken from its suffix: .gb, .gbk, .gbff, .gff or .gff3 (optionally followed by .gz)"+need)
-	c.Flags().StringVar(&a.genbank, "genbank", "", "GenBank annotation file, whatever it is called (instead of --annotation)")
-	c.Flags().StringVar(&a.gff, "gff", "", "GFF3 annotation file, whatever it is called (instead of --annotation)")
+	c.Flags().StringVarP(&a.annotation, "annotation", "a", "", "GenBank or GFF3 annotation file, with suffix: .gb, .gbk, .gbff, .gff or .gff3 [.gz]"+need)
+	c.Flags().StringVar(&a.genbank, "genbank", "", "GenBank annotation file, with any file extension (instead of --annotation)")
+	c.Flags().StringVar(&a.gff, "gff", "", "GFF3 annotation file, with any file extension (instead of --annotation)")
 }
 
 // checkAnnotationFlags checks that at most one annotation flag was given, and if required, that one was

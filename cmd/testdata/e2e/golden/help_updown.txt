@@ -1,7 +1,7 @@
 args: updown --help
 exit: 0
 --- stdout
-Get pseudo-tree-aware catchments for query sequences from alignments
+Get pseudo-phylogenetic-tree-aware neighbours by genetic distance from alignments
 
 Usage:
   gofasta updown [flags]
@@ -9,7 +9,7 @@ Usage:
 
 Available Commands:
   list        Generate input CSV files for gofasta updown topranking
-  topranking  Get pseudo-tree-aware catchments for query sequences from alignments
+  topranking  Get pseudo-phylogenetic-tree-aware neighbours by genetic distance from alignments
 
 Flags:
   -h, --help   help for updown

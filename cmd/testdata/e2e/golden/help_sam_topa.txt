@@ -1,15 +1,15 @@
 args: sam toPairAlign --help
 exit: 0
 --- stdout
-Convert a SAM file to pairwise alignments in fasta format
+Convert pairwise alignments in SAM format to fasta format
 
 Each query is written as a pairwise alignment with the reference: the reference sequence first (unless
 --omit-reference), then the query. Unlike toMultiAlign, insertions relative to the reference are kept (unless
-you use --skip-insertions), so the output alignment can be longer than the reference. External alignment gaps
+--skip-insertions), so the output alignment can be longer than the reference. External alignment gaps
 are always written as N.
 
 --reference must be the fasta file that was used to make the --samfile alignment, and its sequence must be the
-same length as the @SQ line in the sam header.
+same length as the @SQ line in the SAM header.
 
 Example usage:
 	gofasta sam toPairAlign -s aligned.sam -r reference.fasta -o alignments
@@ -35,6 +35,6 @@ Flags:
       --end int            1-based last position (in reference coordinates) to keep in the output. Bases after it are omitted
   -w, --wrap int           Wrap the output alignment to this number of nucleotides wide. Omit this option not to wrap the output.
       --strict             Stop with an error at the first record that can't be processed, instead of warning and skipping it
-  -t, --threads int        Number of threads (and CPUs) to use (the default, 0, uses all CPUs)
+  -t, --threads int        Number of threads (and CPUs) to use (with no flag, all CPUs are used)
   -h, --help               help for toPairAlign
 --- stderr

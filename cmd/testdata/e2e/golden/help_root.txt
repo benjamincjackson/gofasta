@@ -17,11 +17,10 @@ Usage:
 
 Available Commands:
   closest     Find the closest sequence(s) to a query by genetic distance
-  completion  Generate the autocompletion script for the specified shell
   help        Help about any command
   licences    Print licence information
-  sam         Do things with sam files
-  updown      Get pseudo-tree-aware catchments for query sequences from alignments
+  sam         Convert SAM-format alignments to fasta format, and extract variants from SAM-format alignments
+  updown      Get pseudo-phylogenetic-tree-aware neighbours by genetic distance from alignments
   variants    Annotate mutations relative to a reference from a multiple sequence alignment in fasta format
 
 Flags:

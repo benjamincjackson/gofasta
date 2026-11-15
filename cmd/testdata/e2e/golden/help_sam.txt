@@ -1,16 +1,16 @@
 args: sam --help
 exit: 0
 --- stdout
-Do things with sam files
+Convert SAM-format alignments to fasta format, and extract variants from SAM-format alignments
 
 Usage:
   gofasta sam [flags]
   gofasta sam [command]
 
 Available Commands:
-  toMultiAlign Convert a SAM file to a multiple alignment in fasta format
-  toPairAlign  Convert a SAM file to pairwise alignments in fasta format
-  variants     Annotate mutations relative to a reference from an alignment in sam format
+  toMultiAlign Convert pairwise alignments in SAM format to a single alignment in fasta format
+  toPairAlign  Convert pairwise alignments in SAM format to fasta format
+  variants     Annotate mutations relative to a reference from alignments in SAM format
 
 Flags:
   -h, --help   help for sam
