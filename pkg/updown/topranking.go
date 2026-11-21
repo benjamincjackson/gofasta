@@ -190,6 +190,7 @@ func (s *pushSearch) add(target updownLine, direction, distance int) {
 
 func (s *pushSearch) finish() updownCatchmentStruct {
 	neighbours := updownCatchmentStruct{qname: s.q.id, qidx: s.q.idx, same: s.same}
+	byDistance(neighbours.same.catchment)
 	neighbours.up = pushCatchment2Catchment(s.up)
 	byDistance(neighbours.up.catchment)
 	neighbours.down = pushCatchment2Catchment(s.down)
