@@ -37,7 +37,7 @@ output, and will make up for a shortfall in one bin by increasing the count of t
 unless --no-fill.
 
 You can combine the two types of flag (--size-* and --dist-*), to return only the closest n sequences under a
-set distance (as long as you haven't also invoked --dist-push).
+set distance. --dist-push can't be combined with the --size-* flags.
 
 Usage:
   gofasta updown topranking [flags]

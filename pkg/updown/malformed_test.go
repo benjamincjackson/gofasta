@@ -14,7 +14,7 @@ func TestNegativeSizesAndDistancesAreErrors(t *testing.T) {
 	}
 }
 
-func TestPushWithBothSizesAndDistancesIsAnError(t *testing.T) {
+func TestPushWithSizesIsAnError(t *testing.T) {
 	// checkArgs(sizetotal, sizeup, sizedown, sizeside, sizesame, distall, distup, distdown, distside, distpush)
 	tests := []struct {
 		name    string
@@ -24,7 +24,10 @@ func TestPushWithBothSizesAndDistancesIsAnError(t *testing.T) {
 		{"--size-total, --dist-all, --dist-push", [10]int{10, 0, 0, 0, 0, 3, 0, 0, 0, 1}, true},
 		{"--size-up, --dist-up, --dist-push", [10]int{0, 2, 0, 0, 0, 0, 3, 0, 0, 1}, true},
 		{"--size-total, --size-same, --dist-side, --dist-push", [10]int{10, 0, 0, 0, 1, 0, 0, 0, 2, 2}, true},
+		{"--size-total, --dist-push", [10]int{10, 0, 0, 0, 0, 0, 0, 0, 0, 1}, true},
+		{"--size-side, --dist-push", [10]int{0, 0, 0, 3, 0, 0, 0, 0, 0, 2}, true},
 		{"--dist-up, --dist-push", [10]int{0, 0, 0, 0, 0, 0, 3, 0, 0, 1}, false},
+		{"--dist-push", [10]int{0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, false},
 		{"--size-total, --dist-all", [10]int{10, 0, 0, 0, 0, 3, 0, 0, 0, 0}, false},
 	}
 	for _, tc := range tests {

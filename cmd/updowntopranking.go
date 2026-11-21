@@ -76,7 +76,7 @@ output, and will make up for a shortfall in one bin by increasing the count of t
 unless --no-fill.
 
 You can combine the two types of flag (--size-* and --dist-*), to return only the closest n sequences under a
-set distance (as long as you haven't also invoked --dist-push).`,
+set distance. --dist-push can't be combined with the --size-* flags.`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return firstError(
 				intAtLeast(cmd, 0, "threads", "size-total", "size-up", "size-down", "size-side", "size-same",
