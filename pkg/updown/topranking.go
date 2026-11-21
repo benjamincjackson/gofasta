@@ -569,7 +569,8 @@ func countMerge(q, t updownLine) (table [4]int, distance int) {
 // sequence (table[3]), and the number of positions at which they differ (distance)
 func countSearch(q, t updownLine) (table [4]int, distance int) {
 
-	// d is an array of unique SNP positions to get distance from
+	// d is an array of unique SNP positions to get distance from (sorted before it is searched, as the
+	// line's SNPs need not be in position order)
 	d := make([]int, 0)
 
 	for i, qsnp := range q.snps {
@@ -585,6 +586,7 @@ func countSearch(q, t updownLine) (table [4]int, distance int) {
 			d = append(d, q.snpsPos[i])
 		}
 	}
+	slices.Sort(d)
 	d_plus := 0
 	for i, tsnp := range t.snps {
 		// is the site ambiguous in the query

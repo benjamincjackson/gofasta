@@ -46,7 +46,29 @@ func TestCountMergeMatchesCountSearch(t *testing.T) {
 		if table1 != table2 || d1 != d2 {
 			t.Fatalf("query %+v\ntarget %+v\ncountSearch %v %d, countMerge %v %d", q, tg, table1, d1, table2, d2)
 		}
+		// countSearch is for lines that are not in order: it must count the same
+		qs, ts := shuffledLine(rng, q), shuffledLine(rng, tg)
+		if table3, d3 := countSearch(qs, ts); table3 != table2 || d3 != d2 {
+			t.Fatalf("shuffled query %+v\nshuffled target %+v\ncountSearch %v %d, countMerge (in order) %v %d", qs, ts, table3, d3, table2, d2)
+		}
 	}
+}
+
+// shuffledLine is l with its SNPs, and its ambiguity tracts, in a random order
+func shuffledLine(rng *rand.Rand, l updownLine) updownLine {
+	s := l
+	s.snps, s.snpsPos = slices.Clone(l.snps), slices.Clone(l.snpsPos)
+	rng.Shuffle(len(s.snps), func(i, j int) {
+		s.snps[i], s.snps[j] = s.snps[j], s.snps[i]
+		s.snpsPos[i], s.snpsPos[j] = s.snpsPos[j], s.snpsPos[i]
+	})
+	s.ambs = slices.Clone(l.ambs)
+	rng.Shuffle(len(s.ambs)/2, func(i, j int) {
+		s.ambs[2*i], s.ambs[2*j] = s.ambs[2*j], s.ambs[2*i]
+		s.ambs[2*i+1], s.ambs[2*j+1] = s.ambs[2*j+1], s.ambs[2*i+1]
+	})
+	s.ordered = inOrder(s.snpsPos, s.ambs)
+	return s
 }
 
 func TestInOrder(t *testing.T) {
