@@ -395,7 +395,7 @@ or all or some of --dist-up, --dist-down, --dist-side
 or to --dist-push`)
 	}
 
-	if (sizetotal != 0 && !allZero([]int{sizeup, sizedown, sizeside, sizesame})) && !allZero([]int{distup, distdown, distside, distall}) && (distpush > 0) {
+	if (sizetotal != 0 || !allZero([]int{sizeup, sizedown, sizeside, sizesame})) && !allZero([]int{distup, distdown, distside, distall}) && (distpush > 0) {
 		return [4]int{}, [4]int{}, errors.New("you can't combine --dist* and --size* flags if you also invoke --dist-push")
 	}
 
