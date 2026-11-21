@@ -59,8 +59,10 @@ Use --dist-all, or --dist-up, --dist-down and --dist-side, to filter on SNP-dist
 long as you haven't also used any of the --size-* flags (--size-total, --size-up, --size-down, --size-side,
 --size-same), the program will return all the targets that are equal or less than the specified
 SNP-distance(s) away. If --dist-push is invoked with an integer (i) argument, the program will push the
-SNP-distance boundaries to cover all the sequences that are the closest i SNP-distances away, and then it will
-return all the neighbours at those distances in that bin.
+SNP-distance boundaries outwards, where needed, so that each bin covers at least the closest i SNP-distances at
+which it has neighbours, and then it will return all the neighbours within the boundary in that bin. Only the
+bins with a --dist-* value are pushed (up, down and side with --dist-all); without any --dist-* flags, all three
+are pushed from 0, so each has the neighbours at its closest i SNP-distances.
 
 If you provide a number to --size-total, the output will try to include this many closest sequences to the
 query, split evenly between the four bins. If one or more bins has a shortfall, the sizes of the other bins

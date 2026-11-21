@@ -165,39 +165,52 @@ func (s *catchmentSearch) finish() updownCatchmentStruct {
 	return s.neighbours
 }
 
-// pushSearch assigns targets to the bins by direction, keeping, for the up, down and side bins, all the
-// targets at the pushDist smallest snp distances found in that direction (so that a bin is not empty
-// just because nothing is within a fixed distance).
+// pushSearch assigns targets to the bins by direction, pushing the --dist-* boundaries of the up, down and
+// side bins outwards where needed: each bin that is pushed keeps all the targets within its boundary and, if
+// they are at fewer than pushDist snp distances, the targets at the next smallest distances in that direction
+// until it covers pushDist distances (so that a bin is not empty just because nothing is within its boundary).
+// The bins that are not pushed stay empty. The same bin keeps every target on the polytomy.
 type pushSearch struct {
-	q              updownLine
-	pushDist       int
-	same           updownCatchmentSubStruct // the sequences on the polytomy
-	up, down, side pushCatchmentSubStruct
+	q        updownLine
+	pushDist int
+	limit    [4]int                    // each bin's boundary, in direction order (same's is unused)
+	pushed   [4]bool                   // which of the up, down and side bins are pushed
+	same     updownCatchmentSubStruct  // the sequences on the polytomy
+	within   [4][]resultsStruct        // the targets within each bin's boundary
+	beyond   [4]pushCatchmentSubStruct // the targets at the pushDist smallest distances beyond each boundary
 }
 
 func (s *pushSearch) add(target updownLine, direction, distance int) {
 	rs := resultsStruct{tname: target.id, ambCount: target.ambCount, distance: distance}
-	if direction == 0 {
+	switch {
+	case direction == 0:
 		s.same.catchment = append(s.same.catchment, rs)
-		return
-	}
-	pC := [4]*pushCatchmentSubStruct{nil, &s.up, &s.down, &s.side}[direction]
-	// is the distance lower, or are there not enough distances yet
-	if distance <= pC.maxDist || pC.nDists < s.pushDist {
-		refactorPushCatchment(pC, rs, s.pushDist)
+	case !s.pushed[direction]:
+	case distance <= s.limit[direction]:
+		s.within[direction] = append(s.within[direction], rs)
+	default:
+		pC := &s.beyond[direction]
+		// is the distance lower, or are there not enough distances yet
+		if distance <= pC.maxDist || pC.nDists < s.pushDist {
+			refactorPushCatchment(pC, rs, s.pushDist)
+		}
 	}
 }
 
 func (s *pushSearch) finish() updownCatchmentStruct {
 	neighbours := updownCatchmentStruct{qname: s.q.id, qidx: s.q.idx, same: s.same}
 	byDistance(neighbours.same.catchment)
-	neighbours.up = pushCatchment2Catchment(s.up)
-	byDistance(neighbours.up.catchment)
-	neighbours.down = pushCatchment2Catchment(s.down)
-	byDistance(neighbours.down.catchment)
-	neighbours.side = pushCatchment2Catchment(s.side)
-	byDistance(neighbours.side.catchment)
-	// TO DO - balance the neighbours here if sizeArray is given? Would need a balance function specific to pushing
+	for direction, bin := range [4]*updownCatchmentSubStruct{nil, &neighbours.up, &neighbours.down, &neighbours.side} {
+		if bin == nil {
+			continue
+		}
+		c := s.within[direction]
+		if more := s.pushDist - countDistances(c); more > 0 {
+			c = append(c, closestDistances(s.beyond[direction], more)...)
+		}
+		byDistance(c)
+		bin.catchment = c
+	}
 	return neighbours
 }
 
@@ -266,9 +279,10 @@ func TopRanking(query, target, root io.Reader, out io.Writer, table bool,
 	}
 
 	searches := make([]search, len(queries))
+	pushLimit, pushed := pushBoundaries(distArray)
 	for i, q := range queries {
 		if distpush > 0 {
-			searches[i] = newPushSearch(q, distpush)
+			searches[i] = newPushSearch(q, distpush, pushLimit, pushed)
 		} else {
 			searches[i] = newCatchmentSearch(q, sizeArray, nofill, distArray)
 		}
@@ -426,14 +440,27 @@ func allZero(s []int) bool {
 	return true
 }
 
-func newPushSearch(q updownLine, pushDist int) *pushSearch {
-	return &pushSearch{
-		q:        q,
-		pushDist: pushDist,
-		up:       pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct)},
-		down:     pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct)},
-		side:     pushCatchmentSubStruct{catchmentMap: make(map[int][]resultsStruct)},
+// pushBoundaries returns, for --dist-push, the boundary each of the up, down and side bins is pushed outwards
+// from and which of them are pushed: with no --dist-* flags (distArray has no limits) all three, from 0;
+// otherwise those with a --dist-* value (all three with --dist-all), from that value
+func pushBoundaries(distArray [4]int) (limit [4]int, pushed [4]bool) {
+	for direction := 1; direction < 4; direction++ {
+		switch {
+		case distArray[direction] == math.MaxInt32:
+			pushed[direction] = true
+		case distArray[direction] > 0:
+			limit[direction], pushed[direction] = distArray[direction], true
+		}
 	}
+	return limit, pushed
+}
+
+func newPushSearch(q updownLine, pushDist int, limit [4]int, pushed [4]bool) *pushSearch {
+	s := &pushSearch{q: q, pushDist: pushDist, limit: limit, pushed: pushed}
+	for direction := range s.beyond {
+		s.beyond[direction].catchmentMap = make(map[int][]resultsStruct)
+	}
+	return s
 }
 
 func newCatchmentSearch(q updownLine, sizeArray [4]int, nofill bool, distArray [4]int) *catchmentSearch {
@@ -696,14 +723,28 @@ func balance(sizetotal int, sizeIdeal [4]int, sizeObserved [4]int, nofill bool) 
 	}
 }
 
-// pushCatchment2Catchment converts a pushCatchmentSubStruct to an updownCatchmentSubStruct (in no particular
-// order: see byDistance)
-func pushCatchment2Catchment(pC pushCatchmentSubStruct) updownCatchmentSubStruct {
-	var uC updownCatchmentSubStruct
-	for _, v := range pC.catchmentMap {
-		uC.catchment = append(uC.catchment, v...)
+// countDistances returns the number of different snp distances in a catchment
+func countDistances(c []resultsStruct) int {
+	seen := make(map[int]bool)
+	for _, rs := range c {
+		seen[rs.distance] = true
 	}
-	return uC
+	return len(seen)
+}
+
+// closestDistances returns the targets at the n smallest snp distances in pC (or at all of them, if it has
+// fewer), the distances in ascending order and each distance's targets in the order they were added
+func closestDistances(pC pushCatchmentSubStruct, n int) []resultsStruct {
+	distances := make([]int, 0, len(pC.catchmentMap))
+	for d := range pC.catchmentMap {
+		distances = append(distances, d)
+	}
+	slices.Sort(distances)
+	var c []resultsStruct
+	for _, d := range distances[:min(n, len(distances))] {
+		c = append(c, pC.catchmentMap[d]...)
+	}
+	return c
 }
 
 // writeUpdownTable writes the output in table format, including SNP-distances

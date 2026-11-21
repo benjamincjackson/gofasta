@@ -147,6 +147,8 @@ var e2eCases = []e2eCase{
 	{name: "updown_topranking_fasta", args: []string{"updown", "topranking", "-r", "ref.fasta", "--query", "query.fasta", "--target", "target.fasta", "--size-total", "4"}},
 	{name: "updown_topranking_size_override", args: []string{"updown", "topranking", "--query", "query.csv", "--target", "target.csv", "--size-total", "4", "--size-up", "1"}},
 	{name: "updown_topranking_dist_override", args: []string{"updown", "topranking", "--query", "query.csv", "--target", "target.csv", "--dist-all", "3", "--dist-up", "1"}},
+	{name: "updown_topranking_push", args: []string{"updown", "topranking", "--query", "query.csv", "--target", "target.csv", "--dist-push", "1", "--table"}},
+	{name: "updown_topranking_push_dist_up", args: []string{"updown", "topranking", "--query", "query.csv", "--target", "target.csv", "--dist-up", "3", "--dist-push", "2", "--table"}},
 	{name: "updown_topranking_table", args: []string{"updown", "topranking", "-r", "ref.fasta", "--query", "query.fasta", "--target", "target.fasta", "--size-total", "4", "--table"}},
 	{name: "updown_topranking_ignore", args: []string{"updown", "topranking", "-r", "ref.fasta", "--query", "query.fasta", "--target", "target.fasta", "--size-total", "4", "--ignore", "ignore.txt"}},
 	{name: "updown_topranking_ignore_crlf", args: []string{"updown", "topranking", "-r", "ref.fasta", "--query", "query.fasta", "--target", "target.fasta", "--size-total", "4", "--ignore", "ignore_crlf.txt"}},
